@@ -1,0 +1,16 @@
+# Clikd example configuration file
+# Save this as config.yaml or $HOME/.clikd/config.yaml
+
+# General configuration
+log_level: info  # Options: debug, info, warn, error, fatal
+log_format: text  # Options: text, json
+
+# API configuration (example)
+api:
+  endpoint: https://api.example.com
+  token: your-api-token-here
+
+# Add your custom configuration sections below
+# example:
+#   setting1: value1
+#   setting2: value2 
