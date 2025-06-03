@@ -1,0 +1,156 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# CLI Architecture for clikd
+
+This rule defines the fundamental architecture, structure, and standard practices for implementing subcommands and functionalities in the clikd CLI.
+
+## Directory Structure
+
+- **`cmd/clikd/`**: Contains only the main entry point (`main.go`) of the CLI
+  - Main task: Define root command, register subcommands, global flags, and configuration loading
+
+- **`pkg/commands/{command}/`**: Contains the CLI interface for each subcommand 
+  - Main task: Definition of Cobra commands, flags, and subcommands
+  - File `cmd.go`: Defines the main subcommand and exports `New{Command}Cmd()`
+  - Can contain additional files that define additional subcommands
+
+- **`pkg/internal/{module}/`**: Contains the actual implementation of the functionality
+  - Main task: Core logic, implemented independently of CLI aspects
+  - Can be divided into multiple files that implement different aspects of the functionality
+
+- **`pkg/config/`**: Common configuration logic for the entire CLI
+  - Main task: Viper configuration, loading of configuration files, environment variables
+
+- **`pkg/utils/`**: Common helper functions for the entire CLI
+  - Main task: Reusable functions such as logging, error handling, etc.
+
+## Standards for Command Implementation
+
+### 1. Adding New Commands
+
+```go
+// In pkg/commands/{command}/cmd.go
+package {command}
+
+import (
+    "github.com/spf13/cobra"
+    // Other necessary imports
+)
+
+// New{Command}Cmd creates a new command for {description}
+func New{Command}Cmd() *cobra.Command {
+    cmd := &cobra.Command{
+        Use:   "{command} [flags] [args]",
+        Short: "Brief description",
+        Long:  `Detailed description over multiple lines.`,
+        RunE: func(cmd *cobra.Command, args []string) error {
+            // Implementation or call to the actual functionality
+            return nil
+        },
+    }
+    
+    // Add flags
+    cmd.Flags().StringVarP(&variableName, "flag-name", "f", "default", "Description")
+    
+    // Add subcommands (optional)
+    cmd.AddCommand(newSubCommand())
+    
+    return cmd
+}
+```
+
+### 2. Registration in Root Command
+
+```go
+// In cmd/clikd/main.go
+import (
+    // Other imports
+    "{project}/pkg/commands/{command}"
+)
+
+func newRootCmd() *cobra.Command {
+    // Create root command
+    
+    // Add commands
+    rootCmd.AddCommand({command}.New{Command}Cmd())
+    
+    return rootCmd
+}
+```
+
+### 3. Implementation of Core Functionality
+
+```go
+// In pkg/internal/{module}/{file}.go
+package {module}
+
+// Implement functions, structures, and methods
+// These should be independent of the CLI interface
+```
+
+## Configuration Management
+
+### 1. Common Configuration
+
+- Use Viper for global configuration
+- Configuration values are loaded from the following sources (in order of priority):
+  1. Command line arguments
+  2. Environment variables (with prefix `CLIKD_`)
+  3. Configuration file (`$HOME/.clikd/config.yaml`)
+
+### 2. Subcommand-specific Configuration
+
+- Each subcommand can define its own configuration values
+- These should be stored under a dedicated key in the global configuration
+- Example:
+  ```yaml
+  # In $HOME/.clikd/config.yaml
+  log_level: info
+  
+  # Subcommand-specific configuration
+  changelog:
+    style: github
+    template: CHANGELOG.tpl.md
+  ```
+
+## Error Management and Logging
+
+- Use the common logger from `pkg/utils/logger.go`
+- Errors should be passed through to the Cobra command
+- Use context-related error messages with `fmt.Errorf("context: %w", err)`
+
+## Integration of External Commands
+
+When integrating external CLI tools as subcommands:
+
+1. Copy the core functionality into `pkg/internal/{module}/`
+2. Adapt the package names and import paths
+3. Create a wrapper interface in `pkg/commands/{command}/`
+4. Keep the original functionality, change only the interface
+
+## Best Practices
+
+- **✅ DO**: Maintain separation of CLI interface and core functionality
+- **✅ DO**: Use global flags for general options (e.g. `--verbose`, `--config`)
+- **✅ DO**: Provide helpful documentation and examples in `cmd.Long`
+- **✅ DO**: Provide support for environment variables
+
+- **❌ DON'T**: Implement business logic in `pkg/commands`
+- **❌ DON'T**: Create too many levels of subcommands (max. 2-3)
+- **❌ DON'T**: Use hardcoded paths or configuration values
+
+## Testability
+
+- Implement tests for core functionality in `pkg/internal/{module}/{file}_test.go`
+- For CLI tests, `github.com/spf13/cobra/command.SetArgs()` can be used
+
+## Compatibility When Integrating
+
+When integrating external CLI tools:
+- Maintain the original flag behavior
+- Document any changes to the original behavior
+- Ensure that all functions of the original tool are supported
+globs: cmd/**, pkg/**, internal/**
