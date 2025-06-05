@@ -71,13 +71,40 @@ func DefaultConfig() *Config {
 				ContextWindow:  8192,
 				StreamResponse: false,
 			},
+			"mistral-large": {
+				Provider:       ProviderMistral,
+				ModelID:        "mistral-large-latest",
+				MaxTokens:      1024,
+				Temperature:    0.7,
+				TopP:           0.9,
+				ContextWindow:  32768,
+				StreamResponse: false,
+			},
 			"gpt-3.5-turbo": {
 				Provider:       ProviderOpenAI,
 				ModelID:        "gpt-3.5-turbo",
 				MaxTokens:      1024,
 				Temperature:    0.7,
 				TopP:           0.9,
-				ContextWindow:  4096,
+				ContextWindow:  16385,
+				StreamResponse: false,
+			},
+			"gpt-4o": {
+				Provider:       ProviderOpenAI,
+				ModelID:        "gpt-4o",
+				MaxTokens:      1024,
+				Temperature:    0.7,
+				TopP:           0.9,
+				ContextWindow:  128000,
+				StreamResponse: false,
+			},
+			"gpt-4-turbo": {
+				Provider:       ProviderOpenAI,
+				ModelID:        "gpt-4-turbo-2024-04-09",
+				MaxTokens:      1024,
+				Temperature:    0.7,
+				TopP:           0.9,
+				ContextWindow:  128000,
 				StreamResponse: false,
 			},
 			"gpt-4": {
@@ -88,6 +115,46 @@ func DefaultConfig() *Config {
 				TopP:           0.9,
 				ContextWindow:  8192,
 				StreamResponse: false,
+			},
+			"claude-3-opus": {
+				Provider:       ProviderOpenAI, // Using OpenAI provider with Anthropic's API URL
+				ModelID:        "claude-3-opus-20240229",
+				MaxTokens:      1024,
+				Temperature:    0.7,
+				TopP:           0.9,
+				ContextWindow:  200000,
+				StreamResponse: false,
+				Endpoint:       "https://api.anthropic.com/v1/messages", // Will need special handling
+			},
+			"claude-3-sonnet": {
+				Provider:       ProviderOpenAI, // Using OpenAI provider with Anthropic's API URL
+				ModelID:        "claude-3-sonnet-20240229",
+				MaxTokens:      1024,
+				Temperature:    0.7,
+				TopP:           0.9,
+				ContextWindow:  200000,
+				StreamResponse: false,
+				Endpoint:       "https://api.anthropic.com/v1/messages", // Will need special handling
+			},
+			"claude-3-haiku": {
+				Provider:       ProviderOpenAI, // Using OpenAI provider with Anthropic's API URL
+				ModelID:        "claude-3-haiku-20240307",
+				MaxTokens:      1024,
+				Temperature:    0.7,
+				TopP:           0.9,
+				ContextWindow:  200000,
+				StreamResponse: false,
+				Endpoint:       "https://api.anthropic.com/v1/messages", // Will need special handling
+			},
+			"local-ollama": {
+				Provider:       ProviderLocal,
+				ModelID:        "llama3",
+				MaxTokens:      1024,
+				Temperature:    0.7,
+				TopP:           0.9,
+				ContextWindow:  8192,
+				StreamResponse: false,
+				Endpoint:       "http://localhost:11434/api",
 			},
 		},
 	}

@@ -56,15 +56,32 @@ Special Features:
   - Path Filtering: Filter commits by specific files or directories with --path.
   - Tag Filtering: Filter tags using regular expressions with --tag-filter-pattern.
   - Semver Sorting: Sort tags by semantic version instead of date with --sort=semver.
-  - AI Features: Enable AI-powered features with the global --ai flag or
-    fine-tune behavior with specific AI flags.
+  - AI Features: Enable or disable AI features via global configuration ('ai.enable=true').
+    The --ai flag can be used to override this setting for a single command.
+
+AI Configuration:
+  AI features can be configured in the global configuration file:
+  - Enable/disable AI: 'ai.enable=true/false'
+  - Set default model: 'ai.default_model=mistral-medium'
+  
+  For local projects, create a .env file with the required API keys.
+  For global usage, add API keys to the global configuration.
 
 Examples:
-  # Generate changelog for all tags to stdout
+  # Initialize interactive changelog configuration
+  clikd changelog --init
+
+  # Generate changelog for all tags to stdout (uses configuration setting for AI)
   clikd changelog
 
-  # Generate changelog to file
+  # Generate changelog to file (uses configuration setting for AI)
   clikd changelog -o CHANGELOG.md
+
+  # Override configuration and enable AI for this command only
+  clikd changelog --ai -o CHANGELOG.md
+
+  # Override configuration and disable AI for this command only
+  clikd changelog --ai=false -o CHANGELOG.md
 
   # Generate changelog for specific tag range
   clikd changelog v1.0.0..v2.0.0 -o CHANGELOG.md
@@ -73,29 +90,26 @@ Examples:
   clikd changelog --next-tag v2.0.0 -o CHANGELOG.md
 
   # Filter commits by path
-  clikd changelog --path="pkg/,cmd/" -o CHANGELOG.md
-
-  # Interactive initialization of config
-  clikd changelog --init
-  
-  # Enable AI features globally
-  clikd --ai changelog -o CHANGELOG.md
-  
-  # Override specific AI features when global AI is enabled
-  clikd --ai changelog --ai-enhance-messages=false -o CHANGELOG.md`,
+  clikd changelog --path="pkg/,cmd/" -o CHANGELOG.md`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Wenn --init Flag gesetzt ist, den Initializer ausführen
 			if initFlag {
 				return runInitializer()
 			}
 
+			logger := utils.NewLogger("info", true)
+
 			// KI-Funktionalität initialisieren
 			if err := InitializeAI(); err != nil {
-				utils.NewLogger("error", true).Error("Failed to initialize AI: %v", err)
+				logger.Error("Fehler bei der KI-Initialisierung: %v", err)
+				logger.Info("Changelog wird ohne KI-Funktionen generiert")
 				// Wir gehen weiter, auch wenn die KI-Initialisierung fehlschlägt
 			} else if changelog.IsAIEnabled() {
 				// Zeige KI-Status, wenn KI aktiviert ist
 				ShowAIStatus()
+			} else {
+				logger.Info("Changelog wird ohne KI-Funktionen generiert")
+				logger.Info("Um KI zu aktivieren, verwenden Sie --ai oder setzen Sie ai.enable=true in der Konfiguration")
 			}
 
 			// Sonst den normalen Changelog-Generator ausführen
@@ -169,6 +183,10 @@ func runInitializer() error {
 		// Standardwerte für Changelog anpassen
 		manager.SetConfigValue("changelog.style", "github")
 		manager.SetConfigValue("changelog.template", "templates/changelog.md")
+
+		// KI standardmäßig aktivieren
+		manager.SetConfigValue("ai.enable", "true")
+		manager.SetConfigValue("ai.default_model", "mistral-medium")
 
 		// Konfiguration speichern
 		if err := manager.SaveConfig(filepath.Join(clikdDir, "config.toml")); err != nil {

@@ -55,7 +55,10 @@ func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error)
 
 			// User declined to use global key
 			if provider.Required {
-				return "", fmt.Errorf("API key required. Please set %s in your .env file", provider.EnvVarNameShort)
+				errorMsg := fmt.Sprintf("API-Schlüssel für %s wird benötigt, wenn KI-Funktionen aktiviert sind.", provider.Name)
+				errorMsg += fmt.Sprintf("\nBitte fügen Sie den Schlüssel zur .env-Datei hinzu: %s=ihr_api_schlüssel", provider.EnvVarName)
+				errorMsg += fmt.Sprintf("\nOder deaktivieren Sie die KI-Funktionen durch Weglassen des --ai Flags.")
+				return "", fmt.Errorf("%s", errorMsg)
 			}
 			return "", nil
 		}
@@ -63,10 +66,20 @@ func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error)
 		// No key in .env and no global key
 		if provider.Required {
 			// Klare Anweisungen für das Hinzufügen eines API-Schlüssels
-			errMsg := fmt.Sprintf("API-Schlüssel für %s nicht gefunden. Sie können den Schlüssel auf folgende Weise hinzufügen:\n\n", provider.Name)
+			errMsg := fmt.Sprintf("API-Schlüssel für %s nicht gefunden. ", provider.Name)
+
+			if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
+				errMsg += "KI-Funktionen wurden explizit aktiviert (--ai), aber kein API-Schlüssel gefunden.\n\n"
+			}
+
+			errMsg += "Sie können den Schlüssel auf folgende Weise hinzufügen:\n\n"
 			errMsg += fmt.Sprintf("1. Erstellen Sie eine .env-Datei im Projektverzeichnis und fügen Sie hinzu:\n   %s=ihr_api_schlüssel\n\n", provider.EnvVarName)
 			errMsg += fmt.Sprintf("2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:\n   clikd config set %s ihr_api_schlüssel\n\n", provider.ConfigKey)
 			errMsg += fmt.Sprintf("Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s", getProviderURL(provider.Name))
+
+			if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
+				errMsg += fmt.Sprintf("\n\nAlternativ können Sie die KI-Funktionen deaktivieren mit:\n  clikd config set ai.enable false")
+			}
 
 			return "", fmt.Errorf("%s", errMsg)
 		}
@@ -82,9 +95,19 @@ func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error)
 	// No global key either
 	if provider.Required {
 		// Klare Anweisungen für das Hinzufügen eines API-Schlüssels zur globalen Konfiguration
-		errMsg := fmt.Sprintf("API-Schlüssel für %s nicht gefunden. Sie können den Schlüssel zu Ihrer globalen Konfiguration hinzufügen:\n\n", provider.Name)
+		errMsg := fmt.Sprintf("API-Schlüssel für %s nicht gefunden. ", provider.Name)
+
+		if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
+			errMsg += "KI-Funktionen wurden explizit aktiviert (--ai), aber kein API-Schlüssel gefunden.\n\n"
+		}
+
+		errMsg += fmt.Sprintf("Sie können den Schlüssel zu Ihrer globalen Konfiguration hinzufügen:\n\n")
 		errMsg += fmt.Sprintf("  clikd config set %s ihr_api_schlüssel\n\n", provider.ConfigKey)
 		errMsg += fmt.Sprintf("Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s", getProviderURL(provider.Name))
+
+		if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
+			errMsg += fmt.Sprintf("\n\nAlternativ können Sie die KI-Funktionen deaktivieren mit:\n  clikd config set ai.enable false")
+		}
 
 		return "", fmt.Errorf("%s", errMsg)
 	}

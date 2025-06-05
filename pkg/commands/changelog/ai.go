@@ -56,32 +56,50 @@ func InitializeAI() error {
 	// Prüfe auf globale KI-Aktivierung aus der Konfiguration
 	globalAIEnabled := cfg.AI.Enable
 
-	// Wenn keine der AI-Flags aktiviert wurde, prüfe globale Einstellung
-	if !aiEnableFlag && !aiEnhanceMessagesFlag && !aiGenerateSummariesFlag &&
-		!aiCategorizeCommitsFlag && !aiSuggestVersionBumpFlag {
+	// Standardwerte aus der Konfiguration verwenden
+	aiEnableFlag = globalAIEnabled
 
-		// Checke Umgebungsvariable
-		aiEnv := os.Getenv("CLIKD_CHANGELOG_AI_ENABLED")
+	// Check if the flag was explicitly set (override the default)
+	flagExplicitlySet := false
+	// Prüfe, ob das Flag explizit gesetzt wurde (funktioniert nur während der Ausführung des Befehls)
+	// Diese Zeile ist hier hauptsächlich als Platzhalter für die Logik
+	// In der Praxis wird das Flag über den cobra.Command-Parameter übergeben
+	// oder über eine globale Variable geprüft
 
-		// Wenn weder Flag noch Umgebungsvariable gesetzt ist, verwende die globale Einstellung
-		if aiEnv != "true" && aiEnv != "1" && aiEnv != "yes" && !globalAIEnabled {
-			return nil
-		}
-
-		// Wenn nur die globale Einstellung oder Umgebungsvariable gesetzt ist, aktiviere alle Funktionen
-		aiEnableFlag = true
-		// In unserer neuen Struktur gibt es keine spezifischen Einstellungen für diese Features,
-		// daher setzen wir sie standardmäßig auf true
-		aiEnhanceMessagesFlag = true
-		aiGenerateSummariesFlag = true
-		aiCategorizeCommitsFlag = true
-		aiSuggestVersionBumpFlag = true
+	// Wenn AI-Flag explizit gesetzt wurde, verwende diesen Wert anstelle der Konfiguration
+	if flagExplicitlySet {
+		// Flags haben Vorrang vor der Konfiguration
+		logger.Debug("AI flag wurde explizit gesetzt, überschreibe Konfiguration")
+	} else {
+		// Wenn keine Flag gesetzt wurde, verwende die Konfiguration
+		logger.Debug("Verwende KI-Einstellungen aus der Konfiguration: %v", globalAIEnabled)
 	}
 
-	// Wenn einzelne Funktionen aktiviert sind, aber nicht die Haupt-Flag, aktiviere diese
-	if (aiEnhanceMessagesFlag || aiGenerateSummariesFlag ||
-		aiCategorizeCommitsFlag || aiSuggestVersionBumpFlag) && !aiEnableFlag {
-		aiEnableFlag = true
+	// Prüfe auf AI-Flags für spezifische Funktionen
+	if !aiEnhanceMessagesFlag && !aiGenerateSummariesFlag &&
+		!aiCategorizeCommitsFlag && !aiSuggestVersionBumpFlag {
+		// Wenn keine spezifischen Flags gesetzt wurden, setze alle entsprechend der globalen Einstellung
+		aiEnhanceMessagesFlag = aiEnableFlag
+		aiGenerateSummariesFlag = aiEnableFlag
+		aiCategorizeCommitsFlag = aiEnableFlag
+		aiSuggestVersionBumpFlag = aiEnableFlag
+	} else {
+		// Wenn mindestens ein Feature-Flag gesetzt wurde, stelle sicher, dass die Haupt-Flag aktiviert ist
+		if !aiEnableFlag && (aiEnhanceMessagesFlag || aiGenerateSummariesFlag ||
+			aiCategorizeCommitsFlag || aiSuggestVersionBumpFlag) {
+			aiEnableFlag = true
+		}
+	}
+
+	// Wenn KI deaktiviert ist, brechen wir hier ab
+	if !aiEnableFlag {
+		return nil
+	}
+
+	// Setze eine Umgebungsvariable, um in GetAPIKey zu zeigen, dass KI explizit aktiviert wurde
+	// Dies führt zu besseren Fehlermeldungen, wenn API-Keys fehlen
+	if aiEnableFlag {
+		os.Setenv("CLIKD_AI_EXPLICITLY_ENABLED", "true")
 	}
 
 	// Verwende das Standard-Modell aus der Konfiguration, wenn kein spezifisches angegeben wurde
@@ -89,13 +107,55 @@ func InitializeAI() error {
 		aiModelFlag = cfg.AI.DefaultModel
 	}
 
-	logger.Info("Initializing AI subsystem with model: %s", aiModelFlag)
+	logger.Info("Initialisiere KI-Subsystem mit Modell: %s", aiModelFlag)
 
 	// Hole die Modell-Konfiguration
 	var modelConfig config.ModelConfig
 	if cfg.AI.Models != nil {
 		if model, ok := cfg.AI.Models[aiModelFlag]; ok {
 			modelConfig = model
+		}
+	}
+
+	// Prüfe, ob die benötigten API-Keys vorhanden sind
+	localConfigExists := utils.IsLocalConfigPresent()
+	var providerInfo utils.ProviderKeyInfo
+
+	switch modelConfig.Provider {
+	case "mistral":
+		providerInfo = utils.MistralProvider
+	case "openai":
+		providerInfo = utils.OpenAIProvider
+	case "azure-openai":
+		providerInfo = utils.ProviderKeyInfo{
+			Name:            "Azure OpenAI",
+			ConfigKey:       "ai.models.azure-openai.api_key",
+			EnvVarName:      "CLIKD_AZURE_OPENAI_API_KEY",
+			EnvVarNameShort: "AZURE_OPENAI_API_KEY",
+			Required:        true,
+		}
+	}
+
+	// API-Key benötigt und prüfen
+	if modelConfig.Provider != "local" {
+		providerInfo.Required = true
+		_, err := utils.GetAPIKey(providerInfo, localConfigExists)
+		if err != nil {
+			// Ausführliche Warnung, wenn KI explizit aktiviert wurde, aber kein API-Key vorhanden ist
+			logger.Error("KI ist aktiviert, aber der API-Key konnte nicht geladen werden.")
+			logger.Error("Der Changelog wird ohne KI-Funktionen generiert.")
+			logger.Error("%v", err)
+			// Deaktiviere KI-Funktionalität
+			aiEnableFlag = false
+			aiEnhanceMessagesFlag = false
+			aiGenerateSummariesFlag = false
+			aiCategorizeCommitsFlag = false
+			aiSuggestVersionBumpFlag = false
+
+			// Umgebungsvariable zurücksetzen
+			os.Unsetenv("CLIKD_AI_EXPLICITLY_ENABLED")
+
+			return nil
 		}
 	}
 
@@ -115,43 +175,63 @@ func ShowAIStatus() {
 	logger := utils.NewLogger("info", true)
 
 	if changelog.IsAIEnabled() {
-		logger.Info("AI functionality is enabled")
+		logger.Info("KI-Funktionalität ist aktiviert")
 
 		// Quelle der Aktivierung anzeigen
 		if aiEnableFlag {
-			logger.Info("AI enabled via command flag")
-		} else {
-			// Prüfen, ob über globale Einstellung aktiviert
+			// Prüfen, ob über Flag, Umgebungsvariable oder Konfiguration aktiviert
 			cfg, err := config.Get()
-			if err == nil && cfg.AI.Enable {
-				logger.Info("AI enabled via global configuration")
+			if err == nil && !cfg.AI.Enable && aiEnableFlag {
+				logger.Info("KI über Befehlsflag aktiviert (überschreibt Konfiguration)")
+			} else if err == nil && cfg.AI.Enable {
+				logger.Info("KI über globale Konfiguration aktiviert")
 			} else {
-				logger.Info("AI enabled via environment variable")
+				logger.Info("KI über Umgebungsvariable aktiviert")
 			}
 		}
 
-		if aiModelFlag != "" {
-			logger.Info("Using AI model: %s", aiModelFlag)
-		} else {
-			logger.Info("Using default AI model from configuration")
+		// Modell-Informationen anzeigen
+		cfg, err := config.Get()
+		if err == nil {
+			modelName := aiModelFlag
+			if modelName == "" {
+				modelName = cfg.AI.DefaultModel
+			}
+
+			logger.Info("Ausgewähltes KI-Modell: %s", modelName)
+
+			// Zeige Modell-Details, wenn verfügbar
+			if model, ok := cfg.AI.Models[modelName]; ok {
+				logger.Info("  Provider: %s", model.Provider)
+				logger.Info("  Modell-ID: %s", model.ModelID)
+				logger.Info("  Max Tokens: %d", model.MaxTokens)
+				logger.Info("  Context Window: %d Tokens", model.ContextWindow)
+			}
 		}
 
 		// Zeige aktivierte Funktionen
-		logger.Info("Enabled AI features:")
+		logger.Info("Aktivierte KI-Funktionen:")
 		if aiEnhanceMessagesFlag {
-			logger.Info("- Commit message enhancement")
+			logger.Info("- Commit-Nachrichten verbessern")
 		}
 		if aiGenerateSummariesFlag {
-			logger.Info("- Summary generation")
+			logger.Info("- Zusammenfassungen generieren")
 		}
 		if aiCategorizeCommitsFlag {
-			logger.Info("- Commit categorization")
+			logger.Info("- Commits kategorisieren")
 		}
 		if aiSuggestVersionBumpFlag {
-			logger.Info("- Version bump suggestion")
+			logger.Info("- Versionsupdate vorschlagen")
+		}
+
+		// Hinweis zur API-Key-Quelle
+		if utils.IsLocalConfigPresent() {
+			logger.Info("API-Schlüssel wird aus der lokalen .env-Datei geladen")
+		} else {
+			logger.Info("API-Schlüssel wird aus der globalen Konfiguration geladen")
 		}
 	} else {
-		logger.Info("AI functionality is disabled")
-		logger.Info("To enable AI features, use the global --ai flag or set ai.enable=true in config")
+		logger.Info("KI-Funktionalität ist deaktiviert")
+		logger.Info("Um KI-Funktionen zu aktivieren, setzen Sie ai.enable=true in der Konfiguration oder verwenden Sie das --ai Flag")
 	}
 }
