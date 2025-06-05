@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-clikd
+/clikd
 example
 
 # Test binary, built with `go test -c`
@@ -26,7 +26,9 @@ go.work
 *.swo
 
 # Config files
-config.yaml
+/config.toml
+# But keep example files
+!config.example.toml
 
 # OS specific files
 .DS_Store
@@ -56,3 +58,7 @@ node_modules/
 # Task files
 tasks.json
 tasks/ 
+
+# Allow clikd/ directory but ignore specific files
+!/clikd/
+/clikd/cache/ 

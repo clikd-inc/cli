@@ -2,14 +2,14 @@ package changelog
 
 import (
 	"os"
+	"path/filepath"
 
+	"clikd/pkg/config"
 	"clikd/pkg/internal/changelog"
 	"clikd/pkg/internal/changelog/initializer"
 	"clikd/pkg/utils"
 
 	"github.com/spf13/cobra"
-
-	"github.com/tsuyoshiwada/go-gitcmd"
 )
 
 // Variablen für Flags
@@ -110,7 +110,7 @@ Examples:
 	// Flags hinzufügen
 	cmd.Flags().BoolVar(&initFlag, "init", false, "generate the git-chglog configuration file in interactive")
 	cmd.Flags().StringSliceVar(&pathsFlag, "path", []string{}, "Filter commits by path(s). Can use multiple times.")
-	cmd.Flags().StringVarP(&configFlag, "config", "c", ".chglog/config.yml", "specifies a different configuration file to pick up")
+	cmd.Flags().StringVarP(&configFlag, "config", "c", "clikd/config.toml", "specifies a different configuration file to pick up")
 	cmd.Flags().StringVarP(&templateFlag, "template", "t", "", "specifies a template file to pick up. If not specified, use the one in config")
 	cmd.Flags().StringVar(&repositoryURLFlag, "repository-url", "", "specifies git repo URL. If not specified, use 'repository_url' in config")
 	cmd.Flags().StringVarP(&outputFlag, "output", "o", "", "output path and filename for the changelogs. If not specified, output to stdout")
@@ -135,29 +135,101 @@ Examples:
 func runInitializer() error {
 	logger := utils.NewLogger("info", true)
 
+	// Den `init` Befehl aufrufen, um die Konfiguration zu erstellen
+	logger.Info("Initializing changelog configuration...")
+
+	// Prüfen, ob bereits eine clikd/config.toml Datei existiert
 	wd, err := os.Getwd()
 	if err != nil {
 		logger.Error("Failed to get working directory: %v", err)
 		return err
 	}
 
-	initCtx := &initializer.InitContext{
-		WorkingDir: wd,
-		Stdout:     os.Stdout,
-		Stderr:     os.Stderr,
-	}
+	// Konfiguration initialisieren
+	initCmd := cobra.Command{}
+	initCmd.SetOut(os.Stdout)
+	initCmd.SetErr(os.Stderr)
 
-	fs := initializer.NewFileSystem()
-	gitClient := gitcmd.New(&gitcmd.Config{Bin: "git"})
-	questioner := initializer.NewQuestioner(gitClient, fs)
-	configBuilder := initializer.NewConfigBuilder()
-	templateBuilder := initializer.NewTemplateBuilderFactory()
+	// `init` ausführen, aber nur wenn noch keine Konfiguration existiert
+	clikdDir := filepath.Join(wd, "clikd")
+	if _, err := os.Stat(clikdDir); os.IsNotExist(err) {
+		logger.Info("Creating clikd configuration directory...")
 
-	init := initializer.NewInitializer(initCtx, fs, questioner, configBuilder, templateBuilder)
-	exitCode := init.Run()
+		// Verzeichnisstruktur erstellen
+		if err := os.MkdirAll(filepath.Join(clikdDir, "templates"), 0755); err != nil {
+			logger.Error("Failed to create directories: %v", err)
+			return err
+		}
 
-	if exitCode != initializer.ExitCodeOK {
-		return changelog.ErrNotSpecifiedCLIContext
+		// Standardkonfiguration erstellen
+		manager := config.NewManager()
+		manager.InitConfig("")
+
+		// Standardwerte für Changelog anpassen
+		manager.SetConfigValue("changelog.style", "github")
+		manager.SetConfigValue("changelog.template", "templates/changelog.md")
+
+		// Konfiguration speichern
+		if err := manager.SaveConfig(filepath.Join(clikdDir, "config.toml")); err != nil {
+			logger.Error("Failed to save configuration: %v", err)
+			return err
+		}
+
+		// Changelog-Template erstellen
+		templatePath := filepath.Join(clikdDir, "templates", "changelog.md")
+		templateContent := `# {{ .Info.Title }}
+
+All notable changes to this project will be documented in this file.
+
+{{ if .Versions -}}
+{{ range .Versions }}
+<a name="{{ .Tag.Name }}"></a>
+## {{ if .Tag.Previous }}[{{ .Tag.Name }}]({{ $.Info.RepositoryURL }}/compare/{{ .Tag.Previous.Name }}...{{ .Tag.Name }}){{ else }}{{ .Tag.Name }}{{ end }} ({{ datetime "2006-01-02" .Tag.Date }})
+
+{{ range .CommitGroups -}}
+### {{ .Title }}
+
+{{ range .Commits -}}
+* {{ if .Scope }}**{{ .Scope }}:** {{ end }}{{ .Subject }}
+{{ end }}
+{{ end -}}
+
+{{- if .RevertCommits -}}
+### Reverts
+
+{{ range .RevertCommits -}}
+* {{ .Revert.Header }}
+{{ end }}
+{{ end -}}
+
+{{- if .MergeCommits -}}
+### Merges
+
+{{ range .MergeCommits -}}
+* {{ .Header }}
+{{ end }}
+{{ end -}}
+
+{{- if .NoteGroups -}}
+{{ range .NoteGroups -}}
+### {{ .Title }}
+
+{{ range .Notes }}
+{{ .Body }}
+{{ end }}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{ end -}}`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			logger.Error("Failed to create changelog template: %v", err)
+			return err
+		}
+
+		logger.Info("Changelog configuration initialized in %s", clikdDir)
+	} else {
+		logger.Info("Changelog configuration already exists in %s", clikdDir)
 	}
 
 	return nil
@@ -174,7 +246,44 @@ func runGenerator(query string) error {
 		return err
 	}
 
+	// Zuerst prüfen, ob die neue TOML-Konfiguration existiert
 	configPath := resolveConfigPath(configFlag)
+	templatePath := ""
+
+	// Laden der clikd-Konfiguration, um die Template-Einstellungen zu erhalten
+	if _, err := os.Stat(configPath); err == nil {
+		// Die TOML-Konfiguration existiert
+		logger.Debug("Found configuration at %s", configPath)
+
+		// Global configuration manager
+		cfg, err := config.Get()
+		if err != nil {
+			logger.Debug("Error getting config: %v", err)
+		} else {
+			// Get template path from clikd config
+			tmplRelPath := cfg.Changelog.Template
+
+			// Handle both absolute and relative paths
+			if filepath.IsAbs(tmplRelPath) {
+				templatePath = tmplRelPath
+			} else {
+				// If relative path, it's relative to the clikd directory
+				clikdDir := filepath.Dir(configPath)
+				templatePath = filepath.Join(clikdDir, tmplRelPath)
+			}
+
+			logger.Debug("Using template from config: %s", templatePath)
+
+			// Override template flag if it was not explicitly set
+			if templateFlag == "" {
+				templateFlag = templatePath
+			}
+		}
+	} else {
+		// Fallback zur alten YAML-Konfiguration, wenn die TOML-Konfiguration nicht existiert
+		logger.Debug("Configuration not found at %s, falling back to YAML config", configPath)
+		configPath = filepath.Join(wd, ".chglog", "config.yml")
+	}
 
 	// CLI-Kontext erstellen
 	ctx := &initializer.CLIContext{
@@ -228,3 +337,20 @@ func runGenerator(query string) error {
 
 	return nil
 }
+
+// Die resolveConfigPath-Funktion wird nicht mehr benötigt, da sie bereits in helpers.go definiert ist
+// resolveConfigPath löst den Pfad zur Konfigurationsdatei auf
+// func resolveConfigPath(configPath string) string {
+// 	// Wenn der Pfad absolut ist, direkt zurückgeben
+// 	if filepath.IsAbs(configPath) {
+// 		return configPath
+// 	}
+//
+// 	// Relativen Pfad auflösen
+// 	wd, err := os.Getwd()
+// 	if err != nil {
+// 		return configPath
+// 	}
+//
+// 	return filepath.Join(wd, configPath)
+// }
