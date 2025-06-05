@@ -12,6 +12,7 @@ Die Changelog-Integration ermöglicht es, automatisch CHANGELOG.md-Dateien aus G
 - Sortierung nach semantischer Version oder Datum
 - Unterstützung für Next-Tag-Generierung
 - Anpassbare Ausgabe mit Emoji und Farben
+- KI-Integration für verbesserte Commit-Kategorisierung und Zusammenfassungen
 
 ## Installation
 
@@ -86,6 +87,12 @@ clikd changelog v1.0.0..
 | `--no-color` | Keine Farben in der Ausgabe verwenden |
 | `--silent` | Keine Warnungen oder Informationen ausgeben |
 | `--verbose` | Ausführliche Logging-Informationen ausgeben |
+| `--ai` | KI-Funktionen aktivieren |
+| `--ai-model` | Spezifisches KI-Modell verwenden (z.B. `gpt-4`, `mistral-medium`) |
+| `--ai-enhance-messages` | Commit-Nachrichten mit KI verbessern |
+| `--ai-categorize-commits` | Commits mit KI kategorisieren |
+| `--ai-generate-summaries` | Zusammenfassungen für Änderungen generieren |
+| `--ai-suggest-version` | Versionsupgrade mit KI vorschlagen (Major, Minor, Patch) |
 
 ## Jira-Integration
 
@@ -172,4 +179,80 @@ export JIRA_URL="https://your-jira-instance.atlassian.net"
 export JIRA_USERNAME="your-username"
 export JIRA_TOKEN="your-api-token"
 clikd changelog -o CHANGELOG.md
+```
+
+## KI-Integration
+
+Die KI-Integration ermöglicht es, mit Hilfe von Sprachmodellen wie OpenAI's GPT-4 oder Mistral-AI, die Qualität und Konsistenz von Changelogs zu verbessern.
+
+### Aktivierung
+
+Die KI-Funktionalität kann über Kommandozeilen-Flags aktiviert werden:
+
+```bash
+clikd changelog --ai -o CHANGELOG.md
+```
+
+Oder durch Aktivierung spezifischer Funktionen:
+
+```bash
+clikd changelog --ai-enhance-messages --ai-categorize-commits -o CHANGELOG.md
+```
+
+### Konfiguration
+
+Die KI-Konfiguration kann in einer YAML-Datei gespeichert werden (standardmäßig `.taskmasterconfig.yaml`):
+
+```yaml
+ai:
+  enable_ai: true
+  default_provider: "mistral"
+  default_model: "mistral-medium"
+  
+  # Modellkonfigurationen
+  models:
+    mistral-medium:
+      provider: "mistral"
+      model_id: "mistral-medium"
+      max_tokens: 1024
+      temperature: 0.7
+    
+    gpt-4:
+      provider: "openai"
+      model_id: "gpt-4"
+      max_tokens: 1024
+      temperature: 0.7
+```
+
+Die API-Schlüssel können über Umgebungsvariablen gesetzt werden:
+
+```bash
+export MISTRAL_API_KEY="your-mistral-api-key"
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+### Verfügbare KI-Funktionen
+
+Die KI-Integration bietet folgende Funktionalitäten:
+
+1. **Commit-Nachrichtenverbesserung**: Macht Commit-Nachrichten klarer und konsistenter
+2. **Commit-Kategorisierung**: Ordnet Commits automatisch in die richtigen Kategorien ein
+3. **Zusammenfassungsgenerierung**: Erstellt übersichtliche Zusammenfassungen für Versionen
+4. **Versionsvorschläge**: Schlägt basierend auf den Änderungen ein Versionsupgrade vor (Major, Minor, Patch)
+
+### Unterstützte KI-Provider
+
+- **Mistral AI**: Standard-Provider mit guter Balance aus Leistung und Kosten
+- **OpenAI**: Hohe Qualität für anspruchsvollere Aufgaben
+- **Azure OpenAI**: Für Unternehmensumgebungen mit Azure-Integration
+- **Lokale Modelle**: Unterstützung für Ollama und andere lokale LLM-Server
+
+### Beispiel
+
+```bash
+# Mit Mistral AI für Commit-Kategorisierung und Zusammenfassungen
+clikd changelog --ai --ai-model mistral-medium --ai-categorize-commits --ai-generate-summaries -o CHANGELOG.md
+
+# Mit OpenAI für alle KI-Funktionen
+clikd changelog --ai --ai-model gpt-4 -o CHANGELOG.md
 ``` 

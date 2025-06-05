@@ -21,6 +21,16 @@ type Config struct {
 		Token    string `mapstructure:"token"`
 	} `mapstructure:"api"`
 
+	// AI configuration
+	AI struct {
+		Enabled            bool   `mapstructure:"enabled"`
+		DefaultModel       string `mapstructure:"default_model"`
+		EnhanceMessages    bool   `mapstructure:"enhance_messages"`
+		GenerateSummaries  bool   `mapstructure:"generate_summaries"`
+		CategorizeCommits  bool   `mapstructure:"categorize_commits"`
+		SuggestVersionBump bool   `mapstructure:"suggest_version_bump"`
+	} `mapstructure:"ai"`
+
 	// Other configuration sections can be added here
 }
 
@@ -73,6 +83,14 @@ func setDefaults() {
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("log_format", "text")
 	viper.SetDefault("api.endpoint", "https://api.example.com")
+
+	// AI defaults
+	viper.SetDefault("ai.enabled", false)
+	viper.SetDefault("ai.default_model", "mistral-medium")
+	viper.SetDefault("ai.enhance_messages", true)
+	viper.SetDefault("ai.generate_summaries", true)
+	viper.SetDefault("ai.categorize_commits", true)
+	viper.SetDefault("ai.suggest_version_bump", true)
 }
 
 // GetConfigFilePath returns the path to the config file that was used

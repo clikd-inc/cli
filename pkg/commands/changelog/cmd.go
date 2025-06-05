@@ -30,6 +30,7 @@ var (
 	jiraTokenFlag        string
 	sortFlag             string
 	pathsFlag            []string
+	// AI-Flags für bestimmte Funktionen bleiben erhalten für fine-grained control
 )
 
 // NewChangelogCmd erstellt ein neues Changelog-Kommando
@@ -54,6 +55,8 @@ Special Features:
   - Path Filtering: Filter commits by specific files or directories with --path.
   - Tag Filtering: Filter tags using regular expressions with --tag-filter-pattern.
   - Semver Sorting: Sort tags by semantic version instead of date with --sort=semver.
+  - AI Features: Enable AI-powered features with the global --ai flag or
+    fine-tune behavior with specific AI flags.
 
 Examples:
   # Generate changelog for all tags to stdout
@@ -72,11 +75,26 @@ Examples:
   clikd changelog --path="pkg/,cmd/" -o CHANGELOG.md
 
   # Interactive initialization of config
-  clikd changelog --init`,
+  clikd changelog --init
+  
+  # Enable AI features globally
+  clikd --ai changelog -o CHANGELOG.md
+  
+  # Override specific AI features when global AI is enabled
+  clikd --ai changelog --ai-enhance-messages=false -o CHANGELOG.md`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Wenn --init Flag gesetzt ist, den Initializer ausführen
 			if initFlag {
 				return runInitializer()
+			}
+
+			// KI-Funktionalität initialisieren
+			if err := InitializeAI(); err != nil {
+				utils.NewLogger("error", true).Error("Failed to initialize AI: %v", err)
+				// Wir gehen weiter, auch wenn die KI-Initialisierung fehlschlägt
+			} else if changelog.IsAIEnabled() {
+				// Zeige KI-Status, wenn KI aktiviert ist
+				ShowAIStatus()
 			}
 
 			// Sonst den normalen Changelog-Generator ausführen
@@ -106,6 +124,9 @@ Examples:
 	cmd.Flags().StringVar(&jiraUsernameFlag, "jira-username", "", "Jira username")
 	cmd.Flags().StringVar(&jiraTokenFlag, "jira-token", "", "Jira token")
 	cmd.Flags().StringVar(&sortFlag, "sort", "date", "Specify how to sort tags; currently supports \"date\" or by \"semver\"")
+
+	// KI-bezogene Flags hinzufügen (für fine-grained control)
+	AddAIFlags(cmd)
 
 	return cmd
 }
