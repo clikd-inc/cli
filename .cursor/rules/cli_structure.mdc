@@ -5,31 +5,31 @@ alwaysApply: true
 ---
 # CLI Architecture for clikd
 
-This rule defines the fundamental architecture, structure, and standard practices for implementing subcommands and functionalities in the clikd CLI.
+Diese Regel definiert die grundlegende Architektur, Struktur und Standardpraktiken für die Implementierung von Unterbefehlen und Funktionalitäten in der clikd CLI.
 
 ## Directory Structure
 
-- **`cmd/clikd/`**: Contains only the main entry point (`main.go`) of the CLI
-  - Main task: Define root command, register subcommands, global flags, and configuration loading
+- **`cmd/clikd/`**: Enthält nur den Haupteintrittspunkt (`main.go`) der CLI
+  - Hauptaufgabe: Root-Befehl definieren, Unterbefehle registrieren, globale Flags und Konfiguration laden
 
-- **`pkg/commands/{command}/`**: Contains the CLI interface for each subcommand 
-  - Main task: Definition of Cobra commands, flags, and subcommands
-  - File `cmd.go`: Defines the main subcommand and exports `New{Command}Cmd()`
-  - Can contain additional files that define additional subcommands
+- **`pkg/commands/{command}/`**: Enthält die CLI-Schnittstelle für jeden Unterbefehl 
+  - Hauptaufgabe: Definition von Cobra-Befehlen, Flags und Unterbefehlen
+  - Datei `cmd.go`: Definiert den Hauptunterbefehl und exportiert `New{Command}Cmd()`
+  - Kann zusätzliche Dateien enthalten, die weitere Unterbefehle definieren
 
-- **`pkg/internal/{module}/`**: Contains the actual implementation of the functionality
-  - Main task: Core logic, implemented independently of CLI aspects
-  - Can be divided into multiple files that implement different aspects of the functionality
+- **`pkg/internal/{module}/`**: Enthält die eigentliche Implementierung der Funktionalität
+  - Hauptaufgabe: Kernlogik, unabhängig von CLI-Aspekten implementiert
+  - Kann in mehrere Dateien aufgeteilt werden, die verschiedene Aspekte der Funktionalität implementieren
 
-- **`pkg/config/`**: Common configuration logic for the entire CLI
-  - Main task: Viper configuration, loading of configuration files, environment variables
+- **`pkg/config/`**: Gemeinsame Konfigurationslogik für die gesamte CLI
+  - Hauptaufgabe: Viper-Konfiguration, Laden von Konfigurationsdateien, Umgebungsvariablen
 
-- **`pkg/utils/`**: Common helper functions for the entire CLI
-  - Main task: Reusable functions such as logging, error handling, etc.
+- **`pkg/utils/`**: Gemeinsame Hilfsfunktionen für die gesamte CLI
+  - Hauptaufgabe: Wiederverwendbare Funktionen wie Logging, Fehlerbehandlung, etc.
 
-## Standards for Command Implementation
+## Standards für die Befehlsimplementierung
 
-### 1. Adding New Commands
+### 1. Hinzufügen neuer Befehle
 
 ```go
 // In pkg/commands/{command}/cmd.go
@@ -37,120 +37,189 @@ package {command}
 
 import (
     "github.com/spf13/cobra"
-    // Other necessary imports
+    // Andere notwendige Imports
 )
 
-// New{Command}Cmd creates a new command for {description}
+// New{Command}Cmd erstellt einen neuen Befehl für {Beschreibung}
 func New{Command}Cmd() *cobra.Command {
     cmd := &cobra.Command{
         Use:   "{command} [flags] [args]",
-        Short: "Brief description",
-        Long:  `Detailed description over multiple lines.`,
+        Short: "Kurzbeschreibung",
+        Long:  `Ausführliche Beschreibung über mehrere Zeilen.`,
         RunE: func(cmd *cobra.Command, args []string) error {
-            // Implementation or call to the actual functionality
+            // Implementierung oder Aufruf der eigentlichen Funktionalität
             return nil
         },
     }
     
-    // Add flags
-    cmd.Flags().StringVarP(&variableName, "flag-name", "f", "default", "Description")
+    // Flags hinzufügen
+    cmd.Flags().StringVarP(&variableName, "flag-name", "f", "default", "Beschreibung")
     
-    // Add subcommands (optional)
+    // Unterbefehle hinzufügen (optional)
     cmd.AddCommand(newSubCommand())
     
     return cmd
 }
 ```
 
-### 2. Registration in Root Command
+### 2. Registrierung im Root-Befehl
 
 ```go
 // In cmd/clikd/main.go
 import (
-    // Other imports
-    "{project}/pkg/commands/{command}"
+    // Andere Imports
+    "clikd/pkg/commands/{command}"
 )
 
 func newRootCmd() *cobra.Command {
-    // Create root command
+    // Root-Befehl erstellen
     
-    // Add commands
+    // Befehle hinzufügen
     rootCmd.AddCommand({command}.New{Command}Cmd())
     
     return rootCmd
 }
 ```
 
-### 3. Implementation of Core Functionality
+### 3. Implementierung der Kernfunktionalität
 
 ```go
 // In pkg/internal/{module}/{file}.go
 package {module}
 
-// Implement functions, structures, and methods
-// These should be independent of the CLI interface
+// Funktionen, Strukturen und Methoden implementieren
+// Diese sollten unabhängig von der CLI-Schnittstelle sein
 ```
 
-## Configuration Management
+## Konfigurationsmanagement
 
-### 1. Common Configuration
+### 1. Allgemeine Konfiguration
 
-- Use Viper for global configuration
-- Configuration values are loaded from the following sources (in order of priority):
-  1. Command line arguments
-  2. Environment variables (with prefix `CLIKD_`)
-  3. Configuration file (`$HOME/.clikd/config.yaml`)
+- Viper für globale Konfiguration verwenden
+- Konfigurationswerte werden aus folgenden Quellen geladen (in Reihenfolge der Priorität):
+  1. Befehlszeilenargumente
+  2. Umgebungsvariablen (mit Präfix `CLIKD_`)
+  3. Globale Konfigurationsdatei (`$HOME/.clikd/config.toml`)
+  4. Lokale Konfigurationsdatei (`./clikd/config.toml`)
 
-### 2. Subcommand-specific Configuration
+### 2. Befehlsspezifische Konfiguration
 
-- Each subcommand can define its own configuration values
-- These should be stored under a dedicated key in the global configuration
-- Example:
-  ```yaml
-  # In $HOME/.clikd/config.yaml
-  log_level: info
+- Jeder Unterbefehl kann eigene Konfigurationswerte definieren
+- Diese sollten unter einem dedizierten Schlüssel in der globalen Konfiguration gespeichert werden
+- Beispiel:
+  ```toml
+  # In $HOME/.clikd/config.toml oder ./clikd/config.toml
+  [general]
+  log_level = "info"
   
-  # Subcommand-specific configuration
-  changelog:
-    style: github
-    template: CHANGELOG.tpl.md
+  # Befehlsspezifische Konfiguration
+  [changelog]
+    style = "github"
+    template = "templates/changelog.md"
   ```
 
-## Error Management and Logging
+### 3. API-Schlüssel-Management
 
-- Use the common logger from `pkg/utils/logger.go`
-- Errors should be passed through to the Cobra command
-- Use context-related error messages with `fmt.Errorf("context: %w", err)`
+- API-Schlüssel werden grundsätzlich in der globalen Konfiguration gespeichert (`$HOME/.clikd/config.toml`)
+- API-Schlüssel werden AUSSCHLIESSLICH aus zwei Quellen geladen:
+  1. Für lokale Repository-Projekte: Aus der `.env`-Datei im Projektverzeichnis
+  2. Für globale Operationen: Aus der globalen Konfigurationsdatei
+- Shell-Umgebungsvariablen werden NIEMALS als Quelle für API-Schlüssel verwendet
+- Für Repository-spezifische Projekte (mit lokaler `./clikd/config.toml`) gelten besondere Regeln:
+  - API-Schlüssel MÜSSEN aus `.env`-Dateien geladen werden
+  - API-Schlüssel dürfen NICHT in lokalen Konfigurationsdateien gespeichert werden
+  - Fehlt ein erforderlicher API-Schlüssel in der `.env`-Datei, muss der Benutzer:
+    1. Über das Fehlen informiert werden
+    2. Die Möglichkeit erhalten, den globalen API-Schlüssel zu verwenden (falls verfügbar)
+    3. Andernfalls detaillierte Anweisungen erhalten, wie der Schlüssel hinzugefügt werden kann
+- Für die Schlüsselabfrage ist die Funktion `utils.GetAPIKey()` zu verwenden, die die korrekte Hierarchie implementiert
+- Wenn weder in der lokalen noch in der globalen Konfiguration ein API-Schlüssel gefunden wird:
+  - Werden dem Benutzer umfassende Anweisungen angezeigt, wie der Schlüssel eingerichtet werden kann
+  - Enthält Links zur Provider-Website, wo der Schlüssel bezogen werden kann
+  - Zeigt exakte Befehle und Dateiformate für die Konfiguration
+- Beispiel für API-Schlüssel-Konfiguration:
+  ```toml
+  # Nur in $HOME/.clikd/config.toml
+  [ai.models.mistral-medium]
+  provider = "mistral"
+  model_id = "mistral-medium"
+  api_key = "sk-..."  # Nur in globaler Konfiguration
+  ```
 
-## Integration of External Commands
+- Beispiel für eine lokale `.env`-Datei:
+  ```
+  # API-Schlüssel für lokales Projekt
+  CLIKD_MISTRAL_API_KEY=sk-...
+  CLIKD_OPENAI_API_KEY=sk-...
+  ```
 
-When integrating external CLI tools as subcommands:
+- Beispiel für API-Schlüsselabruf in der Befehlsimplementierung:
+  ```go
+  // Prüfen, ob eine lokale Konfiguration vorhanden ist
+  localConfigExists := utils.IsLocalConfigPresent()
+  
+  // API-Schlüssel gemäß der definierten Hierarchie abrufen
+  apiKey, err := utils.GetAPIKey(utils.MistralProvider, localConfigExists)
+  if err != nil {
+      return err // Fehlermeldung enthält bereits ausführliche Anweisungen für den Benutzer
+  }
+  
+  // Schlüssel verwenden...
+  ```
 
-1. Copy the core functionality into `pkg/internal/{module}/`
-2. Adapt the package names and import paths
-3. Create a wrapper interface in `pkg/commands/{command}/`
-4. Keep the original functionality, change only the interface
+- Beispiel für Benutzerhinweise bei fehlendem API-Schlüssel:
+  ```
+  API-Schlüssel für Mistral nicht gefunden. Sie können den Schlüssel auf folgende Weise hinzufügen:
+
+  1. Erstellen Sie eine .env-Datei im Projektverzeichnis und fügen Sie hinzu:
+     CLIKD_MISTRAL_API_KEY=ihr_api_schlüssel
+
+  2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:
+     clikd config set ai.models.mistral-medium.api_key ihr_api_schlüssel
+
+  Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: https://console.mistral.ai/api-keys/
+  ```
+
+## Fehlerbehandlung und Logging
+
+- Den gemeinsamen Logger aus `pkg/utils/logger.go` verwenden
+- Fehler sollten an den Cobra-Befehl weitergegeben werden
+- Kontextbezogene Fehlermeldungen mit `fmt.Errorf("Kontext: %w", err)` verwenden
+
+## Integration externer Befehle
+
+Bei der Integration externer CLI-Tools als Unterbefehle:
+
+1. Die Kernfunktionalität in `pkg/internal/{module}/` kopieren
+2. Paketnamen und Import-Pfade anpassen
+3. Eine Wrapper-Schnittstelle in `pkg/commands/{command}/` erstellen
+4. Die ursprüngliche Funktionalität beibehalten, nur die Schnittstelle ändern
 
 ## Best Practices
 
-- **✅ DO**: Maintain separation of CLI interface and core functionality
-- **✅ DO**: Use global flags for general options (e.g. `--verbose`, `--config`)
-- **✅ DO**: Provide helpful documentation and examples in `cmd.Long`
-- **✅ DO**: Provide support for environment variables
+- **✅ DO**: Trennung von CLI-Schnittstelle und Kernfunktionalität beibehalten
+- **✅ DO**: Globale Flags für allgemeine Optionen verwenden (z.B. `--verbose`, `--config`)
+- **✅ DO**: Hilfreiche Dokumentation und Beispiele in `cmd.Long` bereitstellen
+- **✅ DO**: Unterstützung für Umgebungsvariablen bieten
+- **✅ DO**: API-Schlüssel nur in globaler Konfiguration speichern oder aus .env-Dateien laden
+- **✅ DO**: Bei lokaler Konfiguration immer API-Schlüssel aus `.env` laden oder Benutzer informieren
 
-- **❌ DON'T**: Implement business logic in `pkg/commands`
-- **❌ DON'T**: Create too many levels of subcommands (max. 2-3)
-- **❌ DON'T**: Use hardcoded paths or configuration values
+- **❌ DON'T**: Geschäftslogik in `pkg/commands` implementieren
+- **❌ DON'T**: Zu viele Ebenen von Unterbefehlen erstellen (max. 2-3)
+- **❌ DON'T**: Hartcodierte Pfade oder Konfigurationswerte verwenden
+- **❌ DON'T**: API-Schlüssel in Repository-spezifischen Konfigurationen oder im Code speichern
+- **❌ DON'T**: Globale API-Schlüssel ohne Einverständnis des Benutzers in einem lokalen Projekt verwenden
 
-## Testability
+## Testbarkeit
 
-- Implement tests for core functionality in `pkg/internal/{module}/{file}_test.go`
-- For CLI tests, `github.com/spf13/cobra/command.SetArgs()` can be used
+- Tests für Kernfunktionalität in `pkg/internal/{module}/{file}_test.go` implementieren
+- Für CLI-Tests kann `github.com/spf13/cobra/command.SetArgs()` verwendet werden
 
-## Compatibility When Integrating
+## Kompatibilität bei der Integration
 
-When integrating external CLI tools:
-- Maintain the original flag behavior
-- Document any changes to the original behavior
-- Ensure that all functions of the original tool are supported
+Bei der Integration externer CLI-Tools:
+- Das ursprüngliche Flag-Verhalten beibehalten
+- Änderungen am ursprünglichen Verhalten dokumentieren
+- Sicherstellen, dass alle Funktionen des ursprünglichen Tools unterstützt werden
+
 globs: cmd/**, pkg/**, internal/**

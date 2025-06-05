@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"clikd/pkg/utils"
+
 	"github.com/spf13/viper"
 )
 
@@ -113,14 +115,41 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 		}
 	}
 
-	// Load API keys from environment variables if not set
+	// Check if we have a local configuration
+	localConfigExists := utils.IsLocalConfigPresent()
+
+	// Load API keys for each model using our new utility
 	for name, model := range config.Models {
-		if model.APIKey == "" {
-			envKey := getAPIKeyEnvVar(model.Provider)
-			if envKey != "" && os.Getenv(envKey) != "" {
-				model.APIKey = os.Getenv(envKey)
-				config.Models[name] = model
+		// Create a provider info structure for the API key utility
+		var providerInfo utils.ProviderKeyInfo
+
+		switch model.Provider {
+		case ProviderMistral:
+			providerInfo = utils.MistralProvider
+		case ProviderOpenAI:
+			providerInfo = utils.OpenAIProvider
+		case ProviderAzureOpenAI:
+			// If not already defined in utils, we would add this
+			providerInfo = utils.ProviderKeyInfo{
+				Name:            "Azure OpenAI",
+				ConfigKey:       "ai.models.azure-openai.api_key",
+				EnvVarName:      "CLIKD_AZURE_OPENAI_API_KEY",
+				EnvVarNameShort: "AZURE_OPENAI_API_KEY",
+				Required:        false,
 			}
+		default:
+			// Skip for providers that don't need API keys
+			continue
+		}
+
+		// Set as not required for initial loading, will be checked when used
+		providerInfo.Required = false
+
+		// Get the API key following our hierarchy
+		apiKey, _ := utils.GetAPIKey(providerInfo, localConfigExists)
+		if apiKey != "" {
+			model.APIKey = apiKey
+			config.Models[name] = model
 		}
 
 		// Load endpoints from environment variables if applicable
@@ -138,17 +167,60 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 
 // GetModelConfig returns the configuration for a specific model
 func (c *Config) GetModelConfig(modelName string) (ModelConfig, error) {
-	if model, exists := c.Models[modelName]; exists {
-		return model, nil
+	model, exists := c.Models[modelName]
+	if !exists {
+		// If the requested model doesn't exist, fall back to the default
+		model, exists = c.Models[c.DefaultModel]
+		if !exists {
+			return ModelConfig{}, fmt.Errorf("model %s not found and default model %s is not configured",
+				modelName, c.DefaultModel)
+		}
+		modelName = c.DefaultModel
 	}
 
-	// If the requested model doesn't exist, fall back to the default
-	if model, exists := c.Models[c.DefaultModel]; exists {
-		return model, nil
+	// Check if the API key is set, if not try to get it
+	if model.APIKey == "" && model.Provider != ProviderLocal {
+		// Check if we have a local configuration
+		localConfigExists := utils.IsLocalConfigPresent()
+
+		// Create a provider info structure for the API key utility
+		var providerInfo utils.ProviderKeyInfo
+
+		switch model.Provider {
+		case ProviderMistral:
+			providerInfo = utils.MistralProvider
+		case ProviderOpenAI:
+			providerInfo = utils.OpenAIProvider
+		case ProviderAzureOpenAI:
+			providerInfo = utils.ProviderKeyInfo{
+				Name:            "Azure OpenAI",
+				ConfigKey:       "ai.models.azure-openai.api_key",
+				EnvVarName:      "CLIKD_AZURE_OPENAI_API_KEY",
+				EnvVarNameShort: "AZURE_OPENAI_API_KEY",
+				Required:        true,
+			}
+		default:
+			// Skip for providers that don't need API keys
+			return model, nil
+		}
+
+		// When getting a specific model, the key is required
+		providerInfo.Required = true
+
+		// Get the API key following our hierarchy
+		apiKey, err := utils.GetAPIKey(providerInfo, localConfigExists)
+		if err != nil {
+			return model, fmt.Errorf("failed to get API key for %s model: %w", modelName, err)
+		}
+
+		if apiKey != "" {
+			model.APIKey = apiKey
+			// Update the model in the config for future use
+			c.Models[modelName] = model
+		}
 	}
 
-	return ModelConfig{}, fmt.Errorf("model %s not found and default model %s is not configured",
-		modelName, c.DefaultModel)
+	return model, nil
 }
 
 // getAPIKeyEnvVar returns the environment variable name for the API key

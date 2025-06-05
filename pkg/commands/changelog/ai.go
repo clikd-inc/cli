@@ -3,11 +3,11 @@ package changelog
 import (
 	"os"
 
+	"clikd/pkg/config"
 	"clikd/pkg/internal/changelog"
 	"clikd/pkg/utils"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // AI-bezogene Flags
@@ -47,20 +47,14 @@ func AddAIFlags(cmd *cobra.Command) {
 func InitializeAI() error {
 	logger := utils.NewLogger("info", true)
 
-	// Globale KI-Konfiguration aus Viper prüfen
-	v := viper.New()
-	v.SetEnvPrefix("CLIKD")
-	v.AutomaticEnv()
+	// Globale Konfiguration abrufen
+	cfg, err := config.EnsureInitialized()
+	if err != nil {
+		return err
+	}
 
-	// Konfigurationsdatei lesen, falls vorhanden
-	v.SetConfigName("config")
-	v.AddConfigPath("$HOME/.clikd")
-	v.AddConfigPath(".")
-	v.SetConfigType("yaml")
-	v.ReadInConfig()
-
-	// Prüfe auf globale KI-Aktivierung aus Viper
-	globalAIEnabled := v.GetBool("ai.enabled")
+	// Prüfe auf globale KI-Aktivierung aus der Konfiguration
+	globalAIEnabled := cfg.AI.Enable
 
 	// Wenn keine der AI-Flags aktiviert wurde, prüfe globale Einstellung
 	if !aiEnableFlag && !aiEnhanceMessagesFlag && !aiGenerateSummariesFlag &&
@@ -76,10 +70,12 @@ func InitializeAI() error {
 
 		// Wenn nur die globale Einstellung oder Umgebungsvariable gesetzt ist, aktiviere alle Funktionen
 		aiEnableFlag = true
-		aiEnhanceMessagesFlag = v.GetBool("ai.enhance_messages")
-		aiGenerateSummariesFlag = v.GetBool("ai.generate_summaries")
-		aiCategorizeCommitsFlag = v.GetBool("ai.categorize_commits")
-		aiSuggestVersionBumpFlag = v.GetBool("ai.suggest_version_bump")
+		// In unserer neuen Struktur gibt es keine spezifischen Einstellungen für diese Features,
+		// daher setzen wir sie standardmäßig auf true
+		aiEnhanceMessagesFlag = true
+		aiGenerateSummariesFlag = true
+		aiCategorizeCommitsFlag = true
+		aiSuggestVersionBumpFlag = true
 	}
 
 	// Wenn einzelne Funktionen aktiviert sind, aber nicht die Haupt-Flag, aktiviere diese
@@ -90,13 +86,21 @@ func InitializeAI() error {
 
 	// Verwende das Standard-Modell aus der Konfiguration, wenn kein spezifisches angegeben wurde
 	if aiModelFlag == "" {
-		aiModelFlag = v.GetString("ai.default_model")
+		aiModelFlag = cfg.AI.DefaultModel
 	}
 
 	logger.Info("Initializing AI subsystem with model: %s", aiModelFlag)
 
+	// Hole die Modell-Konfiguration
+	var modelConfig config.ModelConfig
+	if cfg.AI.Models != nil {
+		if model, ok := cfg.AI.Models[aiModelFlag]; ok {
+			modelConfig = model
+		}
+	}
+
 	// KI initialisieren
-	return changelog.InitAI(v, changelog.AIOptions{
+	return changelog.InitAI(modelConfig, changelog.AIOptions{
 		EnableAI:              aiEnableFlag,
 		ModelName:             aiModelFlag,
 		EnhanceCommitMessages: aiEnhanceMessagesFlag,
@@ -118,15 +122,8 @@ func ShowAIStatus() {
 			logger.Info("AI enabled via command flag")
 		} else {
 			// Prüfen, ob über globale Einstellung aktiviert
-			v := viper.New()
-			v.SetEnvPrefix("CLIKD")
-			v.AutomaticEnv()
-			v.SetConfigName("config")
-			v.AddConfigPath("$HOME/.clikd")
-			v.AddConfigPath(".")
-			v.ReadInConfig()
-
-			if v.GetBool("ai.enabled") {
+			cfg, err := config.Get()
+			if err == nil && cfg.AI.Enable {
 				logger.Info("AI enabled via global configuration")
 			} else {
 				logger.Info("AI enabled via environment variable")
@@ -155,6 +152,6 @@ func ShowAIStatus() {
 		}
 	} else {
 		logger.Info("AI functionality is disabled")
-		logger.Info("To enable AI features, use the global --ai flag or set ai.enabled=true in config")
+		logger.Info("To enable AI features, use the global --ai flag or set ai.enable=true in config")
 	}
 }

@@ -26,7 +26,7 @@ Bei der ersten Verwendung wird automatisch eine Konfigurationsdatei erstellt. Al
 clikd changelog --init
 ```
 
-Die Konfiguration wird in `.chglog/config.yml` gespeichert und kann nach Bedarf angepasst werden.
+Die Konfiguration wird in `clikd/config.toml` gespeichert und kann nach Bedarf angepasst werden. Die Einstellungen für den Changelog befinden sich im Abschnitt `[changelog]`.
 
 ## Verwendung
 
@@ -74,8 +74,8 @@ clikd changelog v1.0.0..
 
 | Flag | Beschreibung |
 | --- | --- |
-| `--config, -c` | Pfad zur Konfigurationsdatei (Standard: `.chglog/config.yml`) |
-| `--template, -t` | Pfad zur Template-Datei (Standard: `.chglog/CHANGELOG.tpl.md`) |
+| `--config, -c` | Pfad zur Konfigurationsdatei (Standard: `clikd/config.toml`) |
+| `--template, -t` | Pfad zur Template-Datei (Standard: `templates/changelog.md`) |
 | `--output, -o` | Ausgabepfad (Standard: stdout) |
 | `--init` | Initialisiert die Konfiguration mit einem Assistenten |
 | `--next-tag` | Behandelt nicht veröffentlichte Änderungen als den angegebenen Tag |
@@ -102,8 +102,8 @@ Die Jira-Integration ermöglicht das Abrufen von Ticket-Informationen aus Jira, 
 
 Die Jira-Integration kann über Umgebungsvariablen oder die Konfigurationsdatei konfiguriert werden:
 
-```yaml
-# In .chglog/config.yml
+```toml
+# In clikd/config.toml
 jira:
   url: "https://your-jira-instance.atlassian.net"
   username: "your-username"
@@ -201,9 +201,9 @@ clikd changelog --ai-enhance-messages --ai-categorize-commits -o CHANGELOG.md
 
 ### Konfiguration
 
-Die KI-Konfiguration kann in einer YAML-Datei gespeichert werden (standardmäßig `.taskmasterconfig.yaml`):
+Die KI-Konfiguration kann in einer TOML-Datei gespeichert werden (standardmäßig `clikd/config.toml`):
 
-```yaml
+```toml
 ai:
   enable_ai: true
   default_provider: "mistral"

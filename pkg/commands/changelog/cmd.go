@@ -1,6 +1,7 @@
 package changelog
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -246,8 +247,12 @@ func runGenerator(query string) error {
 		return err
 	}
 
-	// Zuerst prüfen, ob die neue TOML-Konfiguration existiert
+	logger.Debug("Working directory: %s", wd)
+
+	// Konfigurationspfad auflösen
 	configPath := resolveConfigPath(configFlag)
+	logger.Debug("Resolved config path: %s", configPath)
+
 	templatePath := ""
 
 	// Laden der clikd-Konfiguration, um die Template-Einstellungen zu erhalten
@@ -262,6 +267,7 @@ func runGenerator(query string) error {
 		} else {
 			// Get template path from clikd config
 			tmplRelPath := cfg.Changelog.Template
+			logger.Debug("Template path from config: %s", tmplRelPath)
 
 			// Handle both absolute and relative paths
 			if filepath.IsAbs(tmplRelPath) {
@@ -274,15 +280,24 @@ func runGenerator(query string) error {
 
 			logger.Debug("Using template from config: %s", templatePath)
 
+			// Prüfen, ob die Template-Datei existiert
+			if _, err := os.Stat(templatePath); err != nil {
+				logger.Error("Template file not found at: %s", templatePath)
+				return err
+			}
+
 			// Override template flag if it was not explicitly set
 			if templateFlag == "" {
 				templateFlag = templatePath
+				logger.Debug("Setting template flag to: %s", templateFlag)
+			} else {
+				logger.Debug("Template flag already set to: %s", templateFlag)
 			}
 		}
 	} else {
-		// Fallback zur alten YAML-Konfiguration, wenn die TOML-Konfiguration nicht existiert
-		logger.Debug("Configuration not found at %s, falling back to YAML config", configPath)
-		configPath = filepath.Join(wd, ".chglog", "config.yml")
+		// Wenn die Konfigurationsdatei nicht existiert, einen Fehler zurückgeben
+		logger.Error("Configuration file not found at %s", configPath)
+		return fmt.Errorf("configuration file not found at %s", configPath)
 	}
 
 	// CLI-Kontext erstellen
@@ -308,11 +323,46 @@ func runGenerator(query string) error {
 		Sort:             sortFlag,
 	}
 
+	logger.Debug("CLI Context - WorkingDir: %s", ctx.WorkingDir)
+	logger.Debug("CLI Context - ConfigPath: %s", ctx.ConfigPath)
+	logger.Debug("CLI Context - Template: %s", ctx.Template)
+
+	// Explizit das Template im Kontext setzen, um die Template-Pfad-Normalisierung zu überspringen
+	if templatePath != "" {
+		ctx.Template = templatePath
+		logger.Debug("Overriding CLI Context Template to: %s", ctx.Template)
+	}
+
 	// Konfiguration laden
 	loader := initializer.NewConfigLoader()
+
+	// Erweiterte Optionen aus der clikd-Konfiguration an den Loader übergeben
+	// Hier müsste eigentlich eine direkte Übergabe der Konfiguration an den Loader erfolgen
+	// Da dies eine größere Änderung wäre, beschränken wir uns vorerst auf die Anpassung
+	// der Standard-Konfiguration und lassen den vorhandenen Mechanismus bestehen
+
+	// In Zukunft könnte hier eine Funktion stehen, die die TOML-Konfiguration
+	// direkt an den Loader übergibt, ohne dass dieser die Datei neu einlesen muss
+
 	config, err := loader.Load(ctx)
 	if err != nil {
 		logger.Error("Failed to load config: %v", err)
+		return err
+	}
+
+	logger.Debug("Loaded config - Template: %s", config.Template)
+
+	// Sicherstellen, dass der Template-Pfad korrekt in der Konfiguration gesetzt ist
+	if templatePath != "" {
+		config.Template = templatePath
+		logger.Debug("Set final template path in config to: %s", config.Template)
+	}
+
+	logger.Debug("Final template path used: %s", config.Template)
+
+	// Prüfen, ob diese Datei tatsächlich existiert
+	if _, err := os.Stat(config.Template); err != nil {
+		logger.Error("Final template file not found at: %s", config.Template)
 		return err
 	}
 

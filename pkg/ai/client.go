@@ -117,12 +117,20 @@ func NewClient(ctx context.Context, config *Config, modelName string) (Client, e
 	// Get the model configuration
 	modelConfig, err := config.GetModelConfig(modelName)
 	if err != nil {
+		// Wenn der Fehler von GetAPIKey kommt, diese Fehlermeldung direkt weitergeben
+		// da sie bereits detaillierte Anweisungen enthält
 		return nil, fmt.Errorf("failed to get model config: %w", err)
 	}
 
 	// Check if API key is configured
-	if modelConfig.APIKey == "" {
-		return nil, fmt.Errorf("API key not configured for model %s", modelName)
+	if modelConfig.APIKey == "" && modelConfig.Provider != ProviderLocal {
+		// Wenn wir hier ankommen, dann ist etwas schief gelaufen.
+		// GetModelConfig sollte normalerweise bereits einen Fehler mit detaillierten Anweisungen
+		// zurückgeben, falls kein API-Schlüssel gefunden wurde.
+
+		// Trotzdem wollen wir sicherstellen, dass der Benutzer hilfreiche Informationen erhält
+		return nil, fmt.Errorf("API-Schlüssel für das Modell %s (%s) fehlt. Bitte führen Sie den Befehl erneut aus.",
+			modelName, modelConfig.Provider)
 	}
 
 	// Create the appropriate client based on the provider

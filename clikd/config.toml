@@ -59,7 +59,32 @@ path = ''
 sort = 'semver'
 style = 'github'
 tag_filter_pattern = 'v*'
-template = 'CHANGELOG.tpl.md'
+template = 'templates/changelog.md'
+
+[changelog.info]
+title = 'CHANGELOG'
+repository_url = 'https://github.com/nyxb/clikd'
+
+[changelog.options]
+[changelog.options.commits]
+sort_by = 'Scope'
+
+[changelog.options.commit_groups]
+group_by = 'Type'
+sort_by = 'Title'
+
+[changelog.options.commit_groups.title_maps]
+feat = 'Features'
+fix = 'Bug Fixes'
+perf = 'Performance Improvements'
+refactor = 'Code Refactoring'
+
+[changelog.options.header]
+pattern = '^(\\w*)\\:\\s(.*)$'
+pattern_maps = ['Type', 'Subject']
+
+[changelog.options.notes]
+keywords = ['BREAKING CHANGE']
 
 [changelog.jira]
 base_url = ''

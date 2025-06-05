@@ -6,9 +6,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/spf13/viper"
-
 	"clikd/pkg/ai"
+	"clikd/pkg/config"
 )
 
 var (
@@ -32,7 +31,7 @@ type AIOptions struct {
 }
 
 // InitAI initializes the AI subsystem for changelog generation
-func InitAI(v *viper.Viper, opts AIOptions) error {
+func InitAI(modelConfig config.ModelConfig, opts AIOptions) error {
 	aiServiceSingletonLock.Lock()
 	defer aiServiceSingletonLock.Unlock()
 
@@ -42,17 +41,29 @@ func InitAI(v *viper.Viper, opts AIOptions) error {
 		return nil
 	}
 
-	// Load AI configuration
-	config, err := ai.LoadConfig(v)
-	if err != nil {
-		return fmt.Errorf("failed to load AI configuration: %w", err)
+	// Create AI configuration based on our new config structure
+	aiCfg := &ai.Config{
+		DefaultProvider: ai.Provider(modelConfig.Provider),
+		DefaultModel:    opts.ModelName,
+		EnableAI:        opts.EnableAI,
+		Verbose:         false,
+		Models: map[string]ai.ModelConfig{
+			opts.ModelName: {
+				Provider:       ai.Provider(modelConfig.Provider),
+				ModelID:        modelConfig.ModelID,
+				APIKey:         modelConfig.APIKey,
+				Endpoint:       modelConfig.Endpoint,
+				MaxTokens:      modelConfig.MaxTokens,
+				Temperature:    modelConfig.Temperature,
+				TopP:           modelConfig.TopP,
+				ContextWindow:  modelConfig.ContextWindow,
+				StreamResponse: modelConfig.StreamResponse,
+			},
+		},
 	}
 
-	// Override configuration based on options
-	config.EnableAI = opts.EnableAI
-
 	// Store configuration
-	aiConfig = config
+	aiConfig = aiCfg
 	aiEnabled = opts.EnableAI
 
 	return nil
@@ -174,15 +185,22 @@ func LoadAIFromEnv() {
 	// Check if AI functionality is enabled via environment
 	aiEnv := os.Getenv("CLIKD_CHANGELOG_AI_ENABLED")
 	if aiEnv == "true" || aiEnv == "1" || aiEnv == "yes" {
-		// Create a basic viper instance
-		v := viper.New()
+		// Get our config
+		cfg, err := config.EnsureInitialized()
+		if err != nil {
+			return
+		}
 
-		// Set environment variable configuration
-		v.SetEnvPrefix("CLIKD")
-		v.AutomaticEnv()
+		// Find a suitable model
+		var modelConfig config.ModelConfig
+		if cfg.AI.Models != nil && cfg.AI.DefaultModel != "" {
+			if model, ok := cfg.AI.Models[cfg.AI.DefaultModel]; ok {
+				modelConfig = model
+			}
+		}
 
 		// Initialize AI with basic options
-		InitAI(v, AIOptions{
+		InitAI(modelConfig, AIOptions{
 			EnableAI:              true,
 			EnhanceCommitMessages: true,
 			GenerateSummaries:     true,

@@ -1,9 +1,13 @@
-package root
+package main
 
 import (
 	"fmt"
 	"os"
 
+	"clikd/pkg/commands/changelog"
+	"clikd/pkg/commands/hello"
+	"clikd/pkg/commands/initialize"
+	"clikd/pkg/commands/version"
 	"clikd/pkg/config"
 	"clikd/pkg/utils"
 
@@ -11,16 +15,19 @@ import (
 )
 
 var (
+	// Version is the version of the CLI
+	Version = "0.1.0"
+
 	// Used for flags
 	cfgFile     string
 	logLevel    string
+	aiEnabled   bool
 	colorOutput bool
 	appConfig   *config.ConfigData
 	logger      *utils.Logger
 )
 
-// NewRootCmd creates the root command for the CLI application
-func NewRootCmd() *cobra.Command {
+func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "clikd",
 		Short: "clikd - A powerful CLI tool",
@@ -47,6 +54,14 @@ Use it to automate workflows and enhance productivity.`,
 				appConfig.General.LogLevel = logLevel
 			}
 
+			// Override AI enabled flag if provided
+			if cmd.Flags().Changed("ai") {
+				if err := config.Set("ai.enable", aiEnabled); err != nil {
+					return fmt.Errorf("error setting AI enabled flag: %w", err)
+				}
+				appConfig.AI.Enable = aiEnabled
+			}
+
 			// Override color output flag if provided
 			if cmd.Flags().Changed("color") {
 				if err := config.Set("general.color", colorOutput); err != nil {
@@ -58,10 +73,8 @@ Use it to automate workflows and enhance productivity.`,
 			// Initialize logger
 			logger = utils.NewLogger(appConfig.General.LogLevel, appConfig.General.Color)
 
-			configPath, err := config.GetConfigFilePath()
-			if err != nil {
-				logger.Debug("Using default configuration")
-			} else if configPath != "" {
+			configPath, _ := config.GetConfigFilePath()
+			if configPath != "" {
 				logger.Debug("Configuration loaded from: %s", configPath)
 			} else {
 				logger.Debug("Using default configuration")
@@ -78,18 +91,24 @@ Use it to automate workflows and enhance productivity.`,
 	// Add persistent flags that will be available to all commands
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.clikd/config.toml)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "log level (debug, info, warn, error, fatal)")
+	rootCmd.PersistentFlags().BoolVar(&aiEnabled, "ai", false, "Enable AI-powered features globally for all commands")
 	rootCmd.PersistentFlags().BoolVar(&colorOutput, "color", true, "Enable colorized output")
 
 	// Add version flag
 	rootCmd.Flags().BoolP("version", "v", false, "Print the version number")
 
+	// Add commands
+	rootCmd.AddCommand(version.NewVersionCmd(Version))
+	rootCmd.AddCommand(hello.NewHelloCmd())
+	rootCmd.AddCommand(changelog.NewChangelogCmd())
+	rootCmd.AddCommand(initialize.NewInitCmd())
+
 	return rootCmd
 }
 
-// Execute executes the root command
-func Execute(version string) {
-	rootCmd := NewRootCmd()
-	rootCmd.Version = version
+func main() {
+	rootCmd := newRootCmd()
+	rootCmd.Version = Version
 	rootCmd.SetVersionTemplate("clikd version {{.Version}}\n")
 
 	if err := rootCmd.Execute(); err != nil {

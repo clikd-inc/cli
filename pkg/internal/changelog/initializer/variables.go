@@ -15,7 +15,7 @@ type Previewable interface {
 var (
 	defaultConfigDir        = ".chglog"
 	defaultConfigFilename   = "config.yml"
-	defaultTemplateFilename = "CHANGELOG.tpl.md"
+	defaultTemplateFilename = "templates/changelog.md"
 )
 
 // Styles

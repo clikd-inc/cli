@@ -33,7 +33,7 @@ Die Konfiguration erfolgt auf drei Ebenen mit absteigender Priorität:
 ### Sensible Daten
 - **Umgebungsvariablen**: Primärer Weg für API-Keys und andere sensible Daten
 - **Lokale .env-Datei**: `.env` im Projektverzeichnis (Standard-Konvention) erstellt keine sondern nutzt die im root die eh da ist.
-- **Globale nutzt environments die in zsh oder bash gespeichert sind.
+- **Globale nutzt environments die in der ~/.clikd/config.toml gespeichert sind.
 
 ## Konfigurationsstruktur
 
@@ -128,8 +128,8 @@ Die Konfigurationswerte werden in folgender Reihenfolge ausgewertet (höchste bi
 2. Umgebungsvariablen mit `CLIKD_` Präfix (z.B. `CLIKD_AI_MODEL=gpt-4`)
 3. Projektspezifische Umgebungsvariablen aus `.env` im Projektverzeichnis
 4. Projekt-Konfiguration aus `clikd/config.toml`
-5. Globale Umgebungsvariablen aus `~/.config/clikd/.env`
-6. Globale Konfiguration aus `~/.config/clikd/config.toml`
+5. ⁠Globale Umgebungsvariablen aus der Shell-Umgebung
+6. Globale Konfiguration aus `~/.clikd/config.toml`
 7. Standardwerte der Anwendung
 
 ## API-Key-Verwaltung
@@ -137,30 +137,22 @@ Die Konfigurationswerte werden in folgender Reihenfolge ausgewertet (höchste bi
 API-Keys und andere sensible Daten werden sicher gehandhabt:
 
 1. **Priorität für Umgebungsvariablen**: 
-   - Direkt gesetzt: `MISTRAL_API_KEY=xyz123`
-   - Aus .env-Dateien geladen (Projekt > Global)
+   - Direkt gesetzt: `CLIKD_MISTRAL_API_KEY=xyz123`
+   - Aus .env-Dateien geladen (Projekt)
+   - Aus der Shell-Umgebung (Global)
 
 2. **Referenzierung in Konfiguration**: Anstatt API-Keys direkt zu speichern, können Umgebungsvariablen referenziert werden:
    ```toml
    [ai.models.mistral-medium]
-   api_key = "${MISTRAL_API_KEY}"  # Referenziert eine Umgebungsvariable
+   api_key = "${CLIKD_MISTRAL_API_KEY}"  # Referenziert eine Umgebungsvariable
    ```
 
 3. **Warnungen**: Die CLI warnt Benutzer, wenn sie API-Keys direkt in Konfigurationsdateien speichern.
+4. **API-Keys**: Ist kein ai key gesetzt, informiert die CLI und gibt einen Hinweis wie man es setzt.
 
-## Initialisierung und Migration
+## Initialisierung
 
 - **Initialisierung**: `clikd init` erstellt die grundlegende Projektstruktur mit Standardwerten
-- **Projektinitialisierung**: `clikd config init --local` erstellt nur die projektspezifische Konfiguration
-- **Migration**: Automatische Migration von .chglog/ zu clikd/ wird unterstützt
-
-### Migration von .chglog
-
-Für bestehende Projekte, die .chglog/ verwenden:
-
-1. Die Datei `.chglog/CHANGELOG.tpl.md` wird nach `clikd/templates/changelog.md` migriert
-2. Die Einstellungen aus `.chglog/config.yml` werden in den `[changelog]`-Abschnitt der `clikd/config.toml` konvertiert
-3. Da es noch keine bestehenden Benutzer gibt, ist keine Abwärtskompatibilitätsschicht erforderlich
 
 ## Fehlerbehebung und Validierung
 

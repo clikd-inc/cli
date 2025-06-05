@@ -31,13 +31,19 @@ go build -o clikd
 clikd --help
 
 # Run with a specific config file
-clikd --config=/path/to/config.yaml
+clikd --config=/path/to/config.toml
 
 # Set log level
 clikd --log-level=debug
 
 # Get version
 clikd version
+
+# Initialize configuration
+clikd init
+
+# Initialize global configuration
+clikd init --global
 
 # Say hello
 clikd hello --name="World"
@@ -50,20 +56,37 @@ clikd hello world
 
 Clikd looks for configuration in the following locations:
 1. Custom config file specified by `--config` flag
-2. `$HOME/.clikd/config.yaml`
-3. `./config.yaml` in the current directory
+2. `$HOME/.clikd/config.toml`
+3. `./config.toml` in the current directory
 
 You can also use environment variables prefixed with `CLIKD_` to configure the application.
 
-Example configuration file (YAML):
+Example configuration file (TOML):
 
-```yaml
-log_level: debug
-log_format: text
+```toml
+version = "1.0.0"
 
-api:
-  endpoint: https://api.example.com
-  token: your-api-token
+[general]
+log_level = "debug"
+color = true
+
+[ai]
+enable = true
+default_model = "mistral-medium"
+default_provider = "mistral"
+```
+
+To initialize a new configuration file:
+
+```bash
+# Initialize in current directory
+clikd init
+
+# Initialize global configuration
+clikd init --global
+
+# Override existing configuration
+clikd init --force
 ```
 
 ## Project Structure
@@ -77,6 +100,7 @@ clikd/
 │   ├── commands/           # CLI commands
 │   │   ├── root/           # Root command
 │   │   ├── version/        # Version command
+│   │   ├── initialize/     # Initialize command
 │   │   └── hello/          # Hello command with subcommands
 │   ├── config/             # Configuration management
 │   ├── models/             # Data models

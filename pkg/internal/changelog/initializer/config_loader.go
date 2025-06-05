@@ -3,12 +3,10 @@ package initializer
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"clikd/pkg/internal/changelog"
 
 	"github.com/BurntSushi/toml"
-	"gopkg.in/yaml.v3"
 )
 
 // ConfigLoader ...
@@ -38,21 +36,10 @@ func (loader *configLoaderImpl) Load(ctx *CLIContext) (*changelog.Config, error)
 
 	config := &Config{}
 
-	// Entscheiden, ob YAML oder TOML verwendet werden soll, basierend auf der Dateierweiterung
-	fileExt := strings.ToLower(filepath.Ext(fp))
-
-	if fileExt == ".toml" {
-		// TOML-Konfiguration parsen
-		_, err = toml.Decode(string(bytes), config)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Standard: YAML-Konfiguration parsen
-		err = yaml.Unmarshal(bytes, config)
-		if err != nil {
-			return nil, err
-		}
+	// Nur TOML-Konfiguration parsen, unabhängig von der Dateierweiterung
+	_, err = toml.Decode(string(bytes), config)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := config.Normalize(ctx); err != nil {

@@ -97,7 +97,7 @@ type Config struct {
 func (config *Config) Normalize(ctx *CLIContext) error {
 	err := mergo.Merge(config, &Config{
 		Bin:      "git",
-		Template: "CHANGELOG.tpl.md",
+		Template: "templates/changelog.md",
 		Info: Info{
 			Title: "CHANGELOG",
 		},
