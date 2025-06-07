@@ -1,17 +1,22 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 
+	"clikd/pkg/ai"
 	"clikd/pkg/commands/changelog"
 	"clikd/pkg/commands/hello"
 	"clikd/pkg/commands/initialize"
+	"clikd/pkg/commands/ui"
 	"clikd/pkg/commands/version"
 	"clikd/pkg/config"
 	"clikd/pkg/utils"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -25,6 +30,10 @@ var (
 	colorOutput bool
 	appConfig   *config.ConfigData
 	logger      *utils.Logger
+	configFile  string
+	verboseFlag bool
+	level       string
+	colorize    bool
 )
 
 func newRootCmd() *cobra.Command {
@@ -36,14 +45,21 @@ that helps you accomplish various tasks efficiently.
 Use it to automate workflows and enhance productivity.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Initialize configuration before executing any command
-			if err := config.Initialize(cfgFile); err != nil {
-				return fmt.Errorf("error initializing config: %w", err)
+			var err error
+			if configFile != "" {
+				if err := config.Initialize(configFile); err != nil {
+					return err
+				}
+			} else {
+				if err := config.Initialize(""); err != nil {
+					return err
+				}
 			}
 
-			var err error
-			appConfig, err = config.Get()
+			// Load app configuration
+			appConfig, err = config.EnsureInitialized()
 			if err != nil {
-				return fmt.Errorf("error retrieving config: %w", err)
+				return fmt.Errorf("error loading configuration: %w", err)
 			}
 
 			// Override config with command line flags if provided
@@ -54,12 +70,15 @@ Use it to automate workflows and enhance productivity.`,
 				appConfig.General.LogLevel = logLevel
 			}
 
-			// Override AI enabled flag if provided
+			// Override AI enabled flag if provided and set environment variable to mark flag as explicitly set
 			if cmd.Flags().Changed("ai") {
 				if err := config.Set("ai.enable", aiEnabled); err != nil {
 					return fmt.Errorf("error setting AI enabled flag: %w", err)
 				}
 				appConfig.AI.Enable = aiEnabled
+
+				// Umgebungsvariable setzen, damit Unterbefehle erkennen können, dass das Flag explizit gesetzt wurde
+				os.Setenv("CLIKD_AI_FLAG_SET", "true")
 			}
 
 			// Override color output flag if provided
@@ -89,8 +108,10 @@ Use it to automate workflows and enhance productivity.`,
 	}
 
 	// Add persistent flags that will be available to all commands
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.clikd/config.toml)")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "log level (debug, info, warn, error, fatal)")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "Pfad zur Konfigurationsdatei")
+	rootCmd.PersistentFlags().StringVarP(&level, "log-level", "l", "info", "Log-Level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "V", false, "Ausführliche Ausgabe aktivieren")
+	rootCmd.PersistentFlags().BoolVar(&colorize, "no-color", true, "Farbige Ausgabe deaktivieren")
 	rootCmd.PersistentFlags().BoolVar(&aiEnabled, "ai", false, "Enable AI-powered features globally for all commands")
 	rootCmd.PersistentFlags().BoolVar(&colorOutput, "color", true, "Enable colorized output")
 
@@ -102,6 +123,83 @@ Use it to automate workflows and enhance productivity.`,
 	rootCmd.AddCommand(hello.NewHelloCmd())
 	rootCmd.AddCommand(changelog.NewChangelogCmd())
 	rootCmd.AddCommand(initialize.NewInitCmd())
+	rootCmd.AddCommand(ui.NewUICmd())
+
+	// AI-Test-Befehl hinzufügen
+	aiTestCmd := &cobra.Command{
+		Use:   "ai-test [prompt]",
+		Short: "Test the AI integration with gollm",
+		Long:  `Test the AI integration with the gollm library by sending a prompt to the configured model.`,
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Alle Argumente als Prompt zusammenfügen
+			prompt := strings.Join(args, " ")
+
+			// AI-Konfiguration initialisieren
+			_, err := config.EnsureInitialized()
+			if err != nil {
+				return fmt.Errorf("Fehler beim Initialisieren der Konfiguration: %w", err)
+			}
+
+			// Logger für Debugging-Ausgaben erstellen
+			logger := utils.NewLogger(level, colorize)
+			logger.Info("Starte AI-Test mit gollm...")
+
+			// Modell aus Flag oder Standardmodell verwenden
+			modelName, _ := cmd.Flags().GetString("model")
+
+			// Client erstellen
+			ctx := context.Background()
+
+			// Konfiguration in Viper laden
+			v := viper.New()
+			v.SetConfigType("yaml")
+
+			// AI-Konfiguration aus der globalen Konfiguration laden
+			aiConfig, err := ai.LoadConfig(v)
+			if err != nil {
+				return fmt.Errorf("Fehler beim Laden der AI-Konfiguration: %w", err)
+			}
+
+			// Client erstellen
+			client, err := ai.NewClient(ctx, aiConfig, modelName)
+			if err != nil {
+				return fmt.Errorf("Fehler beim Erstellen des AI-Clients: %w", err)
+			}
+
+			logger.Info("Verwende Anbieter: %s, Modell: %s", client.GetProvider(), client.GetModelName())
+
+			// Prompt senden
+			messages := []ai.Message{
+				{
+					Role:    "system",
+					Content: "Du bist ein hilfreicher Assistent.",
+				},
+				{
+					Role:    "user",
+					Content: prompt,
+				},
+			}
+
+			resp, err := client.Chat(ctx, messages)
+			if err != nil {
+				return fmt.Errorf("Fehler bei der KI-Antwort: %w", err)
+			}
+
+			// Antwort ausgeben
+			fmt.Println("\n--- KI-Antwort ---")
+			fmt.Println(resp.Text)
+			fmt.Println("------------------")
+
+			return nil
+		},
+	}
+
+	// Modell-Flag für AI-Test-Befehl hinzufügen
+	aiTestCmd.Flags().String("model", "", "Modell für die Anfrage verwenden")
+
+	// AI-Test-Befehl zum Root-Befehl hinzufügen
+	rootCmd.AddCommand(aiTestCmd)
 
 	return rootCmd
 }

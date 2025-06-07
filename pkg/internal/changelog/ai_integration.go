@@ -43,23 +43,11 @@ func InitAI(modelConfig config.ModelConfig, opts AIOptions) error {
 
 	// Create AI configuration based on our new config structure
 	aiCfg := &ai.Config{
-		DefaultProvider: ai.Provider(modelConfig.Provider),
-		DefaultModel:    opts.ModelName,
-		EnableAI:        opts.EnableAI,
-		Verbose:         false,
-		Models: map[string]ai.ModelConfig{
-			opts.ModelName: {
-				Provider:       ai.Provider(modelConfig.Provider),
-				ModelID:        modelConfig.ModelID,
-				APIKey:         modelConfig.APIKey,
-				Endpoint:       modelConfig.Endpoint,
-				MaxTokens:      modelConfig.MaxTokens,
-				Temperature:    modelConfig.Temperature,
-				TopP:           modelConfig.TopP,
-				ContextWindow:  modelConfig.ContextWindow,
-				StreamResponse: modelConfig.StreamResponse,
-			},
-		},
+		Provider: ai.Provider(modelConfig.Provider),
+		Model:    opts.ModelName,
+		APIKey:   modelConfig.APIKey,
+		APIURL:   modelConfig.Endpoint,
+		EnableAI: opts.EnableAI,
 	}
 
 	// Store configuration
@@ -191,12 +179,10 @@ func LoadAIFromEnv() {
 			return
 		}
 
-		// Find a suitable model
-		var modelConfig config.ModelConfig
-		if cfg.AI.Models != nil && cfg.AI.DefaultModel != "" {
-			if model, ok := cfg.AI.Models[cfg.AI.DefaultModel]; ok {
-				modelConfig = model
-			}
+		// Get model configuration directly
+		modelConfig, err := cfg.AI.GetModelConfig("")
+		if err != nil {
+			return
 		}
 
 		// Initialize AI with basic options

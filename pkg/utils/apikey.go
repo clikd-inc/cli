@@ -27,7 +27,13 @@ type ProviderKeyInfo struct {
 func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error) {
 	// Check if we have a local config
 	if localConfigExists {
-		// Try to get key from .env file
+		// Zuerst prüfen, ob der generische API-Key gesetzt ist (neue Konfigurationsstruktur)
+		genericKey := getEnvKeyFromDotEnv("CLIKD_API_KEY")
+		if genericKey != "" {
+			return genericKey, nil
+		}
+
+		// Dann nach dem provider-spezifischen Key suchen (alte Konfigurationsstruktur)
 		envKey := getEnvKeyFromDotEnv(provider.EnvVarName)
 
 		// If we found a key in .env, return it
@@ -57,6 +63,7 @@ func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error)
 			if provider.Required {
 				errorMsg := fmt.Sprintf("API-Schlüssel für %s wird benötigt, wenn KI-Funktionen aktiviert sind.", provider.Name)
 				errorMsg += fmt.Sprintf("\nBitte fügen Sie den Schlüssel zur .env-Datei hinzu: %s=ihr_api_schlüssel", provider.EnvVarName)
+				errorMsg += fmt.Sprintf("\nOder verwenden Sie den generischen Schlüssel: CLIKD_API_KEY=ihr_api_schlüssel")
 				errorMsg += fmt.Sprintf("\nOder deaktivieren Sie die KI-Funktionen durch Weglassen des --ai Flags.")
 				return "", fmt.Errorf("%s", errorMsg)
 			}
@@ -74,6 +81,7 @@ func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error)
 
 			errMsg += "Sie können den Schlüssel auf folgende Weise hinzufügen:\n\n"
 			errMsg += fmt.Sprintf("1. Erstellen Sie eine .env-Datei im Projektverzeichnis und fügen Sie hinzu:\n   %s=ihr_api_schlüssel\n\n", provider.EnvVarName)
+			errMsg += "   Oder verwenden Sie den generischen Schlüssel:\n   CLIKD_API_KEY=ihr_api_schlüssel\n\n"
 			errMsg += fmt.Sprintf("2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:\n   clikd config set %s ihr_api_schlüssel\n\n", provider.ConfigKey)
 			errMsg += fmt.Sprintf("Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s", getProviderURL(provider.Name))
 
@@ -84,6 +92,12 @@ func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error)
 			return "", fmt.Errorf("%s", errMsg)
 		}
 		return "", nil
+	}
+
+	// Prüfen, ob der generische API-Key in der globalen Konfiguration gesetzt ist
+	genericGlobalKey := viper.GetString("ai.api_key")
+	if genericGlobalKey != "" {
+		return genericGlobalKey, nil
 	}
 
 	// No local config, try to get from global config
@@ -103,6 +117,7 @@ func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error)
 
 		errMsg += fmt.Sprintf("Sie können den Schlüssel zu Ihrer globalen Konfiguration hinzufügen:\n\n")
 		errMsg += fmt.Sprintf("  clikd config set %s ihr_api_schlüssel\n\n", provider.ConfigKey)
+		errMsg += "  Oder verwenden Sie den generischen Schlüssel:\n  clikd config set ai.api_key ihr_api_schlüssel\n\n"
 		errMsg += fmt.Sprintf("Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s", getProviderURL(provider.Name))
 
 		if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
@@ -183,17 +198,44 @@ func getEnvKeyFromDotEnv(envVarName string) string {
 var (
 	OpenAIProvider = ProviderKeyInfo{
 		Name:            "OpenAI",
-		ConfigKey:       "ai.models.openai.api_key",
+		ConfigKey:       "ai.api_key",
 		EnvVarName:      "CLIKD_OPENAI_API_KEY",
 		EnvVarNameShort: "OPENAI_API_KEY",
 		Required:        false,
 	}
 
 	MistralProvider = ProviderKeyInfo{
-		Name:            "Mistral",
-		ConfigKey:       "ai.models.mistral.api_key",
+		Name:            "Mistral AI",
+		ConfigKey:       "ai.api_key",
 		EnvVarName:      "CLIKD_MISTRAL_API_KEY",
 		EnvVarNameShort: "MISTRAL_API_KEY",
+		Required:        false,
+	}
+
+	// AnthropicProvider definiert die Konfiguration für Anthropic
+	AnthropicProvider = ProviderKeyInfo{
+		Name:            "Anthropic",
+		ConfigKey:       "ai.api_key",
+		EnvVarName:      "CLIKD_ANTHROPIC_API_KEY",
+		EnvVarNameShort: "ANTHROPIC_API_KEY",
+		Required:        false,
+	}
+
+	// GroqProvider definiert die Konfiguration für Groq
+	GroqProvider = ProviderKeyInfo{
+		Name:            "Groq",
+		ConfigKey:       "ai.api_key",
+		EnvVarName:      "CLIKD_GROQ_API_KEY",
+		EnvVarNameShort: "GROQ_API_KEY",
+		Required:        false,
+	}
+
+	// OpenRouterProvider definiert die Konfiguration für OpenRouter
+	OpenRouterProvider = ProviderKeyInfo{
+		Name:            "OpenRouter",
+		ConfigKey:       "ai.api_key",
+		EnvVarName:      "CLIKD_OPENROUTER_API_KEY",
+		EnvVarNameShort: "OPENROUTER_API_KEY",
 		Required:        false,
 	}
 

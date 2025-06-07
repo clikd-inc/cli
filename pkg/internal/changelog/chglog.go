@@ -2,11 +2,10 @@
 package changelog
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -107,9 +106,13 @@ type Generator struct {
 
 // NewGenerator receives `Config` and create an new `Generator`
 func NewGenerator(logger *Logger, config *Config) *Generator {
-	client := gitcmd.New(&gitcmd.Config{
+	// Zielrepository-Verzeichnis
+	repoDir := "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo"
+
+	// Erstelle einen benutzerdefinierten Git-Client, der im Zielrepository arbeitet
+	client := newCustomGitClient(&gitcmd.Config{
 		Bin: config.Bin,
-	})
+	}, repoDir)
 
 	jiraClient := NewJiraClient(config)
 
@@ -138,32 +141,65 @@ func NewGenerator(logger *Logger, config *Config) *Generator {
 //	..<tagname>  - Commit from the oldest tag to `<tagname>` (e.g. `..1.0.0`)
 //	<tagname>    - Commit contained in `<tagname>` (e.g. `1.0.0`)
 func (gen *Generator) Generate(w io.Writer, query string) error {
-	back, err := gen.workdir()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err = back(); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	fmt.Printf("DEBUG: Generate called with query: %q\n", query)
 
+	// Überprüfen des aktuellen Arbeitsverzeichnisses
+	if currWd, err := os.Getwd(); err == nil {
+		fmt.Printf("DEBUG: Current working directory in Generate: %s\n", currWd)
+	}
+
+	// Direkt mit der Tag-Verarbeitung fortfahren, da unser customGitClient
+	// bereits das richtige Verzeichnis verwendet
 	tags, first, err := gen.getTags(query)
 	if err != nil {
+		fmt.Printf("DEBUG: Error in getTags: %v\n", err)
 		return err
+	}
+	fmt.Printf("DEBUG: getTags returned %d tags, first=%s\n", len(tags), first)
+
+	// Debug: Zeige detaillierte Informationen zu jedem Tag
+	for i, tag := range tags {
+		prevName := "nil"
+		if tag.Previous != nil {
+			prevName = tag.Previous.Name
+		}
+		fmt.Printf("DEBUG: tag[%d]: name=%s, date=%s, previous=%s\n",
+			i, tag.Name, tag.Date.Format("2006-01-02 15:04:05"), prevName)
 	}
 
 	unreleased, err := gen.readUnreleased(tags)
 	if err != nil {
+		fmt.Printf("DEBUG: Error in readUnreleased: %v\n", err)
 		return err
+	}
+	fmt.Printf("DEBUG: readUnreleased result: commitGroups=%d, commits=%d\n",
+		len(unreleased.CommitGroups), len(unreleased.Commits))
+
+	// Debug: Zeige Details zu unreleased Commits
+	for i, commit := range unreleased.Commits {
+		fmt.Printf("DEBUG: unreleased commit[%d]: hash=%s, subject=%s\n",
+			i, commit.Hash.Short, commit.Subject)
 	}
 
 	versions, err := gen.readVersions(tags, first)
 	if err != nil {
+		fmt.Printf("DEBUG: Error in readVersions: %v\n", err)
 		return err
+	}
+	fmt.Printf("DEBUG: readVersions returned %d versions\n", len(versions))
+	for i, v := range versions {
+		fmt.Printf("DEBUG: version[%d]: tag=%s, commits=%d, commitGroups=%d\n",
+			i, v.Tag.Name, len(v.Commits), len(v.CommitGroups))
+
+		// Debug: Zeige Details zu den Commits in dieser Version
+		for j, commit := range v.Commits {
+			fmt.Printf("DEBUG: version[%d] commit[%d]: hash=%s, subject=%s\n",
+				i, j, commit.Hash.Short, commit.Subject)
+		}
 	}
 
 	if len(versions) == 0 {
+		fmt.Printf("DEBUG: No versions found for query %q\n", query)
 		return fmt.Errorf("commits corresponding to \"%s\" was not found", query)
 	}
 
@@ -171,6 +207,8 @@ func (gen *Generator) Generate(w io.Writer, query string) error {
 }
 
 func (gen *Generator) readVersions(tags []*Tag, first string) ([]*Version, error) {
+	fmt.Printf("DEBUG: readVersions called with %d tags, first=%s\n", len(tags), first)
+
 	next := gen.config.Options.NextTag
 	versions := []*Version{}
 
@@ -198,12 +236,39 @@ func (gen *Generator) readVersions(tags []*Tag, first string) ([]*Version, error
 			}
 		}
 
+		fmt.Printf("DEBUG: Processing tag[%d] %s with rev=%s\n", i, tag.Name, rev)
+
+		// Debug: Führe einen Git-Befehl aus, um zu überprüfen, welche Commits tatsächlich vorhanden sind
+		gitArgs := []string{"-C", "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo", "log", "--pretty=format:%h - %s", rev}
+		fmt.Printf("DEBUG: Executing git %s\n", strings.Join(gitArgs, " "))
+		if out, err := exec.Command("git", gitArgs...).CombinedOutput(); err == nil {
+			fmt.Printf("DEBUG: Git log for rev %s:\n%s\n", rev, string(out))
+		} else {
+			fmt.Printf("DEBUG: Error executing git log for rev %s: %v\n%s\n", rev, err, string(out))
+		}
+
 		commits, err := gen.commitParser.Parse(rev)
 		if err != nil {
+			fmt.Printf("DEBUG: Error parsing commits for rev=%s: %v\n", rev, err)
 			return nil, err
+		}
+		fmt.Printf("DEBUG: Found %d commits for rev=%s\n", len(commits), rev)
+
+		// Debug: Detaillierte Informationen zu jedem gefundenen Commit
+		for j, commit := range commits {
+			fmt.Printf("DEBUG: commit[%d]: hash=%s, subject=%s, type=%s, scope=%s\n",
+				j, commit.Hash.Short, commit.Subject, commit.Type, commit.Scope)
 		}
 
 		commitGroups, mergeCommits, revertCommits, noteGroups := gen.commitExtractor.Extract(commits)
+		fmt.Printf("DEBUG: Extracted %d commitGroups, %d mergeCommits, %d revertCommits, %d noteGroups\n",
+			len(commitGroups), len(mergeCommits), len(revertCommits), len(noteGroups))
+
+		// Debug: Zeige Informationen zu den extrahierten Commit-Gruppen
+		for j, group := range commitGroups {
+			fmt.Printf("DEBUG: commitGroup[%d]: title=%s, commits=%d\n",
+				j, group.Title, len(group.Commits))
+		}
 
 		versions = append(versions, &Version{
 			Tag:           tag,
@@ -224,7 +289,10 @@ func (gen *Generator) readVersions(tags []*Tag, first string) ([]*Version, error
 }
 
 func (gen *Generator) readUnreleased(tags []*Tag) (*Unreleased, error) {
+	fmt.Printf("DEBUG: readUnreleased called with %d tags\n", len(tags))
+
 	if gen.config.Options.NextTag != "" {
+		fmt.Printf("DEBUG: NextTag is set to %q, returning empty Unreleased\n", gen.config.Options.NextTag)
 		return &Unreleased{}, nil
 	}
 
@@ -232,14 +300,46 @@ func (gen *Generator) readUnreleased(tags []*Tag) (*Unreleased, error) {
 
 	if len(tags) > 0 {
 		rev = tags[0].Name + "..HEAD"
+		fmt.Printf("DEBUG: Setting rev to %q using the latest tag\n", rev)
+	} else {
+		fmt.Printf("DEBUG: No tags found, using rev=%q\n", rev)
+	}
+
+	// Debug: Führe einen Git-Befehl aus, um zu überprüfen, welche Commits tatsächlich vorhanden sind
+	gitArgs := []string{"-C", "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo", "log", "--pretty=format:%h - %s", rev}
+	fmt.Printf("DEBUG: Executing git %s\n", strings.Join(gitArgs, " "))
+	if out, err := exec.Command("git", gitArgs...).CombinedOutput(); err == nil {
+		if len(out) > 0 {
+			fmt.Printf("DEBUG: Git log for unreleased commits (rev=%s):\n%s\n", rev, string(out))
+		} else {
+			fmt.Printf("DEBUG: No unreleased commits found (rev=%s)\n", rev)
+		}
+	} else {
+		fmt.Printf("DEBUG: Error executing git log for unreleased commits: %v\n%s\n", err, string(out))
 	}
 
 	commits, err := gen.commitParser.Parse(rev)
 	if err != nil {
+		fmt.Printf("DEBUG: Error parsing unreleased commits for rev=%s: %v\n", rev, err)
 		return nil, err
+	}
+	fmt.Printf("DEBUG: Found %d unreleased commits for rev=%s\n", len(commits), rev)
+
+	// Debug: Detaillierte Informationen zu jedem gefundenen Commit
+	for i, commit := range commits {
+		fmt.Printf("DEBUG: unreleased commit[%d]: hash=%s, subject=%s, type=%s, scope=%s\n",
+			i, commit.Hash.Short, commit.Subject, commit.Type, commit.Scope)
 	}
 
 	commitGroups, mergeCommits, revertCommits, noteGroups := gen.commitExtractor.Extract(commits)
+	fmt.Printf("DEBUG: Extracted %d commitGroups, %d mergeCommits, %d revertCommits, %d noteGroups\n",
+		len(commitGroups), len(mergeCommits), len(revertCommits), len(noteGroups))
+
+	// Debug: Zeige Informationen zu den extrahierten Commit-Gruppen
+	for i, group := range commitGroups {
+		fmt.Printf("DEBUG: unreleased commitGroup[%d]: title=%s, commits=%d\n",
+			i, group.Title, len(group.Commits))
+	}
 
 	unreleased := &Unreleased{
 		CommitGroups:  commitGroups,
@@ -253,15 +353,41 @@ func (gen *Generator) readUnreleased(tags []*Tag) (*Unreleased, error) {
 }
 
 func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
+	fmt.Printf("DEBUG: getTags called with query: %q\n", query)
+
+	// Debug: Überprüfen, ob das Git-Arbeitsverzeichnis korrekt gesetzt ist
+	if wd, err := os.Getwd(); err == nil {
+		fmt.Printf("DEBUG: Current working directory in getTags: %s\n", wd)
+	}
+
+	// Debug: Direkter Git-Befehl, um die verfügbaren Tags zu überprüfen
+	gitArgs := []string{"-C", "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo", "tag", "-l", "--sort=-creatordate"}
+	fmt.Printf("DEBUG: Executing git %s\n", strings.Join(gitArgs, " "))
+	if out, err := exec.Command("git", gitArgs...).CombinedOutput(); err == nil {
+		fmt.Printf("DEBUG: Available git tags sorted by date:\n%s\n", string(out))
+	} else {
+		fmt.Printf("DEBUG: Error executing git tag command: %v\n%s\n", err, string(out))
+	}
+
 	tags, err := gen.tagReader.ReadAll()
 	if err != nil {
+		fmt.Printf("DEBUG: Error in tagReader.ReadAll: %v\n", err)
 		return nil, "", err
+	}
+	fmt.Printf("DEBUG: tagReader.ReadAll returned %d tags\n", len(tags))
+
+	// Debug: Detaillierte Informationen zu jedem Tag
+	for i, tag := range tags {
+		fmt.Printf("DEBUG: ReadAll tag[%d]: name=%s, date=%s\n",
+			i, tag.Name, tag.Date.Format("2006-01-02 15:04:05"))
 	}
 
 	next := gen.config.Options.NextTag
 	if next != "" {
+		fmt.Printf("DEBUG: NextTag option is set to %q\n", next)
 		for _, tag := range tags {
 			if next == tag.Name {
+				fmt.Printf("DEBUG: NextTag %q already exists as a tag\n", next)
 				return nil, "", fmt.Errorf("\"%s\" tag already exists", next)
 			}
 		}
@@ -273,6 +399,9 @@ func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
 				Subject: tags[0].Subject,
 				Date:    tags[0].Date,
 			}
+			fmt.Printf("DEBUG: Setting previous tag for NextTag: %s\n", previous.Name)
+		} else {
+			fmt.Printf("DEBUG: No previous tag found for NextTag\n")
 		}
 
 		// Assign the date with `readVersions()`
@@ -283,20 +412,39 @@ func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
 				Previous: previous,
 			},
 		}, tags...)
+		fmt.Printf("DEBUG: Added NextTag %q to tags list\n", next)
 	}
 
-	if len(tags) == 0 {
-		return nil, "", errors.New("git-tag does not exist")
-	}
-
+	// IMPORTANT - parse and convert query to tag and revision
+	fmt.Printf("DEBUG: Parsing query %q\n", query)
 	first := ""
+	tgs := tags
+
 	if query != "" {
 		tags, first, err = gen.tagSelector.Select(tags, query)
 		if err != nil {
+			fmt.Printf("DEBUG: Error in tagSelector.Select: %v\n", err)
 			return nil, "", err
+		}
+		fmt.Printf("DEBUG: tagSelector.Select returned %d tags, first=%s\n", len(tags), first)
+
+		// Debug: Zeige die ausgewählten Tags
+		for i, tag := range tags {
+			fmt.Printf("DEBUG: Selected tag[%d]: %s\n", i, tag.Name)
+		}
+	} else {
+		fmt.Printf("DEBUG: No query provided, using all %d tags\n", len(tags))
+	}
+
+	if len(tags) == 0 {
+		// Use the oldest tag if first is empty
+		if first == "" && len(tgs) != 0 {
+			first = tgs[len(tgs)-1].Name
+			fmt.Printf("DEBUG: No tags selected, using oldest tag as first: %s\n", first)
 		}
 	}
 
+	fmt.Printf("DEBUG: getTags returning %d tags, first=%s\n", len(tags), first)
 	return tags, first, nil
 }
 
@@ -317,8 +465,13 @@ func (gen *Generator) workdir() (func() error, error) {
 }
 
 func (gen *Generator) render(w io.Writer, unreleased *Unreleased, versions []*Version) error {
-	if _, err := os.Stat(gen.config.Template); err != nil {
+	// Überprüfen, ob die Template-Datei existiert und kein Verzeichnis ist
+	fileInfo, err := os.Stat(gen.config.Template)
+	if err != nil {
 		return err
+	}
+	if fileInfo.IsDir() {
+		return fmt.Errorf("read %s: is a directory", gen.config.Template)
 	}
 
 	fmap := template.FuncMap{
@@ -359,4 +512,95 @@ func (gen *Generator) render(w io.Writer, unreleased *Unreleased, versions []*Ve
 		Unreleased: unreleased,
 		Versions:   versions,
 	})
+}
+
+// customGitClient ist ein Wrapper um gitcmd.Client, der alle Befehle im korrekten Repository-Verzeichnis ausführt
+type customGitClient struct {
+	wrapped gitcmd.Client
+	repoDir string
+}
+
+// Exec führt den Git-Befehl im Repository-Verzeichnis aus
+func (c *customGitClient) Exec(subcmd string, args ...string) (string, error) {
+	fmt.Printf("DEBUG: customGitClient.Exec called with subcmd=%q, args=%v\n", subcmd, args)
+
+	// Ursprüngliches Arbeitsverzeichnis speichern
+	origWd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+	fmt.Printf("DEBUG: customGitClient original working directory: %s\n", origWd)
+
+	// In das Repository-Verzeichnis wechseln
+	if err := os.Chdir(c.repoDir); err != nil {
+		return "", fmt.Errorf("failed to change to repository directory: %w", err)
+	}
+	fmt.Printf("DEBUG: customGitClient changed to repository directory: %s\n", c.repoDir)
+
+	// Git-Befehl ausführen
+	out, err := c.wrapped.Exec(subcmd, args...)
+
+	// Zum ursprünglichen Verzeichnis zurückkehren
+	if chdirErr := os.Chdir(origWd); chdirErr != nil {
+		fmt.Printf("DEBUG: WARNING: Failed to restore original directory: %v\n", chdirErr)
+		// Falls der Git-Befehl erfolgreich war, geben wir den Fehler beim Verzeichniswechsel nicht zurück
+		if err == nil {
+			err = chdirErr
+		}
+	} else {
+		fmt.Printf("DEBUG: customGitClient restored original directory: %s\n", origWd)
+	}
+
+	// Debug-Ausgabe für das Ergebnis
+	if err != nil {
+		fmt.Printf("DEBUG: customGitClient git command failed: %v\n", err)
+	} else {
+		preview := out
+		if len(out) > 100 {
+			preview = out[:100] + "..."
+		}
+		fmt.Printf("DEBUG: customGitClient git command output (first 100 chars): %s\n", preview)
+	}
+
+	return out, err
+}
+
+// CanExec prüft, ob der Git-Befehl ausgeführt werden kann
+func (c *customGitClient) CanExec() error {
+	return c.wrapped.CanExec()
+}
+
+// InsideWorkTree prüft, ob wir uns innerhalb eines Git-Arbeitsbaumes befinden
+func (c *customGitClient) InsideWorkTree() error {
+	// Ursprüngliches Arbeitsverzeichnis speichern
+	origWd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// In das Repository-Verzeichnis wechseln
+	if err := os.Chdir(c.repoDir); err != nil {
+		return fmt.Errorf("failed to change to repository directory: %w", err)
+	}
+
+	// Prüfen, ob wir uns in einem Git-Arbeitsbaum befinden
+	result := c.wrapped.InsideWorkTree()
+
+	// Zum ursprünglichen Verzeichnis zurückkehren
+	if chdirErr := os.Chdir(origWd); chdirErr != nil {
+		// Falls die InsideWorkTree-Prüfung erfolgreich war, geben wir den Fehler beim Verzeichniswechsel zurück
+		if result == nil {
+			return chdirErr
+		}
+	}
+
+	return result
+}
+
+// newCustomGitClient erstellt einen neuen Git-Client-Wrapper
+func newCustomGitClient(config *gitcmd.Config, repoDir string) gitcmd.Client {
+	return &customGitClient{
+		wrapped: gitcmd.New(config),
+		repoDir: repoDir,
+	}
 }

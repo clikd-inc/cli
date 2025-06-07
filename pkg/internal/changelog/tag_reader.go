@@ -41,6 +41,9 @@ func (r *tagReader) ReadAll() ([]*Tag, error) {
 		return tags, fmt.Errorf("failed to get git-tag: %w", err)
 	}
 
+	// Debug: Print out the raw output
+	fmt.Printf("DEBUG: Raw tag output:\n%s\n", out)
+
 	lines := strings.Split(out, "\n")
 
 	for _, line := range lines {
@@ -61,8 +64,12 @@ func (r *tagReader) ReadAll() ([]*Tag, error) {
 			date = t
 		}
 
+		// Debug: Print each parsed tag
+		fmt.Printf("DEBUG: Parsed tag: name=%s, subject=%s, date=%s\n", name, subject, date)
+
 		if r.reFilter != nil {
 			if !r.reFilter.MatchString(name) {
+				fmt.Printf("DEBUG: Tag %s filtered out by pattern %s\n", name, r.reFilter.String())
 				continue
 			}
 		}
@@ -74,6 +81,8 @@ func (r *tagReader) ReadAll() ([]*Tag, error) {
 		})
 	}
 
+	fmt.Printf("DEBUG: Found %d tags after filtering\n", len(tags))
+
 	switch r.sortBy {
 	case "date":
 		r.sortTags(tags)
@@ -82,6 +91,15 @@ func (r *tagReader) ReadAll() ([]*Tag, error) {
 		r.sortTagsBySemver(tags)
 	}
 	r.assignPreviousAndNextTag(tags)
+
+	// Debug: Print final tag list
+	for i, tag := range tags {
+		prevName := "nil"
+		if tag.Previous != nil {
+			prevName = tag.Previous.Name
+		}
+		fmt.Printf("DEBUG: Final tag[%d]: %s, previous=%s\n", i, tag.Name, prevName)
+	}
 
 	return tags, nil
 }

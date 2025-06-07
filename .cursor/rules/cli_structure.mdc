@@ -118,32 +118,21 @@ package {module}
     template = "templates/changelog.md"
   ```
 
-### 3. API-Schlüssel-Management
+### 3. KI-Konfiguration und API-Schlüssel-Management
 
-- API-Schlüssel werden grundsätzlich in der globalen Konfiguration gespeichert (`$HOME/.clikd/config.toml`)
+- KI-Konfiguration verwendet ein vereinfachtes Modell mit einem Provider und einem Modell
+- Die Konfiguration validiert automatisch, ob das gewählte Modell mit dem gewählten Provider kompatibel ist
 - API-Schlüssel werden AUSSCHLIESSLICH aus zwei Quellen geladen:
   1. Für lokale Repository-Projekte: Aus der `.env`-Datei im Projektverzeichnis
-  2. Für globale Operationen: Aus der globalen Konfigurationsdatei
-- Shell-Umgebungsvariablen werden NIEMALS als Quelle für API-Schlüssel verwendet
-- Für Repository-spezifische Projekte (mit lokaler `./clikd/config.toml`) gelten besondere Regeln:
-  - API-Schlüssel MÜSSEN aus `.env`-Dateien geladen werden
-  - API-Schlüssel dürfen NICHT in lokalen Konfigurationsdateien gespeichert werden
-  - Fehlt ein erforderlicher API-Schlüssel in der `.env`-Datei, muss der Benutzer:
-    1. Über das Fehlen informiert werden
-    2. Die Möglichkeit erhalten, den globalen API-Schlüssel zu verwenden (falls verfügbar)
-    3. Andernfalls detaillierte Anweisungen erhalten, wie der Schlüssel hinzugefügt werden kann
-- Für die Schlüsselabfrage ist die Funktion `utils.GetAPIKey()` zu verwenden, die die korrekte Hierarchie implementiert
-- Wenn weder in der lokalen noch in der globalen Konfiguration ein API-Schlüssel gefunden wird:
-  - Werden dem Benutzer umfassende Anweisungen angezeigt, wie der Schlüssel eingerichtet werden kann
-  - Enthält Links zur Provider-Website, wo der Schlüssel bezogen werden kann
-  - Zeigt exakte Befehle und Dateiformate für die Konfiguration
-- Beispiel für API-Schlüssel-Konfiguration:
+  2. Für globale Operationen: Aus der globalen Konfigurationsdatei (`$HOME/.clikd/config.toml`)
+- Shell-Umgebungsvariablen werden NIEMALS direkt als Quelle für API-Schlüssel verwendet
+- Die vereinfachte KI-Konfiguration in der globalen Konfigurationsdatei sieht wie folgt aus:
   ```toml
-  # Nur in $HOME/.clikd/config.toml
-  [ai.models.mistral-medium]
+  [ai]
+  enable = true
   provider = "mistral"
-  model_id = "mistral-medium"
-  api_key = "sk-..."  # Nur in globaler Konfiguration
+  model = "mistral-medium"
+  api_key = "sk-..." # Nur in globaler Konfiguration
   ```
 
 - Beispiel für eine lokale `.env`-Datei:
@@ -153,21 +142,8 @@ package {module}
   CLIKD_OPENAI_API_KEY=sk-...
   ```
 
-- Beispiel für API-Schlüsselabruf in der Befehlsimplementierung:
-  ```go
-  // Prüfen, ob eine lokale Konfiguration vorhanden ist
-  localConfigExists := utils.IsLocalConfigPresent()
-  
-  // API-Schlüssel gemäß der definierten Hierarchie abrufen
-  apiKey, err := utils.GetAPIKey(utils.MistralProvider, localConfigExists)
-  if err != nil {
-      return err // Fehlermeldung enthält bereits ausführliche Anweisungen für den Benutzer
-  }
-  
-  // Schlüssel verwenden...
-  ```
-
-- Beispiel für Benutzerhinweise bei fehlendem API-Schlüssel:
+- Für die Schlüsselabfrage ist die Funktion `utils.GetAPIKey()` zu verwenden, die die korrekte Hierarchie implementiert
+- Wenn kein API-Schlüssel für den konfigurierten Provider gefunden wird, zeigt das System automatisch hilfreiche Fehlermeldungen an:
   ```
   API-Schlüssel für Mistral nicht gefunden. Sie können den Schlüssel auf folgende Weise hinzufügen:
 
@@ -175,9 +151,32 @@ package {module}
      CLIKD_MISTRAL_API_KEY=ihr_api_schlüssel
 
   2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:
-     clikd config set ai.models.mistral-medium.api_key ihr_api_schlüssel
+     clikd config set ai.api_key ihr_api_schlüssel
 
   Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: https://console.mistral.ai/api-keys/
+  ```
+
+- Wenn eine ungültige Provider-Modell-Kombination konfiguriert wird, erfolgt eine Validierung mit hilfreichen Vorschlägen:
+  ```
+  Fehler: Modell 'gpt-4' wird nicht vom Provider 'mistral' unterstützt.
+  Unterstützte Modelle für Mistral: mistral-medium, mistral-small, mistral-large
+  ```
+
+- Beispiel für einen API-Schlüsselabruf in der Befehlsimplementierung:
+  ```go
+  // KI-Konfiguration abrufen
+  aiConfig, err := config.GetAIModelConfig("")
+  if err != nil {
+      return err // Validierungsfehler oder fehlender API-Schlüssel mit Anweisungen
+  }
+  
+  // Client mit der Konfiguration erstellen
+  client, err := ai.NewClient(ctx, aiConfig)
+  if err != nil {
+      return fmt.Errorf("Fehler beim Erstellen des KI-Clients: %w", err)
+  }
+  
+  // Client verwenden...
   ```
 
 ## Fehlerbehandlung und Logging
@@ -203,17 +202,20 @@ Bei der Integration externer CLI-Tools als Unterbefehle:
 - **✅ DO**: Unterstützung für Umgebungsvariablen bieten
 - **✅ DO**: API-Schlüssel nur in globaler Konfiguration speichern oder aus .env-Dateien laden
 - **✅ DO**: Bei lokaler Konfiguration immer API-Schlüssel aus `.env` laden oder Benutzer informieren
+- **✅ DO**: Validieren, ob die gewählte Provider-Modell-Kombination kompatibel ist
 
 - **❌ DON'T**: Geschäftslogik in `pkg/commands` implementieren
 - **❌ DON'T**: Zu viele Ebenen von Unterbefehlen erstellen (max. 2-3)
 - **❌ DON'T**: Hartcodierte Pfade oder Konfigurationswerte verwenden
 - **❌ DON'T**: API-Schlüssel in Repository-spezifischen Konfigurationen oder im Code speichern
 - **❌ DON'T**: Globale API-Schlüssel ohne Einverständnis des Benutzers in einem lokalen Projekt verwenden
+- **❌ DON'T**: Unnötige Parameter wie Temperature, TopP oder ContextWindow in der Konfiguration mitführen
 
 ## Testbarkeit
 
 - Tests für Kernfunktionalität in `pkg/internal/{module}/{file}_test.go` implementieren
 - Für CLI-Tests kann `github.com/spf13/cobra/command.SetArgs()` verwendet werden
+- Validierungsfunktionen für Provider-Modell-Kombinationen sollten eigene Tests haben
 
 ## Kompatibilität bei der Integration
 

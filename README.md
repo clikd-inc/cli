@@ -10,6 +10,43 @@ Clikd is a powerful and modular CLI tool built with Go, Cobra, and Viper.
 - Subcommand structure
 - Logging system
 
+## KI-Unterstützung
+
+Die clikd CLI enthält leistungsstarke KI-Funktionen, die über die `gollm`-Bibliothek implementiert sind. Die folgenden LLM-Provider werden unterstützt:
+
+- **Mistral AI** (Standard): Mistral Medium, Small und Large
+- **OpenAI**: GPT-4o, GPT-4o-mini, GPT-3.5-Turbo, GPT-4-Turbo
+- **Anthropic**: Claude 3 (Opus, Sonnet, Haiku), Claude 3.5 Sonnet
+- **Groq**: Llama 3 (8B, 70B), Mixtral 8x7B
+- **OpenRouter**: Auto-Routing und Fallback-Funktionen
+- **Lokale Modelle**: Ollama-Integration für Llama, Mistral und andere
+
+### Konfiguration
+
+Die KI-Funktionalität kann in der globalen Konfigurationsdatei (`$HOME/.clikd/config.toml`) oder in lokalen Projektkonfigurationen (`./clikd/config.toml`) konfiguriert werden.
+
+API-Schlüssel sollten in einer `.env`-Datei im Projektverzeichnis gespeichert werden:
+
+```
+CLIKD_MISTRAL_API_KEY=sk-...
+CLIKD_OPENAI_API_KEY=sk-...
+CLIKD_ANTHROPIC_API_KEY=sk-...
+CLIKD_GROQ_API_KEY=sk-...
+CLIKD_OPENROUTER_API_KEY=sk-...
+```
+
+Alternativ können sie in der globalen Konfigurationsdatei gespeichert werden.
+
+### Testen der KI-Funktionalität
+
+Um die KI-Funktionalität zu testen, verwenden Sie den Befehl `ai-test`:
+
+```bash
+clikd ai-test "Wie kann ich einen Changelog erstellen?" --model=mistral-medium
+```
+
+Sie können das zu verwendende Modell mit dem `--model`-Flag angeben.
+
 ## Installation
 
 ```bash

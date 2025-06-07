@@ -1,6 +1,7 @@
 package initializer
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -296,6 +297,10 @@ func (config *Config) Convert(ctx *CLIContext) *chglog.Config {
 	if ctx.TagFilterPattern == "" {
 		ctx.TagFilterPattern = opts.TagFilterPattern
 	}
+
+	// Debug-Ausgabe für PatternMaps
+	fmt.Printf("DEBUG Convert: HeaderPattern=%s\n", opts.Header.Pattern)
+	fmt.Printf("DEBUG Convert: HeaderPatternMaps=%v\n", opts.Header.PatternMaps)
 
 	return &chglog.Config{
 		Bin:        config.Bin,

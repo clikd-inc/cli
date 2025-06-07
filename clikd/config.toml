@@ -1,97 +1,65 @@
 version = '1.0.0'
 
-[ai]
-default_model = 'mistral-medium'
-default_provider = 'mistral'
-enable = true
-verbose = false
-
-[ai.models]
-[ai.models.gpt-3]
-context_window = 0
-max_tokens = 0
-model_id = ''
-provider = ''
-stream_response = false
-temperature = 0.0
-top_p = 0.0
-
-[ai.models.gpt-3.5-turbo]
-context_window = 4096
-max_tokens = 1024
-model_id = 'gpt-3.5-turbo'
-provider = 'openai'
-stream_response = false
-temperature = 0.7
-top_p = 0.9
-
-[ai.models.gpt-4]
-context_window = 8192
-max_tokens = 1024
-model_id = 'gpt-4'
-provider = 'openai'
-stream_response = false
-temperature = 0.7
-top_p = 0.9
-
-[ai.models.mistral-medium]
-context_window = 8192
-max_tokens = 1024
-model_id = 'mistral-medium'
-provider = 'mistral'
-stream_response = false
-temperature = 0.7
-top_p = 0.9
-
-[ai.models.mistral-small]
-context_window = 8192
-max_tokens = 1024
-model_id = 'mistral-small'
-provider = 'mistral'
-stream_response = false
-temperature = 0.7
-top_p = 0.9
+[general]
+log_level = 'info'
+color = true
 
 [changelog]
-jira_integration = false
-no_case = false
-path = ''
-sort = 'semver'
 style = 'github'
-tag_filter_pattern = 'v*'
 template = 'templates/changelog.md'
+sort = true
+jira_integration = false
+tag_filter_pattern = ''
+path = 'CHANGELOG.md'
+no_case = false
 
 [changelog.info]
-title = 'CHANGELOG'
-repository_url = 'https://github.com/nyxb/clikd'
+title = ''
+repository_url = ''
 
 [changelog.options]
 [changelog.options.commits]
-sort_by = 'Scope'
+sort_by = 'scope'
+
+[changelog.options.commits.filters]
 
 [changelog.options.commit_groups]
-group_by = 'Type'
-sort_by = 'Title'
+group_by = 'type'
+sort_by = 'title'
 
 [changelog.options.commit_groups.title_maps]
+build = 'Build System'
+ci = 'Continuous Integration'
+docs = 'Documentation'
 feat = 'Features'
 fix = 'Bug Fixes'
 perf = 'Performance Improvements'
 refactor = 'Code Refactoring'
+test = 'Tests'
 
 [changelog.options.header]
-pattern = '^(\\w*)\\:\\s(.*)$'
-pattern_maps = ['Type', 'Subject']
+pattern = '^(\w*)(?:\(([\w\$\.\-\*\s]*)\))?\:\s(.*)$'
+
+[[changelog.options.header.pattern_maps]]
+pattern = '^(\w*)(?:\(([\w\$\.\-\*\s]*)\))?\:\s(.*)$'
 
 [changelog.options.notes]
 keywords = ['BREAKING CHANGE']
 
 [changelog.jira]
+url = ''
 base_url = ''
-issue_pattern = '[A-Z]+-[0-9]+'
-project_key = ''
 username = ''
+api_key = ''
+project_key = ''
+issue_pattern = '([A-Z]+-\d+)'
 
-[general]
-color = true
-log_level = 'info'
+[ai]
+enable = true
+provider = 'groq'
+model = 'gemma-7b-it'
+api_key = ''
+api_url = ''
+api_custom_headers = ''
+tokens_max_input = 4096
+tokens_max_output = 500

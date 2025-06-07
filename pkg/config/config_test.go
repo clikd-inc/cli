@@ -13,20 +13,21 @@ func TestDefaultConfig(t *testing.T) {
 	Reset()
 
 	// Get a default config instance
-	cfg := DefaultConfig()
+	cfg, err := EnsureInitialized()
+	require.NoError(t, err)
 
 	// Test some default values
 	if cfg.General.LogLevel != "info" {
 		t.Errorf("expected default log level to be 'info', got %s", cfg.General.LogLevel)
 	}
 
-	if cfg.AI.DefaultModel != "mistral-medium" {
-		t.Errorf("expected default AI model to be 'mistral-medium', got %s", cfg.AI.DefaultModel)
+	if cfg.AI.Model != "mistral-medium" {
+		t.Errorf("expected default AI model to be 'mistral-medium', got %s", cfg.AI.Model)
 	}
 
-	// Test model config exists
-	if _, ok := cfg.AI.Models["mistral-medium"]; !ok {
-		t.Error("expected 'mistral-medium' model config to exist")
+	// Test provider exists
+	if cfg.AI.Provider != "mistral" {
+		t.Error("expected default provider to be 'mistral'")
 	}
 }
 
@@ -74,9 +75,8 @@ color = false
 
 [ai]
 enable = true
-default_model = "gpt-4"
-default_provider = "openai"
-verbose = true
+model = "gpt-4"
+provider = "openai"
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		t.Fatalf("Failed to write test config file: %v", err)
@@ -99,8 +99,8 @@ verbose = true
 		t.Errorf("expected log level to be 'debug', got %s", cfg.General.LogLevel)
 	}
 
-	if cfg.AI.DefaultModel != "gpt-4" {
-		t.Errorf("expected AI default model to be 'gpt-4', got %s", cfg.AI.DefaultModel)
+	if cfg.AI.Model != "gpt-4" {
+		t.Errorf("expected AI model to be 'gpt-4', got %s", cfg.AI.Model)
 	}
 }
 
@@ -146,7 +146,7 @@ func TestConfig_SaveAndLoad(t *testing.T) {
 
 	// Setze einige Werte
 	manager.config.General.LogLevel = "debug"
-	manager.config.AI.DefaultModel = "gpt-4"
+	manager.config.AI.Model = "gpt-4"
 
 	// Speichere die Konfiguration
 	err = manager.SaveConfig(configPath)
@@ -159,7 +159,7 @@ func TestConfig_SaveAndLoad(t *testing.T) {
 
 	// Überprüfe, dass die Werte korrekt geladen wurden
 	require.Equal(t, "debug", newManager.config.General.LogLevel)
-	require.Equal(t, "gpt-4", newManager.config.AI.DefaultModel)
+	require.Equal(t, "gpt-4", newManager.config.AI.Model)
 }
 
 func TestConfig_LoadWithOverride(t *testing.T) {
@@ -179,9 +179,8 @@ color = false
 
 [ai]
 enable = true
-default_model = "gpt-4"
-default_provider = "openai"
-verbose = true
+model = "gpt-4"
+provider = "openai"
 `
 	err = os.WriteFile(configPath, []byte(configContent), 0644)
 	require.NoError(t, err)
@@ -197,7 +196,7 @@ verbose = true
 
 	// Überprüfe, dass die Umgebungsvariable die Konfigurationsdatei überschreibt
 	require.Equal(t, "trace", manager.config.General.LogLevel)
-	require.Equal(t, "gpt-4", manager.config.AI.DefaultModel)
+	require.Equal(t, "gpt-4", manager.config.AI.Model)
 }
 
 func TestEnvironmentVariables(t *testing.T) {
@@ -206,10 +205,12 @@ func TestEnvironmentVariables(t *testing.T) {
 
 	// Set environment variables
 	os.Setenv("CLIKD_GENERAL_LOG_LEVEL", "trace")
-	os.Setenv("CLIKD_AI_DEFAULT_MODEL", "gpt-3.5-turbo")
+	os.Setenv("CLIKD_AI_MODEL", "gpt-3.5-turbo")
+	os.Setenv("CLIKD_AI_PROVIDER", "openai")
 	defer func() {
 		os.Unsetenv("CLIKD_GENERAL_LOG_LEVEL")
-		os.Unsetenv("CLIKD_AI_DEFAULT_MODEL")
+		os.Unsetenv("CLIKD_AI_MODEL")
+		os.Unsetenv("CLIKD_AI_PROVIDER")
 	}()
 
 	// Initialize with defaults
@@ -229,8 +230,8 @@ func TestEnvironmentVariables(t *testing.T) {
 		t.Errorf("expected log level to be 'trace', got %s", cfg.General.LogLevel)
 	}
 
-	if cfg.AI.DefaultModel != "gpt-3.5-turbo" {
-		t.Errorf("expected AI default model to be 'gpt-3.5-turbo', got %s", cfg.AI.DefaultModel)
+	if cfg.AI.Model != "gpt-3.5-turbo" {
+		t.Errorf("expected AI model to be 'gpt-3.5-turbo', got %s", cfg.AI.Model)
 	}
 }
 
@@ -259,15 +260,13 @@ func TestSensitiveEnvironmentVariables(t *testing.T) {
 	}
 
 	// Check that the API keys were loaded for the correct models
-	for modelName, modelConfig := range cfg.AI.Models {
-		if modelConfig.Provider == "openai" {
-			if modelConfig.APIKey != "test-openai-key" {
-				t.Errorf("expected OpenAI API key for model %s, got %s", modelName, modelConfig.APIKey)
-			}
-		} else if modelConfig.Provider == "mistral" {
-			if modelConfig.APIKey != "test-mistral-key" {
-				t.Errorf("expected Mistral API key for model %s, got %s", modelName, modelConfig.APIKey)
-			}
+	if cfg.AI.Provider == "openai" {
+		if cfg.AI.APIKey != "test-openai-key" {
+			t.Errorf("expected OpenAI API key, got %s", cfg.AI.APIKey)
+		}
+	} else if cfg.AI.Provider == "mistral" {
+		if cfg.AI.APIKey != "test-mistral-key" {
+			t.Errorf("expected Mistral API key, got %s", cfg.AI.APIKey)
 		}
 	}
 }
@@ -276,10 +275,21 @@ func TestGetAIModelConfig(t *testing.T) {
 	// Reset the global manager before test
 	Reset()
 
-	// Initialize with defaults
+	// Initialize with defaults - standard-Implementierung verwendet jetzt openai/gpt-4o als Standardwerte
 	err := Initialize("")
 	if err != nil {
 		t.Fatalf("Initialize() failed: %v", err)
+	}
+
+	// Konfiguration für den Test anpassen
+	err = Set("ai.provider", "mistral")
+	if err != nil {
+		t.Fatalf("Set() failed: %v", err)
+	}
+
+	err = Set("ai.model", "mistral-medium")
+	if err != nil {
+		t.Fatalf("Set() failed: %v", err)
 	}
 
 	// Get a specific model config
@@ -297,7 +307,7 @@ func TestGetAIModelConfig(t *testing.T) {
 		t.Errorf("expected model ID to be 'mistral-medium', got %s", modelConfig.ModelID)
 	}
 
-	// Test for non-existent model
+	// Test für inkompatibles Modell
 	_, err = GetAIModelConfig("non-existent-model")
 	if err == nil {
 		t.Error("expected error for non-existent model, got nil")

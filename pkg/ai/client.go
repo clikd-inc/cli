@@ -111,7 +111,7 @@ func WithJSONResponse() ChatOption {
 func NewClient(ctx context.Context, config *Config, modelName string) (Client, error) {
 	// If no model specified, use the default
 	if modelName == "" {
-		modelName = config.DefaultModel
+		modelName = config.Model
 	}
 
 	// Get the model configuration
@@ -122,7 +122,7 @@ func NewClient(ctx context.Context, config *Config, modelName string) (Client, e
 		return nil, fmt.Errorf("failed to get model config: %w", err)
 	}
 
-	// Check if API key is configured
+	// Check if API key is configured for non-local providers
 	if modelConfig.APIKey == "" && modelConfig.Provider != ProviderLocal {
 		// Wenn wir hier ankommen, dann ist etwas schief gelaufen.
 		// GetModelConfig sollte normalerweise bereits einen Fehler mit detaillierten Anweisungen
@@ -133,19 +133,8 @@ func NewClient(ctx context.Context, config *Config, modelName string) (Client, e
 			modelName, modelConfig.Provider)
 	}
 
-	// Create the appropriate client based on the provider
-	switch modelConfig.Provider {
-	case ProviderMistral:
-		return NewMistralClient(ctx, modelConfig)
-	case ProviderOpenAI:
-		return NewOpenAIClient(ctx, modelConfig)
-	case ProviderAzureOpenAI:
-		return NewAzureOpenAIClient(ctx, modelConfig)
-	case ProviderLocal:
-		return NewLocalClient(ctx, modelConfig)
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", modelConfig.Provider)
-	}
+	// Gollm unterstützt alle Provider, also nutzen wir es exklusiv
+	return NewGollmClient(ctx, modelConfig)
 }
 
 // ClientOption represents an option for client creation

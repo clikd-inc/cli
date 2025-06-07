@@ -8,30 +8,49 @@ import (
 )
 
 func dotGet(target interface{}, prop string) (interface{}, bool) {
+	fmt.Printf("DEBUG: dotGet called with prop=%q\n", prop)
+
+	if target == nil {
+		fmt.Printf("DEBUG: dotGet: target is nil\n")
+		return nil, false
+	}
+
+	// Debug: Zeige Typ des Ziels
+	fmt.Printf("DEBUG: dotGet: target type=%T\n", target)
+
 	path := strings.Split(prop, ".")
+	fmt.Printf("DEBUG: dotGet: split into %d properties: %v\n", len(path), path)
 
 	if len(path) == 0 {
+		fmt.Printf("DEBUG: dotGet: path is empty\n")
 		return nil, false
 	}
 
 	for _, key := range path {
+		fmt.Printf("DEBUG: dotGet: handling property %q\n", key)
+
 		var value reflect.Value
 
 		if reflect.TypeOf(target).Kind() == reflect.Ptr {
+			fmt.Printf("DEBUG: dotGet: target is a pointer\n")
 			value = reflect.ValueOf(target).Elem()
 		} else {
+			fmt.Printf("DEBUG: dotGet: target is not a pointer\n")
 			value = reflect.ValueOf(target)
 		}
 
 		//nolint:staticcheck
 		field := value.FieldByName(strings.Title(key))
 		if !field.IsValid() {
+			fmt.Printf("DEBUG: dotGet: field %q is not valid\n", key)
 			return nil, false
 		}
 
 		target = field.Interface()
+		fmt.Printf("DEBUG: dotGet: got value for %q: %v\n", key, target)
 	}
 
+	fmt.Printf("DEBUG: dotGet: returning final value=%v\n", target)
 	return target, true
 }
 

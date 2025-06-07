@@ -1,6 +1,7 @@
 package changelog
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -11,99 +12,177 @@ func newTagSelector() *tagSelector {
 }
 
 func (s *tagSelector) Select(tags []*Tag, query string) ([]*Tag, string, error) {
-	tokens := strings.Split(query, "..")
-
-	switch len(tokens) {
-	case 1:
-		return s.selectSingleTag(tags, tokens[0])
-	case 2:
-		old := tokens[0]
-		new := tokens[1]
-		switch {
-		case old == "" && new == "":
-			return nil, "", nil
-		case old == "":
-			return s.selectBeforeTags(tags, new)
-		case new == "":
-			return s.selectAfterTags(tags, old)
-		default:
-			return s.selectRangeTags(tags, tokens[0], tokens[1])
-		}
+	if len(tags) == 0 {
+		return nil, "", nil
 	}
 
-	return nil, "", errFailedQueryParse
-}
-
-func (s *tagSelector) selectSingleTag(tags []*Tag, token string) ([]*Tag, string, error) {
-	var from string
-
+	// Debug: Print tags we're working with
+	fmt.Printf("DEBUG: Tag selector input: %d tags, query=%s\n", len(tags), query)
 	for i, tag := range tags {
-		if tag.Name == token {
-			if i+1 < len(tags) {
-				from = tags[i+1].Name
-			}
-			return []*Tag{tag}, from, nil
-		}
+		fmt.Printf("DEBUG: Input tag[%d]: %s\n", i, tag.Name)
 	}
 
-	return nil, "", nil
-}
-
-func (*tagSelector) selectBeforeTags(tags []*Tag, token string) ([]*Tag, string, error) {
-	var (
-		res    []*Tag
-		from   string
-		enable bool
-	)
-
-	for i, tag := range tags {
-		if tag.Name == token {
-			enable = true
-		}
-
-		if enable {
-			res = append(res, tag)
+	// "<old>..<new>" pattern
+	if strings.Contains(query, "..") {
+		var (
 			from = ""
-			if i+1 < len(tags) {
-				from = tags[i+1].Name
-			}
+			to   = ""
+		)
+
+		if query == ".." {
+			return tags, "", nil
+		}
+
+		tokens := strings.Split(query, "..")
+		if tokens[0] != "" {
+			from = tokens[0]
+		}
+		if len(tokens) > 1 && tokens[1] != "" {
+			to = tokens[1]
+		}
+
+		fmt.Printf("DEBUG: Parsed range query: from=%s, to=%s\n", from, to)
+
+		if from != "" && to != "" {
+			return s.selectRange(tags, from, to)
+		}
+
+		if from != "" {
+			return s.selectFrom(tags, from)
+		}
+
+		if to != "" {
+			return s.selectTo(tags, to)
 		}
 	}
 
-	if len(res) == 0 {
-		return res, "", errNotFoundTag
+	// Select by tag name
+	if tags, first, err := s.selectByTag(tags, query); err != nil {
+		return nil, "", err
+	} else if len(tags) != 0 {
+		return tags, first, nil
 	}
 
-	return res, from, nil
+	// Fallback to default
+	return tags, "", nil
 }
 
-func (*tagSelector) selectAfterTags(tags []*Tag, token string) ([]*Tag, string, error) {
-	// NOTE(clok): the res slice can range in size based on the token passed in.
-	var ( //nolint:prealloc
-		res  []*Tag
-		from string
+func (s *tagSelector) selectRange(tags []*Tag, from, to string) ([]*Tag, string, error) {
+	var (
+		fromTag *Tag
+		toTag   *Tag
+		result  []*Tag
+		first   string
 	)
 
-	for i, tag := range tags {
-		res = append(res, tag)
-		from = ""
-		if i+1 < len(tags) {
-			from = tags[i+1].Name
+	// Find tag
+	for _, tag := range tags {
+		if tag.Name == to {
+			toTag = tag
+			continue
+		}
+		if tag.Name == from {
+			fromTag = tag
+			continue
+		}
+	}
+
+	// Tag not found
+	if toTag == nil {
+		return nil, "", fmt.Errorf("\"%s\" tag is not found", to)
+	}
+	if fromTag == nil {
+		return nil, "", fmt.Errorf("\"%s\" tag is not found", from)
+	}
+
+	fmt.Printf("DEBUG: selectRange: fromTag=%s, toTag=%s\n", fromTag.Name, toTag.Name)
+
+	// Find the range of tags
+	var (
+		inRange      = false
+		foundOneItem = false
+	)
+
+	for _, tag := range tags {
+		if tag.Name == fromTag.Name {
+			inRange = true
 		}
 
-		if tag.Name == token {
+		if inRange {
+			result = append(result, tag)
+			foundOneItem = true
+		}
+
+		if tag.Name == toTag.Name && inRange {
 			break
 		}
 	}
 
-	if len(res) == 0 {
-		return res, "", errNotFoundTag
+	if !foundOneItem {
+		return nil, "", fmt.Errorf("we could not find any relevant tags")
 	}
 
-	return res, from, nil
+	first = from
+
+	fmt.Printf("DEBUG: selectRange result: %d tags, first=%s\n", len(result), first)
+	for i, tag := range result {
+		fmt.Printf("DEBUG: Result tag[%d]: %s\n", i, tag.Name)
+	}
+
+	return result, first, nil
 }
 
-func (s *tagSelector) selectRangeTags(tags []*Tag, old string, new string) ([]*Tag, string, error) {
+func (s *tagSelector) selectFrom(tags []*Tag, from string) ([]*Tag, string, error) {
+	var (
+		fromTag *Tag
+		result  []*Tag
+	)
+
+	// Find tag
+	for _, tag := range tags {
+		if tag.Name == from {
+			fromTag = tag
+			break
+		}
+	}
+
+	// Tag not found
+	if fromTag == nil {
+		return nil, "", fmt.Errorf("\"%s\" tag is not found", from)
+	}
+
+	fmt.Printf("DEBUG: selectFrom: fromTag=%s\n", fromTag.Name)
+
+	// Find the range of tags
+	var (
+		inRange      = false
+		foundOneItem = false
+	)
+
+	for _, tag := range tags {
+		if tag.Name == fromTag.Name {
+			inRange = true
+		}
+
+		if inRange {
+			result = append(result, tag)
+			foundOneItem = true
+		}
+	}
+
+	if !foundOneItem {
+		return nil, "", fmt.Errorf("we could not find any relevant tags")
+	}
+
+	fmt.Printf("DEBUG: selectFrom result: %d tags\n", len(result))
+	for i, tag := range result {
+		fmt.Printf("DEBUG: Result tag[%d]: %s\n", i, tag.Name)
+	}
+
+	return result, from, nil
+}
+
+func (s *tagSelector) selectTo(tags []*Tag, to string) ([]*Tag, string, error) {
 	var (
 		res    []*Tag
 		from   string
@@ -111,25 +190,49 @@ func (s *tagSelector) selectRangeTags(tags []*Tag, old string, new string) ([]*T
 	)
 
 	for i, tag := range tags {
-		if tag.Name == new {
+		if tag.Name == to {
 			enable = true
 		}
 
 		if enable {
+			res = append(res, tag)
 			from = ""
 			if i+1 < len(tags) {
 				from = tags[i+1].Name
 			}
-			res = append(res, tag)
-		}
-
-		if tag.Name == old {
-			enable = false
 		}
 	}
 
 	if len(res) == 0 {
 		return res, "", errNotFoundTag
+	}
+
+	return res, from, nil
+}
+
+func (s *tagSelector) selectByTag(tags []*Tag, query string) ([]*Tag, string, error) {
+	var (
+		res    []*Tag
+		from   string
+		enable bool
+	)
+
+	for i, tag := range tags {
+		if tag.Name == query {
+			enable = true
+		}
+
+		if enable {
+			res = append(res, tag)
+			from = ""
+			if i+1 < len(tags) {
+				from = tags[i+1].Name
+			}
+		}
+	}
+
+	if len(res) == 0 {
+		return nil, "", errNotFoundTag
 	}
 
 	return res, from, nil

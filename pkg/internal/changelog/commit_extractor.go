@@ -1,6 +1,7 @@
 package changelog
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -16,27 +17,44 @@ func newCommitExtractor(opts *Options) *commitExtractor {
 }
 
 func (e *commitExtractor) Extract(commits []*Commit) ([]*CommitGroup, []*Commit, []*Commit, []*NoteGroup) {
+	fmt.Printf("DEBUG: commitExtractor.Extract called with %d commits\n", len(commits))
+	fmt.Printf("DEBUG: CommitGroupBy: %s, CommitSortBy: %s, CommitGroupSortBy: %s\n",
+		e.opts.CommitGroupBy, e.opts.CommitSortBy, e.opts.CommitGroupSortBy)
+	fmt.Printf("DEBUG: CommitGroupTitleMaps: %v\n", e.opts.CommitGroupTitleMaps)
+
 	commitGroups := []*CommitGroup{}
 	noteGroups := []*NoteGroup{}
 	mergeCommits := []*Commit{}
 	revertCommits := []*Commit{}
 
 	filteredCommits := commitFilter(commits, e.opts.CommitFilters, e.opts.NoCaseSensitive)
+	fmt.Printf("DEBUG: After filtering: %d commits\n", len(filteredCommits))
 
-	for _, commit := range commits {
+	for i, commit := range commits {
+		fmt.Printf("DEBUG: Processing commit[%d]: hash=%s, type=%s, scope=%s, subject=%s\n",
+			i, commit.Hash.Short, commit.Type, commit.Scope, commit.Subject)
+
 		if commit.Merge != nil {
+			fmt.Printf("DEBUG: Commit[%d] is a merge commit\n", i)
 			mergeCommits = append(mergeCommits, commit)
 			continue
 		}
 
 		if commit.Revert != nil {
+			fmt.Printf("DEBUG: Commit[%d] is a revert commit\n", i)
 			revertCommits = append(revertCommits, commit)
 			continue
 		}
 	}
 
-	for _, commit := range filteredCommits {
+	for i, commit := range filteredCommits {
 		if commit.Merge == nil && commit.Revert == nil {
+			fmt.Printf("DEBUG: Processing commit[%d] for grouping: hash=%s, type=%s, scope=%s, subject=%s\n",
+				i, commit.Hash.Short, commit.Type, commit.Scope, commit.Subject)
+
+			raw, ttl := e.commitGroupTitle(commit)
+			fmt.Printf("DEBUG: Commit[%d] group title: raw=%q, title=%q\n", i, raw, ttl)
+
 			e.processCommitGroups(&commitGroups, commit, e.opts.NoCaseSensitive)
 		}
 
@@ -45,6 +63,20 @@ func (e *commitExtractor) Extract(commits []*Commit) ([]*CommitGroup, []*Commit,
 
 	e.sortCommitGroups(commitGroups)
 	e.sortNoteGroups(noteGroups)
+
+	fmt.Printf("DEBUG: Final result: %d commitGroups, %d mergeCommits, %d revertCommits, %d noteGroups\n",
+		len(commitGroups), len(mergeCommits), len(revertCommits), len(noteGroups))
+
+	// Debug: Zeige die erstellten Commit-Gruppen
+	for i, group := range commitGroups {
+		fmt.Printf("DEBUG: CommitGroup[%d]: title=%q, rawTitle=%q, commits=%d\n",
+			i, group.Title, group.RawTitle, len(group.Commits))
+
+		for j, commit := range group.Commits {
+			fmt.Printf("DEBUG: CommitGroup[%d] commit[%d]: hash=%s, subject=%s\n",
+				i, j, commit.Hash.Short, commit.Subject)
+		}
+	}
 
 	return commitGroups, mergeCommits, revertCommits, noteGroups
 }
@@ -113,18 +145,34 @@ func (e *commitExtractor) commitGroupTitle(commit *Commit) (string, string) {
 		ttl string
 	)
 
+	fmt.Printf("DEBUG: commitGroupTitle called for commit: hash=%s, type=%s, scope=%s, subject=%s\n",
+		commit.Hash.Short, commit.Type, commit.Scope, commit.Subject)
+	fmt.Printf("DEBUG: CommitGroupBy: %s\n", e.opts.CommitGroupBy)
+
+	// Zeige die gesamte Commit-Struktur
+	fmt.Printf("DEBUG: Commit structure: %+v\n", commit)
+
 	if title, ok := dotGet(commit, e.opts.CommitGroupBy); ok {
+		fmt.Printf("DEBUG: dotGet(%s) returned title: %v, ok: %v\n", e.opts.CommitGroupBy, title, ok)
 		if v, ok := title.(string); ok {
 			raw = v
+			fmt.Printf("DEBUG: Raw title: %q\n", raw)
 			if t, ok := e.opts.CommitGroupTitleMaps[v]; ok {
 				ttl = t
+				fmt.Printf("DEBUG: Mapped title: %q\n", ttl)
 			} else {
 				//nolint:staticcheck
 				ttl = strings.Title(raw)
+				fmt.Printf("DEBUG: Title-cased title: %q\n", ttl)
 			}
+		} else {
+			fmt.Printf("DEBUG: title is not a string: %T\n", title)
 		}
+	} else {
+		fmt.Printf("DEBUG: dotGet(%s) returned ok: false\n", e.opts.CommitGroupBy)
 	}
 
+	fmt.Printf("DEBUG: commitGroupTitle returning raw=%q, ttl=%q\n", raw, ttl)
 	return raw, ttl
 }
 

@@ -17,10 +17,14 @@ const (
 	ProviderMistral Provider = "mistral"
 	// ProviderOpenAI represents OpenAI
 	ProviderOpenAI Provider = "openai"
-	// ProviderAzureOpenAI represents Azure OpenAI
-	ProviderAzureOpenAI Provider = "azure-openai"
 	// ProviderLocal represents local models
 	ProviderLocal Provider = "local"
+	// ProviderAnthropic represents Anthropic
+	ProviderAnthropic Provider = "anthropic"
+	// ProviderGroq represents Groq
+	ProviderGroq Provider = "groq"
+	// ProviderOpenRouter represents OpenRouter
+	ProviderOpenRouter Provider = "openrouter"
 )
 
 // ModelConfig represents configuration for a specific AI model
@@ -38,193 +42,76 @@ type ModelConfig struct {
 
 // Config represents the central AI configuration
 type Config struct {
-	DefaultProvider Provider               `json:"default_provider" yaml:"default_provider"`
-	DefaultModel    string                 `json:"default_model" yaml:"default_model"`
-	Models          map[string]ModelConfig `json:"models" yaml:"models"`
-	EnableAI        bool                   `json:"enable_ai" yaml:"enable_ai"`
-	Verbose         bool                   `json:"verbose" yaml:"verbose"`
+	Provider Provider `json:"provider" yaml:"provider"`
+	Model    string   `json:"model" yaml:"model"`
+	APIKey   string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	APIURL   string   `json:"api_url,omitempty" yaml:"api_url,omitempty"`
+	EnableAI bool     `json:"enable_ai" yaml:"enable_ai"`
 }
 
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		DefaultProvider: ProviderMistral,
-		DefaultModel:    "mistral-medium",
-		EnableAI:        true,
-		Verbose:         false,
-		Models: map[string]ModelConfig{
-			"mistral-medium": {
-				Provider:       ProviderMistral,
-				ModelID:        "mistral-medium",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  8192,
-				StreamResponse: false,
-			},
-			"mistral-small": {
-				Provider:       ProviderMistral,
-				ModelID:        "mistral-small",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  8192,
-				StreamResponse: false,
-			},
-			"mistral-large": {
-				Provider:       ProviderMistral,
-				ModelID:        "mistral-large-latest",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  32768,
-				StreamResponse: false,
-			},
-			"gpt-3.5-turbo": {
-				Provider:       ProviderOpenAI,
-				ModelID:        "gpt-3.5-turbo",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  16385,
-				StreamResponse: false,
-			},
-			"gpt-4o": {
-				Provider:       ProviderOpenAI,
-				ModelID:        "gpt-4o",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  128000,
-				StreamResponse: false,
-			},
-			"gpt-4-turbo": {
-				Provider:       ProviderOpenAI,
-				ModelID:        "gpt-4-turbo-2024-04-09",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  128000,
-				StreamResponse: false,
-			},
-			"gpt-4": {
-				Provider:       ProviderOpenAI,
-				ModelID:        "gpt-4",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  8192,
-				StreamResponse: false,
-			},
-			"claude-3-opus": {
-				Provider:       ProviderOpenAI, // Using OpenAI provider with Anthropic's API URL
-				ModelID:        "claude-3-opus-20240229",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  200000,
-				StreamResponse: false,
-				Endpoint:       "https://api.anthropic.com/v1/messages", // Will need special handling
-			},
-			"claude-3-sonnet": {
-				Provider:       ProviderOpenAI, // Using OpenAI provider with Anthropic's API URL
-				ModelID:        "claude-3-sonnet-20240229",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  200000,
-				StreamResponse: false,
-				Endpoint:       "https://api.anthropic.com/v1/messages", // Will need special handling
-			},
-			"claude-3-haiku": {
-				Provider:       ProviderOpenAI, // Using OpenAI provider with Anthropic's API URL
-				ModelID:        "claude-3-haiku-20240307",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  200000,
-				StreamResponse: false,
-				Endpoint:       "https://api.anthropic.com/v1/messages", // Will need special handling
-			},
-			"local-ollama": {
-				Provider:       ProviderLocal,
-				ModelID:        "llama3",
-				MaxTokens:      1024,
-				Temperature:    0.7,
-				TopP:           0.9,
-				ContextWindow:  8192,
-				StreamResponse: false,
-				Endpoint:       "http://localhost:11434/api",
-			},
-		},
+		Provider: ProviderMistral,
+		Model:    "mistral-medium",
+		APIKey:   "",
+		APIURL:   "",
+		EnableAI: true,
 	}
 }
 
-// LoadConfig loads AI configuration from viper
+// LoadConfig loads the AI configuration from viper
 func LoadConfig(v *viper.Viper) (*Config, error) {
 	config := DefaultConfig()
 
-	// First check if we have ai.* keys directly set
-	// This typically happens in tests or when directly setting config values
-	if v.IsSet("ai.default_model") {
-		config.DefaultModel = v.GetString("ai.default_model")
-	}
-
-	if v.IsSet("ai.enable_ai") {
-		config.EnableAI = v.GetBool("ai.enable_ai")
-	}
-
-	// Then check if we have an "ai" structure (typical when loading from config file)
+	// Load AI configuration from viper
 	if v.IsSet("ai") {
-		// Try to unmarshal the configuration
-		if err := v.UnmarshalKey("ai", config); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal AI config: %w", err)
+		config.EnableAI = v.GetBool("ai.enable")
+
+		// Load model configuration
+		providerStr := v.GetString("ai.provider")
+		if providerStr != "" {
+			config.Provider = Provider(providerStr)
+		}
+
+		modelName := v.GetString("ai.model")
+		if modelName != "" {
+			config.Model = modelName
+		}
+
+		// Load other parameters
+		if v.IsSet("ai.api_key") {
+			config.APIKey = v.GetString("ai.api_key")
+		}
+
+		if v.IsSet("ai.api_url") {
+			config.APIURL = v.GetString("ai.api_url")
 		}
 	}
 
-	// Check if we have a local configuration
-	localConfigExists := utils.IsLocalConfigPresent()
+	// If AI is not enabled, return the config as is
+	if !config.EnableAI {
+		return config, nil
+	}
 
-	// Load API keys for each model using our new utility
-	for name, model := range config.Models {
-		// Create a provider info structure for the API key utility
-		var providerInfo utils.ProviderKeyInfo
-
-		switch model.Provider {
-		case ProviderMistral:
-			providerInfo = utils.MistralProvider
-		case ProviderOpenAI:
-			providerInfo = utils.OpenAIProvider
-		case ProviderAzureOpenAI:
-			// If not already defined in utils, we would add this
-			providerInfo = utils.ProviderKeyInfo{
-				Name:            "Azure OpenAI",
-				ConfigKey:       "ai.models.azure-openai.api_key",
-				EnvVarName:      "CLIKD_AZURE_OPENAI_API_KEY",
-				EnvVarNameShort: "AZURE_OPENAI_API_KEY",
-				Required:        false,
-			}
-		default:
-			// Skip for providers that don't need API keys
-			continue
+	// Set API key from environment variables if not set
+	if config.APIKey == "" {
+		apiKey, err := utils.GetAPIKey(mapProviderToKeyInfo(config.Provider), true)
+		if err != nil {
+			// Wenn der API-Schlüssel nicht gefunden werden konnte, geben wir eine
+			// benutzerfreundliche Fehlermeldung zurück.
+			return config, fmt.Errorf("API-Schlüssel für %s nicht gefunden. %s",
+				config.Provider, getAPIKeySetupInstructions(config.Provider))
 		}
+		config.APIKey = apiKey
+	}
 
-		// Set as not required for initial loading, will be checked when used
-		providerInfo.Required = false
-
-		// Get the API key following our hierarchy
-		apiKey, _ := utils.GetAPIKey(providerInfo, localConfigExists)
-		if apiKey != "" {
-			model.APIKey = apiKey
-			config.Models[name] = model
-		}
-
-		// Load endpoints from environment variables if applicable
-		if model.Endpoint == "" && requiresEndpoint(model.Provider) {
-			envEndpoint := getEndpointEnvVar(model.Provider)
-			if envEndpoint != "" && os.Getenv(envEndpoint) != "" {
-				model.Endpoint = os.Getenv(envEndpoint)
-				config.Models[name] = model
+	// Set API URL from environment variables if not set
+	if config.APIURL == "" {
+		envVarName := getEndpointEnvVar(config.Provider)
+		if envVarName != "" {
+			if envValue := os.Getenv(envVarName); envValue != "" {
+				config.APIURL = envValue
 			}
 		}
 	}
@@ -232,130 +119,172 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 	return config, nil
 }
 
-// GetModelConfig returns the configuration for a specific model
+// GetModelConfig converts the unified config to a ModelConfig
 func (c *Config) GetModelConfig(modelName string) (ModelConfig, error) {
-	model, exists := c.Models[modelName]
-	if !exists {
-		// If the requested model doesn't exist, fall back to the default
-		model, exists = c.Models[c.DefaultModel]
-		if !exists {
-			return ModelConfig{}, fmt.Errorf("model %s not found and default model %s is not configured",
-				modelName, c.DefaultModel)
-		}
-		modelName = c.DefaultModel
+	// If no model name is provided, use the default
+	if modelName == "" {
+		modelName = c.Model
 	}
 
-	// Check if the API key is set, if not try to get it
-	if model.APIKey == "" && model.Provider != ProviderLocal {
-		// Check if we have a local configuration
-		localConfigExists := utils.IsLocalConfigPresent()
-
-		// Create a provider info structure for the API key utility
-		var providerInfo utils.ProviderKeyInfo
-
-		switch model.Provider {
-		case ProviderMistral:
-			providerInfo = utils.MistralProvider
-		case ProviderOpenAI:
-			providerInfo = utils.OpenAIProvider
-		case ProviderAzureOpenAI:
-			providerInfo = utils.ProviderKeyInfo{
-				Name:            "Azure OpenAI",
-				ConfigKey:       "ai.models.azure-openai.api_key",
-				EnvVarName:      "CLIKD_AZURE_OPENAI_API_KEY",
-				EnvVarNameShort: "AZURE_OPENAI_API_KEY",
-				Required:        true,
-			}
-		default:
-			// Skip for providers that don't need API keys
-			return model, nil
-		}
-
-		// When getting a specific model, the key is required
-		providerInfo.Required = true
-
-		// Get the API key following our hierarchy
-		apiKey, err := utils.GetAPIKey(providerInfo, localConfigExists)
-		if err != nil {
-			return model, fmt.Errorf("failed to get API key for %s model: %w", modelName, err)
-		}
-
-		if apiKey != "" {
-			model.APIKey = apiKey
-			// Update the model in the config for future use
-			c.Models[modelName] = model
-		}
+	// Create a ModelConfig based on the provider and model
+	modelConfig := ModelConfig{
+		Provider: c.Provider,
+		ModelID:  modelName,
+		APIKey:   c.APIKey,
+		Endpoint: c.APIURL,
+		// Verwende Standardwerte für die Parameter
+		MaxTokens:      1024,
+		Temperature:    0.7,
+		TopP:           0.9,
+		StreamResponse: false,
 	}
 
-	return model, nil
+	// Set context window based on provider and model
+	switch c.Provider {
+	case ProviderMistral:
+		modelConfig.ContextWindow = 32000 // Maximum für Mistral
+	case ProviderOpenAI:
+		if modelName == "gpt-4o" {
+			modelConfig.ContextWindow = 128000
+		} else if modelName == "gpt-4" {
+			modelConfig.ContextWindow = 8192
+		} else {
+			modelConfig.ContextWindow = 4096 // Für ältere Modelle wie gpt-3.5-turbo
+		}
+	case ProviderAnthropic:
+		modelConfig.ContextWindow = 100000
+	default:
+		modelConfig.ContextWindow = 8192 // Standardwert für andere Provider
+	}
+
+	// If API key is not set, try to get it
+	if modelConfig.APIKey == "" && c.Provider != ProviderLocal {
+		return modelConfig, fmt.Errorf("API-Schlüssel für %s nicht konfiguriert. %s",
+			c.Provider, getAPIKeySetupInstructions(c.Provider))
+	}
+
+	return modelConfig, nil
+}
+
+// Helper functions
+
+// mapProviderToKeyInfo maps our provider enum to utils.ProviderKeyInfo
+func mapProviderToKeyInfo(provider Provider) utils.ProviderKeyInfo {
+	switch provider {
+	case ProviderMistral:
+		return utils.MistralProvider
+	case ProviderOpenAI:
+		return utils.OpenAIProvider
+	case ProviderAnthropic:
+		return utils.AnthropicProvider
+	case ProviderGroq:
+		return utils.GroqProvider
+	case ProviderOpenRouter:
+		return utils.OpenRouterProvider
+	default:
+		// Generische Struktur für andere Provider
+		return utils.ProviderKeyInfo{
+			Name:            string(provider),
+			ConfigKey:       fmt.Sprintf("ai.api_key"),
+			EnvVarName:      fmt.Sprintf("CLIKD_%s_API_KEY", provider),
+			EnvVarNameShort: fmt.Sprintf("%s_API_KEY", provider),
+			Required:        true,
+		}
+	}
 }
 
 // getAPIKeyEnvVar returns the environment variable name for the API key
 func getAPIKeyEnvVar(provider Provider) string {
 	switch provider {
 	case ProviderMistral:
-		return "MISTRAL_API_KEY"
+		return "CLIKD_MISTRAL_API_KEY"
 	case ProviderOpenAI:
-		return "OPENAI_API_KEY"
-	case ProviderAzureOpenAI:
-		return "AZURE_OPENAI_API_KEY"
-	case ProviderLocal:
-		return ""
+		return "CLIKD_OPENAI_API_KEY"
+	case ProviderAnthropic:
+		return "CLIKD_ANTHROPIC_API_KEY"
+	case ProviderGroq:
+		return "CLIKD_GROQ_API_KEY"
+	case ProviderOpenRouter:
+		return "CLIKD_OPENROUTER_API_KEY"
 	default:
-		return ""
+		return fmt.Sprintf("CLIKD_%s_API_KEY", provider)
 	}
 }
 
 // getEndpointEnvVar returns the environment variable name for the endpoint
 func getEndpointEnvVar(provider Provider) string {
 	switch provider {
-	case ProviderAzureOpenAI:
-		return "AZURE_OPENAI_ENDPOINT"
 	case ProviderLocal:
-		return "LOCAL_AI_ENDPOINT"
+		return "CLIKD_OLLAMA_BASE_URL"
 	default:
-		return ""
+		return "CLIKD_API_URL"
 	}
 }
 
-// requiresEndpoint returns true if the provider requires an endpoint
+// requiresEndpoint returns whether the provider requires an endpoint
 func requiresEndpoint(provider Provider) bool {
-	return provider == ProviderAzureOpenAI || provider == ProviderLocal
+	return provider == ProviderLocal
 }
 
-// IsAPIKeyConfigured checks if the API key is configured for a model
-func (c *Config) IsAPIKeyConfigured(modelName string) bool {
-	model, err := c.GetModelConfig(modelName)
+// getProviderWebsite returns the website URL for the provider
+func getProviderWebsite(provider Provider) string {
+	switch provider {
+	case ProviderMistral:
+		return "https://console.mistral.ai/api-keys/"
+	case ProviderOpenAI:
+		return "https://platform.openai.com/account/api-keys"
+	case ProviderAnthropic:
+		return "https://console.anthropic.com/settings/keys"
+	case ProviderGroq:
+		return "https://console.groq.com/keys"
+	case ProviderOpenRouter:
+		return "https://openrouter.ai/keys"
+	case ProviderLocal:
+		return "https://github.com/ollama/ollama"
+	default:
+		return "https://clikd.dev/docs/ai-configuration"
+	}
+}
+
+// getAPIKeySetupInstructions returns instructions for setting up the API key
+func getAPIKeySetupInstructions(provider Provider) string {
+	website := getProviderWebsite(provider)
+	envVar := getAPIKeyEnvVar(provider)
+
+	return fmt.Sprintf(`
+Sie können den Schlüssel auf folgende Weise hinzufügen:
+
+1. Erstellen Sie eine .env-Datei im Projektverzeichnis und fügen Sie hinzu:
+   %s=ihr_api_schlüssel
+
+2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:
+   clikd init config set %s=ihr_api_schlüssel
+
+Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s`,
+		envVar, envVar, website)
+}
+
+// IsAPIKeyConfigured checks if an API key is configured
+func (c *Config) IsAPIKeyConfigured() bool {
+	return c.APIKey != ""
+}
+
+// SetModel sets the model
+func (c *Config) SetModel(modelName string) {
+	c.Model = modelName
+}
+
+// SetProvider sets the provider
+func (c *Config) SetProvider(provider Provider) {
+	c.Provider = provider
+}
+
+// GetContext returns the context window size based on the provider and model
+func (c *Config) GetContext() int {
+	// Diese Methode ruft GetModelConfig auf und gibt den ContextWindow zurück
+	modelConfig, err := c.GetModelConfig(c.Model)
 	if err != nil {
-		return false
+		return 8192 // Default value if there's an error
 	}
-
-	return model.APIKey != ""
-}
-
-// AddModel adds or updates a model configuration
-func (c *Config) AddModel(name string, config ModelConfig) {
-	if c.Models == nil {
-		c.Models = make(map[string]ModelConfig)
-	}
-	c.Models[name] = config
-}
-
-// GetAvailableModels returns a list of configured model names
-func (c *Config) GetAvailableModels() []string {
-	models := make([]string, 0, len(c.Models))
-	for name := range c.Models {
-		models = append(models, name)
-	}
-	return models
-}
-
-// SetDefaultModel sets the default model
-func (c *Config) SetDefaultModel(modelName string) error {
-	if _, exists := c.Models[modelName]; !exists {
-		return fmt.Errorf("model %s not found in configuration", modelName)
-	}
-	c.DefaultModel = modelName
-	c.DefaultProvider = c.Models[modelName].Provider
-	return nil
+	return modelConfig.ContextWindow
 }

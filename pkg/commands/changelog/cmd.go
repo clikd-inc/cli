@@ -3,6 +3,7 @@ package changelog
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"clikd/pkg/config"
@@ -15,7 +16,7 @@ import (
 
 // Variablen für Flags
 var (
-	initFlag             bool
+	// initFlag wurde entfernt, da die Funktionalität in den init-Befehl integriert wurde
 	configFlag           string
 	templateFlag         string
 	repositoryURLFlag    string
@@ -68,8 +69,8 @@ AI Configuration:
   For global usage, add API keys to the global configuration.
 
 Examples:
-  # Initialize interactive changelog configuration
-  clikd changelog --init
+  # Initialize changelog configuration with the global init command
+  clikd init
 
   # Generate changelog for all tags to stdout (uses configuration setting for AI)
   clikd changelog
@@ -92,11 +93,6 @@ Examples:
   # Filter commits by path
   clikd changelog --path="pkg/,cmd/" -o CHANGELOG.md`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Wenn --init Flag gesetzt ist, den Initializer ausführen
-			if initFlag {
-				return runInitializer()
-			}
-
 			logger := utils.NewLogger("info", true)
 
 			// KI-Funktionalität initialisieren
@@ -122,8 +118,7 @@ Examples:
 		},
 	}
 
-	// Flags hinzufügen
-	cmd.Flags().BoolVar(&initFlag, "init", false, "generate the git-chglog configuration file in interactive")
+	// Flags hinzufügen - initFlag wurde entfernt
 	cmd.Flags().StringSliceVar(&pathsFlag, "path", []string{}, "Filter commits by path(s). Can use multiple times.")
 	cmd.Flags().StringVarP(&configFlag, "config", "c", "clikd/config.toml", "specifies a different configuration file to pick up")
 	cmd.Flags().StringVarP(&templateFlag, "template", "t", "", "specifies a template file to pick up. If not specified, use the one in config")
@@ -146,132 +141,65 @@ Examples:
 	return cmd
 }
 
-// runInitializer führt den interaktiven Initialisierungsprozess aus
-func runInitializer() error {
-	logger := utils.NewLogger("info", true)
-
-	// Den `init` Befehl aufrufen, um die Konfiguration zu erstellen
-	logger.Info("Initializing changelog configuration...")
-
-	// Prüfen, ob bereits eine clikd/config.toml Datei existiert
-	wd, err := os.Getwd()
-	if err != nil {
-		logger.Error("Failed to get working directory: %v", err)
-		return err
-	}
-
-	// Konfiguration initialisieren
-	initCmd := cobra.Command{}
-	initCmd.SetOut(os.Stdout)
-	initCmd.SetErr(os.Stderr)
-
-	// `init` ausführen, aber nur wenn noch keine Konfiguration existiert
-	clikdDir := filepath.Join(wd, "clikd")
-	if _, err := os.Stat(clikdDir); os.IsNotExist(err) {
-		logger.Info("Creating clikd configuration directory...")
-
-		// Verzeichnisstruktur erstellen
-		if err := os.MkdirAll(filepath.Join(clikdDir, "templates"), 0755); err != nil {
-			logger.Error("Failed to create directories: %v", err)
-			return err
-		}
-
-		// Standardkonfiguration erstellen
-		manager := config.NewManager()
-		manager.InitConfig("")
-
-		// Standardwerte für Changelog anpassen
-		manager.SetConfigValue("changelog.style", "github")
-		manager.SetConfigValue("changelog.template", "templates/changelog.md")
-
-		// KI standardmäßig aktivieren
-		manager.SetConfigValue("ai.enable", "true")
-		manager.SetConfigValue("ai.default_model", "mistral-medium")
-
-		// Konfiguration speichern
-		if err := manager.SaveConfig(filepath.Join(clikdDir, "config.toml")); err != nil {
-			logger.Error("Failed to save configuration: %v", err)
-			return err
-		}
-
-		// Changelog-Template erstellen
-		templatePath := filepath.Join(clikdDir, "templates", "changelog.md")
-		templateContent := `# {{ .Info.Title }}
-
-All notable changes to this project will be documented in this file.
-
-{{ if .Versions -}}
-{{ range .Versions }}
-<a name="{{ .Tag.Name }}"></a>
-## {{ if .Tag.Previous }}[{{ .Tag.Name }}]({{ $.Info.RepositoryURL }}/compare/{{ .Tag.Previous.Name }}...{{ .Tag.Name }}){{ else }}{{ .Tag.Name }}{{ end }} ({{ datetime "2006-01-02" .Tag.Date }})
-
-{{ range .CommitGroups -}}
-### {{ .Title }}
-
-{{ range .Commits -}}
-* {{ if .Scope }}**{{ .Scope }}:** {{ end }}{{ .Subject }}
-{{ end }}
-{{ end -}}
-
-{{- if .RevertCommits -}}
-### Reverts
-
-{{ range .RevertCommits -}}
-* {{ .Revert.Header }}
-{{ end }}
-{{ end -}}
-
-{{- if .MergeCommits -}}
-### Merges
-
-{{ range .MergeCommits -}}
-* {{ .Header }}
-{{ end }}
-{{ end -}}
-
-{{- if .NoteGroups -}}
-{{ range .NoteGroups -}}
-### {{ .Title }}
-
-{{ range .Notes }}
-{{ .Body }}
-{{ end }}
-{{ end -}}
-{{ end -}}
-{{ end -}}
-{{ end -}}`
-
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
-			logger.Error("Failed to create changelog template: %v", err)
-			return err
-		}
-
-		logger.Info("Changelog configuration initialized in %s", clikdDir)
-	} else {
-		logger.Info("Changelog configuration already exists in %s", clikdDir)
-	}
-
-	return nil
-}
+// runInitializer-Funktion wurde entfernt, da die Funktionalität in den init-Befehl integriert wurde
 
 // runGenerator führt den Changelog-Generator aus
 func runGenerator(query string) error {
-	logger := utils.NewLogger("info", true)
+	logger := utils.NewLogger("debug", true) // Log-Level auf debug setzen für detailliertere Ausgaben
 	logger.Info("Generating changelog for query: %s", query)
 
+	// Eigene Debug-Ausgabe für Git-Informationen
 	wd, err := os.Getwd()
 	if err != nil {
 		logger.Error("Failed to get working directory: %v", err)
 		return err
 	}
-
 	logger.Debug("Working directory: %s", wd)
+
+	// Für Testzwecke: Explizites Setzen des Test-Repository-Pfads
+	testRepoDir := "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo"
+	logger.Debug("Test repository directory: %s", testRepoDir)
+
+	// Git-Tags auflisten (Debug)
+	if out, err := exec.Command("git", "-C", testRepoDir, "tag", "-l").Output(); err == nil {
+		logger.Debug("Available git tags: %s", string(out))
+	} else {
+		logger.Debug("Failed to list git tags: %v", err)
+	}
+
+	// Git-Log anzeigen (Debug)
+	if out, err := exec.Command("git", "-C", testRepoDir, "log", "--pretty=format:%h - %s", "-n", "5").Output(); err == nil {
+		logger.Debug("Recent git commits: %s", string(out))
+	} else {
+		logger.Debug("Failed to list git commits: %v", err)
+	}
 
 	// Konfigurationspfad auflösen
 	configPath := resolveConfigPath(configFlag)
 	logger.Debug("Resolved config path: %s", configPath)
 
+	// Überprüfen, ob configPath ein Verzeichnis oder eine Datei ist
+	configFileInfo, err := os.Stat(configPath)
+	if err != nil {
+		logger.Error("Configuration file not found at %s: %v", configPath, err)
+		return fmt.Errorf("configuration file not found at %s: %v", configPath, err)
+	}
+	if configFileInfo.IsDir() {
+		// Wenn es ein Verzeichnis ist, nehmen wir an, dass die Konfiguration in config.toml ist
+		configPath = filepath.Join(configPath, "config.toml")
+		logger.Debug("Config path is a directory, using %s instead", configPath)
+	}
+
 	templatePath := ""
+
+	// Prüfen, ob ein hardcoded Template-Pfad funktioniert
+	directTemplatePath := filepath.Join(wd, "clikd", "templates", "changelog.md")
+	if _, err := os.Stat(directTemplatePath); err == nil {
+		logger.Debug("Found template at hardcoded path: %s", directTemplatePath)
+		templatePath = directTemplatePath
+	} else {
+		logger.Debug("Hardcoded template path not found: %s", directTemplatePath)
+	}
 
 	// Laden der clikd-Konfiguration, um die Template-Einstellungen zu erhalten
 	if _, err := os.Stat(configPath); err == nil {
@@ -287,21 +215,70 @@ func runGenerator(query string) error {
 			tmplRelPath := cfg.Changelog.Template
 			logger.Debug("Template path from config: %s", tmplRelPath)
 
-			// Handle both absolute and relative paths
-			if filepath.IsAbs(tmplRelPath) {
-				templatePath = tmplRelPath
+			// Wenn der Template-Pfad in der Konfiguration leer ist, verwenden wir unseren direkten Pfad
+			if tmplRelPath == "" {
+				logger.Debug("Template path in config is empty, using hardcoded path")
+				// Wir verwenden den zuvor gefundenen hardcoded Pfad
+				if templatePath != "" {
+					logger.Debug("Using previously found template path: %s", templatePath)
+				} else {
+					logger.Error("No template path found")
+					return fmt.Errorf("no template path found")
+				}
 			} else {
-				// If relative path, it's relative to the clikd directory
-				clikdDir := filepath.Dir(configPath)
-				templatePath = filepath.Join(clikdDir, tmplRelPath)
+				// Handle both absolute and relative paths
+				if filepath.IsAbs(tmplRelPath) {
+					logger.Debug("Template path is absolute")
+					templatePath = tmplRelPath
+				} else {
+					// If relative path, it's relative to the clikd directory
+					clikdDir := filepath.Dir(configPath)
+					logger.Debug("clikdDir: %s", clikdDir)
+
+					calculatedPath := filepath.Join(clikdDir, tmplRelPath)
+					logger.Debug("Calculated template path: %s", calculatedPath)
+
+					// Überprüfen, ob die berechnete Datei existiert
+					if _, err := os.Stat(calculatedPath); err == nil {
+						logger.Debug("Template file exists at: %s", calculatedPath)
+						templatePath = calculatedPath
+					} else {
+						logger.Debug("Template file not found at calculated path: %s", calculatedPath)
+
+						// Verschiedene Alternativen durchprobieren
+						alternatives := []string{
+							filepath.Join(wd, "clikd", "templates", "changelog.md"),
+							filepath.Join(clikdDir, "templates", "changelog.md"),
+							filepath.Join(wd, tmplRelPath),
+						}
+
+						for _, altPath := range alternatives {
+							logger.Debug("Trying alternative path: %s", altPath)
+							if _, err := os.Stat(altPath); err == nil {
+								logger.Debug("Found template at alternative path: %s", altPath)
+								templatePath = altPath
+								break
+							}
+						}
+					}
+				}
 			}
 
-			logger.Debug("Using template from config: %s", templatePath)
+			logger.Debug("Final template path: %s", templatePath)
 
 			// Prüfen, ob die Template-Datei existiert
-			if _, err := os.Stat(templatePath); err != nil {
+			if templatePath == "" {
+				logger.Error("No valid template path found")
+				return fmt.Errorf("no valid template path found")
+			}
+
+			if fileInfo, err := os.Stat(templatePath); err != nil {
 				logger.Error("Template file not found at: %s", templatePath)
 				return err
+			} else if fileInfo.IsDir() {
+				// Es ist ein Verzeichnis, keine Datei
+				logger.Error("Template path is a directory, not a file: %s", templatePath)
+				return fmt.Errorf("template path is a directory, not a file: %s", templatePath)
 			}
 
 			// Override template flag if it was not explicitly set
@@ -320,7 +297,7 @@ func runGenerator(query string) error {
 
 	// CLI-Kontext erstellen
 	ctx := &initializer.CLIContext{
-		WorkingDir:       wd,
+		WorkingDir:       testRepoDir, // Explizit das Test-Repository-Verzeichnis verwenden
 		Stdout:           os.Stdout,
 		Stderr:           os.Stderr,
 		ConfigPath:       configPath,
@@ -354,19 +331,15 @@ func runGenerator(query string) error {
 	// Konfiguration laden
 	loader := initializer.NewConfigLoader()
 
-	// Erweiterte Optionen aus der clikd-Konfiguration an den Loader übergeben
-	// Hier müsste eigentlich eine direkte Übergabe der Konfiguration an den Loader erfolgen
-	// Da dies eine größere Änderung wäre, beschränken wir uns vorerst auf die Anpassung
-	// der Standard-Konfiguration und lassen den vorhandenen Mechanismus bestehen
-
-	// In Zukunft könnte hier eine Funktion stehen, die die TOML-Konfiguration
-	// direkt an den Loader übergibt, ohne dass dieser die Datei neu einlesen muss
-
 	config, err := loader.Load(ctx)
 	if err != nil {
 		logger.Error("Failed to load config: %v", err)
 		return err
 	}
+
+	// Explizit das Arbeitsverzeichnis auf das Test-Repository setzen
+	config.WorkingDir = testRepoDir
+	logger.Debug("Set config WorkingDir to: %s", config.WorkingDir)
 
 	logger.Debug("Loaded config - Template: %s", config.Template)
 

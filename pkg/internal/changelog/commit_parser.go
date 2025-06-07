@@ -2,6 +2,8 @@ package changelog
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -90,6 +92,8 @@ func newCommitParser(logger *Logger, client gitcmd.Client, jiraClient JiraClient
 }
 
 func (p *commitParser) Parse(rev string) ([]*Commit, error) {
+	fmt.Printf("DEBUG: commitParser.Parse called with rev=%q\n", rev)
+
 	paths := p.config.Options.Paths
 
 	args := []string{
@@ -98,34 +102,97 @@ func (p *commitParser) Parse(rev string) ([]*Commit, error) {
 		"--pretty=" + logFormat,
 	}
 
+	// Debug: Zeige die verwendeten Argumente
+	fmt.Printf("DEBUG: git log args: %v\n", args)
+
+	// Debug: Zeige die Pfad-Filter, falls vorhanden
 	if len(paths) > 0 {
+		fmt.Printf("DEBUG: Filtering commits by paths: %v\n", paths)
 		args = append(args, "--")
 		args = append(args, paths...)
 	}
 
+	// Debug: Führe einen direkten Git-Befehl aus, um zu überprüfen, ob Commits vorhanden sind
+	baseArgs := []string{"-C", "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo", "log", rev, "--pretty=format:%h - %s"}
+	fmt.Printf("DEBUG: Executing direct git %s\n", strings.Join(baseArgs, " "))
+	if out, err := exec.Command("git", baseArgs...).CombinedOutput(); err == nil {
+		fmt.Printf("DEBUG: Direct git log output:\n%s\n", string(out))
+	} else {
+		fmt.Printf("DEBUG: Error in direct git log: %v\n%s\n", err, string(out))
+	}
+
+	// Debug: Zeige das aktuelle Arbeitsverzeichnis
+	if wd, err := os.Getwd(); err == nil {
+		fmt.Printf("DEBUG: Working directory in commitParser.Parse: %s\n", wd)
+	}
+
+	fmt.Printf("DEBUG: Executing git log with custom format\n")
 	out, err := p.client.Exec("log", args...)
 
 	if err != nil {
+		fmt.Printf("DEBUG: Error in git log command: %v\n", err)
 		return nil, err
+	}
+
+	// Debug: Zeige die ersten 200 Zeichen der Ausgabe
+	if len(out) > 0 {
+		preview := out
+		if len(out) > 200 {
+			preview = out[:200] + "..."
+		}
+		fmt.Printf("DEBUG: Git log output (first 200 chars): %s\n", preview)
+	} else {
+		fmt.Printf("DEBUG: Git log output is empty\n")
 	}
 
 	processor := p.config.Options.Processor
 	lines := strings.Split(out, separator)
-	lines = lines[1:]
+
+	// Debug: Zeige die Anzahl der Zeilen vor und nach dem Entfernen der ersten Zeile
+	fmt.Printf("DEBUG: Git log output split into %d lines\n", len(lines))
+
+	if len(lines) > 0 {
+		lines = lines[1:]
+		fmt.Printf("DEBUG: After removing first line: %d lines\n", len(lines))
+	} else {
+		fmt.Printf("DEBUG: No lines found in git log output\n")
+	}
+
 	commits := make([]*Commit, len(lines))
 
 	for i, line := range lines {
+		// Debug: Informationen zur Verarbeitung jeder Zeile
+		fmt.Printf("DEBUG: Processing line[%d] with length %d\n", i, len(line))
+
 		commit := p.parseCommit(line)
+
+		// Debug: Zeige Informationen zum geparsten Commit
+		if commit != nil && commit.Hash != nil {
+			fmt.Printf("DEBUG: Parsed commit: hash=%s, subject=%s\n",
+				commit.Hash.Short, commit.Subject)
+		} else {
+			fmt.Printf("DEBUG: Failed to parse commit from line[%d]\n", i)
+		}
 
 		if processor != nil {
 			commit = processor.ProcessCommit(commit)
 			if commit == nil {
+				fmt.Printf("DEBUG: Commit[%d] filtered out by processor\n", i)
 				continue
 			}
 		}
 
 		commits[i] = commit
 	}
+
+	// Debug: Zeige die Anzahl der resultierenden Commits
+	validCommits := 0
+	for _, c := range commits {
+		if c != nil {
+			validCommits++
+		}
+	}
+	fmt.Printf("DEBUG: Found %d valid commits out of %d parsed lines\n", validCommits, len(lines))
 
 	return commits, nil
 }
@@ -203,7 +270,22 @@ func (p *commitParser) processHeader(commit *Commit, input string) {
 	// Type, Scope, Subject etc ...
 	res = p.reHeader.FindAllStringSubmatch(input, -1)
 	if len(res) > 0 {
+		fmt.Printf("DEBUG processHeader: Header matches found: %v\n", res[0])
+		fmt.Printf("DEBUG processHeader: HeaderPatternMaps: %v\n", opts.HeaderPatternMaps)
+
+		// Zeige, was mit den extrahierten Werten passieren soll
+		if len(res[0]) > 1 {
+			fmt.Printf("DEBUG processHeader: Extracted values: %v\n", res[0][1:])
+			fmt.Printf("DEBUG processHeader: Will assign to fields: %v\n", opts.HeaderPatternMaps)
+		}
+
 		assignDynamicValues(commit, opts.HeaderPatternMaps, res[0][1:])
+
+		// Nach der Zuweisung zeigen, welche Werte gesetzt wurden
+		fmt.Printf("DEBUG processHeader: After assignment - Type=%q, Scope=%q, Subject=%q\n",
+			commit.Type, commit.Scope, commit.Subject)
+	} else {
+		fmt.Printf("DEBUG processHeader: No header matches found for pattern: %s\n", opts.HeaderPattern)
 	}
 
 	// Merge

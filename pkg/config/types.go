@@ -1,7 +1,7 @@
 package config
 
 import (
-	"fmt"
+	"os"
 )
 
 // ConfigData repräsentiert die Hauptkonfigurationsstruktur
@@ -19,26 +19,36 @@ type GeneralConfig struct {
 	Color    bool   `mapstructure:"color"`
 }
 
-// AIConfig enthält KI-bezogene Einstellungen
+// AIConfig enthält die Konfiguration für KI-bezogene Funktionen
 type AIConfig struct {
-	Enable          bool                   `mapstructure:"enable"`
-	DefaultModel    string                 `mapstructure:"default_model"`
-	DefaultProvider string                 `mapstructure:"default_provider"`
-	Verbose         bool                   `mapstructure:"verbose"`
-	Models          map[string]ModelConfig `mapstructure:"models"`
+	// Enable aktiviert oder deaktiviert KI-Funktionen global
+	Enable bool `json:"enable" mapstructure:"enable" toml:"enable"`
+	// Provider ist der KI-Anbieter (z.B. "mistral", "openai", "anthropic")
+	Provider string `json:"provider" mapstructure:"provider" toml:"provider"`
+	// Model ist das zu verwendende Modell (z.B. "mistral-medium", "gpt-4o")
+	Model string `json:"model" mapstructure:"model" toml:"model"`
+	// APIKey ist der API-Schlüssel für den Provider (nur in globaler Konfiguration gespeichert)
+	APIKey string `json:"api_key,omitempty" mapstructure:"api_key,omitempty" toml:"api_key,omitempty"`
+	// APIURL ist ein optionaler, benutzerdefinierter API-Endpunkt oder Proxy
+	APIURL string `json:"api_url,omitempty" mapstructure:"api_url,omitempty" toml:"api_url,omitempty"`
+	// APICustomHeaders sind benutzerdefinierte HTTP-Header für API-Anfragen (als JSON-String)
+	APICustomHeaders string `json:"api_custom_headers,omitempty" mapstructure:"api_custom_headers,omitempty" toml:"api_custom_headers,omitempty"`
+	// TokensMaxInput ist das maximale Token-Limit für Eingaben (Standard: 4096)
+	TokensMaxInput int `json:"tokens_max_input" mapstructure:"tokens_max_input" toml:"tokens_max_input"`
+	// TokensMaxOutput ist das maximale Token-Limit für Ausgaben (Standard: 500)
+	TokensMaxOutput int `json:"tokens_max_output" mapstructure:"tokens_max_output" toml:"tokens_max_output"`
 }
 
-// ModelConfig enthält Einstellungen für ein spezifisches KI-Modell
+// ModelConfig wird für die API-Kompatibilität beibehalten
 type ModelConfig struct {
-	Provider       string  `mapstructure:"provider"`
-	ModelID        string  `mapstructure:"model_id"`
-	APIKey         string  `mapstructure:"api_key,omitempty"`
-	Endpoint       string  `mapstructure:"endpoint,omitempty"`
-	MaxTokens      int     `mapstructure:"max_tokens"`
-	Temperature    float64 `mapstructure:"temperature"`
-	TopP           float64 `mapstructure:"top_p"`
-	ContextWindow  int     `mapstructure:"context_window"`
-	StreamResponse bool    `mapstructure:"stream_response"`
+	// Provider ist der KI-Anbieter (z.B. "openai", "mistral")
+	Provider string `json:"provider" mapstructure:"provider"`
+	// ModelID ist die spezifische Modell-ID beim Anbieter (z.B. "gpt-4", "mistral-medium")
+	ModelID string `json:"model_id" mapstructure:"model_id"`
+	// APIKey ist der API-Schlüssel für diesen Anbieter (nur in globaler Konfiguration)
+	APIKey string `json:"api_key,omitempty" mapstructure:"api_key,omitempty"`
+	// Endpoint ist ein optionaler, benutzerdefinierter API-Endpunkt
+	Endpoint string `json:"endpoint,omitempty" mapstructure:"endpoint,omitempty"`
 }
 
 // ChangelogConfig enthält Changelog-bezogene Einstellungen
@@ -106,9 +116,38 @@ type JiraConfig struct {
 
 // GetModelConfig gibt die Konfiguration für ein bestimmtes Modell zurück
 func (c *AIConfig) GetModelConfig(modelName string) (ModelConfig, error) {
-	model, exists := c.Models[modelName]
-	if !exists {
-		return ModelConfig{}, fmt.Errorf("model configuration not found for %s", modelName)
+	// Zuerst den Provider aus der Umgebungsvariable lesen
+	provider := os.Getenv("CLIKD_AI_PROVIDER")
+	if provider == "" {
+		// Standardwert, wenn nicht gesetzt
+		provider = "mistral"
 	}
+
+	// Das Modell aus der Umgebungsvariable lesen, wenn nicht explizit angegeben
+	if modelName == "" {
+		modelName = os.Getenv("CLIKD_MODEL")
+		if modelName == "" {
+			// Standardwert, wenn nicht gesetzt
+			modelName = "mistral-medium"
+		}
+	}
+
+	// Validiere das angeforderte Modell mit dem Provider
+	if err := ValidateProviderModel(provider, modelName); err != nil {
+		// Bei fehlerhafter Kombination Fehler zurückgeben
+		return ModelConfig{}, err
+	}
+
+	// API-URL aus Umgebungsvariable lesen
+	endpoint := os.Getenv("CLIKD_API_URL")
+
+	// Falls wir hier ankommen, ist die Kombination gültig
+	model := ModelConfig{
+		Provider: provider,
+		ModelID:  modelName,
+		APIKey:   "", // API-Schlüssel wird über GetAPIKey abgerufen
+		Endpoint: endpoint,
+	}
+
 	return model, nil
 }

@@ -34,60 +34,23 @@ func Initialize(configFile string) error {
 		manager.config.General.LogLevel = logLevel
 	}
 
-	if defaultModel := os.Getenv("CLIKD_AI_DEFAULT_MODEL"); defaultModel != "" {
-		manager.config.AI.DefaultModel = defaultModel
+	if model := os.Getenv("CLIKD_AI_MODEL"); model != "" {
+		manager.config.AI.Model = model
 	}
 
-	if defaultProvider := os.Getenv("CLIKD_AI_DEFAULT_PROVIDER"); defaultProvider != "" {
-		manager.config.AI.DefaultProvider = defaultProvider
-	}
-
-	if verbose := os.Getenv("CLIKD_AI_VERBOSE"); verbose == "true" {
-		manager.config.AI.Verbose = true
-	} else if verbose == "false" {
-		manager.config.AI.Verbose = false
+	if provider := os.Getenv("CLIKD_AI_PROVIDER"); provider != "" {
+		manager.config.AI.Provider = provider
 	}
 
 	// API-Schlüssel explizit für Tests prüfen
-	if openaiKey := os.Getenv("CLIKD_OPENAI_API_KEY"); openaiKey != "" {
-		// Setze für alle OpenAI-Modelle
-		for modelName, model := range manager.config.AI.Models {
-			if model.Provider == "openai" {
-				model.APIKey = openaiKey
-				manager.config.AI.Models[modelName] = model
-			}
-		}
-	}
-
-	if mistralKey := os.Getenv("CLIKD_MISTRAL_API_KEY"); mistralKey != "" {
-		// Setze für alle Mistral-Modelle
-		for modelName, model := range manager.config.AI.Models {
-			if model.Provider == "mistral" {
-				model.APIKey = mistralKey
-				manager.config.AI.Models[modelName] = model
-			}
-		}
-	}
-
-	// Auch die alten Umgebungsvariablennamen für die Tests berücksichtigen
-	if openaiKey := os.Getenv("OPENAI_API_KEY"); openaiKey != "" && os.Getenv("CLIKD_OPENAI_API_KEY") == "" {
-		// Setze für alle OpenAI-Modelle
-		for modelName, model := range manager.config.AI.Models {
-			if model.Provider == "openai" {
-				model.APIKey = openaiKey
-				manager.config.AI.Models[modelName] = model
-			}
-		}
-	}
-
-	if mistralKey := os.Getenv("MISTRAL_API_KEY"); mistralKey != "" && os.Getenv("CLIKD_MISTRAL_API_KEY") == "" {
-		// Setze für alle Mistral-Modelle
-		for modelName, model := range manager.config.AI.Models {
-			if model.Provider == "mistral" {
-				model.APIKey = mistralKey
-				manager.config.AI.Models[modelName] = model
-			}
-		}
+	if apiKey := os.Getenv("CLIKD_API_KEY"); apiKey != "" {
+		manager.config.AI.APIKey = apiKey
+	} else if openaiKey := os.Getenv("CLIKD_OPENAI_API_KEY"); openaiKey != "" && manager.config.AI.Provider == "openai" {
+		manager.config.AI.APIKey = openaiKey
+	} else if mistralKey := os.Getenv("CLIKD_MISTRAL_API_KEY"); mistralKey != "" && manager.config.AI.Provider == "mistral" {
+		manager.config.AI.APIKey = mistralKey
+	} else if anthropicKey := os.Getenv("CLIKD_ANTHROPIC_API_KEY"); anthropicKey != "" && manager.config.AI.Provider == "anthropic" {
+		manager.config.AI.APIKey = anthropicKey
 	}
 
 	// Globale Instanz setzen
@@ -142,14 +105,14 @@ func Set(key string, value interface{}) error {
 	if key == "general.log_level" {
 		globalManager.config.General.LogLevel = valueStr
 		return nil
-	} else if key == "ai.default_model" {
-		globalManager.config.AI.DefaultModel = valueStr
+	} else if key == "ai.model" {
+		globalManager.config.AI.Model = valueStr
 		return nil
-	} else if key == "ai.default_provider" {
-		globalManager.config.AI.DefaultProvider = valueStr
+	} else if key == "ai.provider" {
+		globalManager.config.AI.Provider = valueStr
 		return nil
-	} else if key == "ai.verbose" {
-		globalManager.config.AI.Verbose = (valueStr == "true")
+	} else if key == "ai.enable" {
+		globalManager.config.AI.Enable = (valueStr == "true")
 		return nil
 	}
 
@@ -173,7 +136,35 @@ func GetAIModelConfig(modelName string) (ModelConfig, error) {
 		return ModelConfig{}, err
 	}
 
-	return config.AI.GetModelConfig(modelName)
+	// Validiere die Provider-Modell-Kombination
+	provider := config.AI.Provider
+	model := config.AI.Model
+
+	// Falls ein spezifisches Modell angefragt wurde, verwende dieses für die Validierung
+	if modelName != "" && modelName != model {
+		// Wenn ein anderes Modell als das konfigurierte angefragt wurde,
+		// prüfen, ob es mit dem Provider kompatibel ist
+		if err := ValidateProviderModel(provider, modelName); err != nil {
+			return ModelConfig{}, fmt.Errorf("ungültige Konfiguration: %w", err)
+		}
+		// Falls kompatibel, verwende das angeforderte Modell für die Rückgabe
+		model = modelName
+	} else {
+		// Ansonsten validiere die konfigurierte Kombination
+		if err := ValidateProviderModel(provider, model); err != nil {
+			return ModelConfig{}, fmt.Errorf("ungültige Konfiguration: %w", err)
+		}
+	}
+
+	// ModelConfig erstellen
+	modelConfig := ModelConfig{
+		Provider: provider,
+		ModelID:  model,
+		APIKey:   config.AI.APIKey,
+		Endpoint: config.AI.APIURL,
+	}
+
+	return modelConfig, nil
 }
 
 // EnsureInitialized stellt sicher, dass die Konfiguration initialisiert ist
@@ -208,11 +199,14 @@ func convertToConfigData(config Config) *ConfigData {
 			Color:    config.General.Color,
 		},
 		AI: AIConfig{
-			Enable:          config.AI.Enable,
-			DefaultModel:    config.AI.DefaultModel,
-			DefaultProvider: config.AI.DefaultProvider,
-			Verbose:         config.AI.Verbose,
-			Models:          make(map[string]ModelConfig),
+			Enable:           config.AI.Enable,
+			Provider:         config.AI.Provider,
+			Model:            config.AI.Model,
+			APIKey:           config.AI.APIKey,
+			APIURL:           config.AI.APIURL,
+			APICustomHeaders: config.AI.APICustomHeaders,
+			TokensMaxInput:   config.AI.TokensMaxInput,
+			TokensMaxOutput:  config.AI.TokensMaxOutput,
 		},
 		Changelog: ChangelogConfig{
 			Style:            config.Changelog.Style,
@@ -252,20 +246,6 @@ func convertToConfigData(config Config) *ConfigData {
 				},
 			},
 		},
-	}
-
-	// Konvertiere KI-Modelle
-	for name, model := range config.AI.Models {
-		configData.AI.Models[name] = ModelConfig{
-			Provider:       model.Provider,
-			ModelID:        model.ModelID,
-			APIKey:         model.APIKey,
-			MaxTokens:      model.MaxTokens,
-			Temperature:    model.Temperature,
-			TopP:           model.TopP,
-			ContextWindow:  model.ContextWindow,
-			StreamResponse: model.StreamResponse,
-		}
 	}
 
 	// Konvertiere PatternMaps

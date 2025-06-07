@@ -1,11 +1,13 @@
 package config
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"clikd/pkg/utils"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/viper"
@@ -69,24 +71,24 @@ type Config struct {
 		} `toml:"jira"`
 	} `toml:"changelog"`
 	AI struct {
-		Enable          bool               `toml:"enable"`
-		DefaultModel    string             `toml:"default_model"`
-		DefaultProvider string             `toml:"default_provider"`
-		Verbose         bool               `toml:"verbose"`
-		Models          map[string]AIModel `toml:"models"`
+		// Enable aktiviert oder deaktiviert alle KI-Funktionen global.
+		// Alle weiteren KI-Einstellungen werden über Umgebungsvariablen gesteuert.
+		// CLIKD_API_KEY         - API-Schlüssel für den gewählten Provider
+		// CLIKD_AI_PROVIDER     - KI-Provider ('mistral', 'openai', 'anthropic', etc.)
+		// CLIKD_MODEL           - Modell (z.B. 'mistral-medium', 'gpt-4o')
+		// CLIKD_API_URL         - URL für Proxy oder alternative API-Endpunkte
+		// CLIKD_API_CUSTOM_HEADERS - Benutzerdefinierte HTTP-Header für API-Anfragen
+		// CLIKD_TOKENS_MAX_INPUT  - Maximales Token-Limit für Eingaben (Standard: 4096)
+		// CLIKD_TOKENS_MAX_OUTPUT - Maximales Token-Limit für Ausgaben (Standard: 500)
+		Enable           bool   `toml:"enable"`
+		Provider         string `toml:"provider"`
+		Model            string `toml:"model"`
+		APIKey           string `toml:"api_key"`
+		APIURL           string `toml:"api_url"`
+		APICustomHeaders string `toml:"api_custom_headers"`
+		TokensMaxInput   int    `toml:"tokens_max_input"`
+		TokensMaxOutput  int    `toml:"tokens_max_output"`
 	} `toml:"ai"`
-}
-
-// AIModel repräsentiert die Konfiguration eines AI-Modells
-type AIModel struct {
-	Provider       string  `toml:"provider"`
-	ModelID        string  `toml:"model_id"`
-	APIKey         string  `toml:"api_key,omitempty"`
-	MaxTokens      int     `toml:"max_tokens,omitempty"`
-	Temperature    float64 `toml:"temperature,omitempty"`
-	TopP           float64 `toml:"top_p,omitempty"`
-	ContextWindow  int     `toml:"context_window,omitempty"`
-	StreamResponse bool    `toml:"stream_response,omitempty"`
 }
 
 // Manager verwaltet die Konfiguration
@@ -160,93 +162,129 @@ func createDefaultConfig() Config {
 
 	// AI
 	c.AI.Enable = true
-	c.AI.DefaultModel = "gpt-4"
-	c.AI.DefaultProvider = "openai"
-	c.AI.Verbose = false
-	c.AI.Models = make(map[string]AIModel)
-
-	// Vorkonfigurierte Modelle
-	c.AI.Models["gpt-4"] = AIModel{
-		Provider:       "openai",
-		ModelID:        "gpt-4",
-		MaxTokens:      4000,
-		Temperature:    0.7,
-		TopP:           1.0,
-		ContextWindow:  8000,
-		StreamResponse: true,
-	}
-	c.AI.Models["gpt-3.5-turbo"] = AIModel{
-		Provider:       "openai",
-		ModelID:        "gpt-3.5-turbo",
-		MaxTokens:      4000,
-		Temperature:    0.7,
-		TopP:           1.0,
-		ContextWindow:  4000,
-		StreamResponse: true,
-	}
-	c.AI.Models["claude-3-opus"] = AIModel{
-		Provider:       "anthropic",
-		ModelID:        "claude-3-opus-20240229",
-		MaxTokens:      4000,
-		Temperature:    0.7,
-		TopP:           1.0,
-		ContextWindow:  8000,
-		StreamResponse: true,
-	}
-	c.AI.Models["mistral-large"] = AIModel{
-		Provider:       "mistral",
-		ModelID:        "mistral-large",
-		MaxTokens:      4000,
-		Temperature:    0.7,
-		TopP:           1.0,
-		ContextWindow:  4000,
-		StreamResponse: true,
-	}
-
-	// Mistral Medium Modell für Tests
-	c.AI.Models["mistral-medium"] = AIModel{
-		Provider:       "mistral",
-		ModelID:        "mistral-medium",
-		MaxTokens:      4000,
-		Temperature:    0.7,
-		TopP:           1.0,
-		ContextWindow:  4000,
-		StreamResponse: true,
-	}
+	c.AI.Provider = "mistral"
+	c.AI.Model = "mistral-medium"
+	c.AI.APIKey = "" // Wird nur in der globalen Konfiguration gespeichert
+	c.AI.APIURL = ""
+	c.AI.APICustomHeaders = ""
+	c.AI.TokensMaxInput = 4096
+	c.AI.TokensMaxOutput = 500
 
 	return c
 }
 
 // InitConfig initialisiert die Konfiguration aus einer Datei
 func (m *Manager) InitConfig(configPath string) error {
-	if configPath == "" {
-		// Wenn kein Pfad angegeben wurde, verwende die Standardkonfiguration
-		m.config = createDefaultConfig()
+	// Wenn ein expliziter Konfigurationspfad angegeben wurde, verwenden wir nur diese Datei
+	if configPath != "" {
+		m.configPath = configPath
+
+		// Datei lesen
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// Wenn die Datei nicht existiert, verwende die Standardkonfiguration
+				m.config = createDefaultConfig()
+				return nil
+			}
+			return fmt.Errorf("error reading config file: %w", err)
+		}
+
+		// TOML parsen
+		if err := toml.Unmarshal(data, &m.config); err != nil {
+			return fmt.Errorf("error parsing config file: %w", err)
+		}
+
+		// Sensible Daten aus Umgebungsvariablen laden
+		m.loadSensitiveEnvVars()
+
+		// Repository-spezifische .env-Datei laden, falls vorhanden
+		m.loadEnvFile()
+
 		return nil
 	}
 
-	m.configPath = configPath
+	// Wenn kein expliziter Pfad angegeben wurde, verwenden wir die Prioritätsreihenfolge
+	// 1. Standardkonfiguration laden
+	m.config = createDefaultConfig()
 
-	// Datei lesen
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Wenn die Datei nicht existiert, verwende die Standardkonfiguration
-			m.config = createDefaultConfig()
-			return nil
+	// 2. Globale Konfiguration laden, falls vorhanden
+	homedir, err := os.UserHomeDir()
+	if err == nil {
+		globalConfigPath := filepath.Join(homedir, ".clikd", "config.toml")
+		if _, err := os.Stat(globalConfigPath); err == nil {
+			// Globale Konfiguration laden
+			data, err := os.ReadFile(globalConfigPath)
+			if err == nil {
+				// TOML parsen
+				if err := toml.Unmarshal(data, &m.config); err == nil {
+					// Globale Konfiguration geladen
+					m.configPath = globalConfigPath
+				}
+			}
 		}
-		return fmt.Errorf("error reading config file: %w", err)
 	}
 
-	// TOML parsen
-	if err := toml.Unmarshal(data, &m.config); err != nil {
-		return fmt.Errorf("error parsing config file: %w", err)
+	// 3. Projektspezifische Konfiguration laden, falls vorhanden
+	// Die aktuelle Projektspezifische Konfiguration überschreibt die globale
+	wd, err := os.Getwd()
+	if err == nil {
+		localConfigPath := filepath.Join(wd, "clikd", "config.toml")
+		if _, err := os.Stat(localConfigPath); err == nil {
+			// Lokale Konfiguration laden
+			data, err := os.ReadFile(localConfigPath)
+			if err == nil {
+				// Temporäre Konfiguration erstellen, um keine nicht-spezifizierten Werte zu überschreiben
+				tempConfig := Config{}
+				if err := toml.Unmarshal(data, &tempConfig); err == nil {
+					// Nur die in der lokalen Konfiguration spezifizierten Werte übernehmen
+					// Allgemeine Einstellungen
+					if tempConfig.General.LogLevel != "" {
+						m.config.General.LogLevel = tempConfig.General.LogLevel
+					}
+
+					// KI-Einstellungen explizit übernehmen
+					// AI.Enable muss immer übernommen werden, unabhängig vom Wert
+					m.config.AI.Enable = tempConfig.AI.Enable
+
+					if tempConfig.AI.Provider != "" {
+						m.config.AI.Provider = tempConfig.AI.Provider
+					}
+					if tempConfig.AI.Model != "" {
+						m.config.AI.Model = tempConfig.AI.Model
+					}
+					if tempConfig.AI.APIURL != "" {
+						m.config.AI.APIURL = tempConfig.AI.APIURL
+					}
+					if tempConfig.AI.APICustomHeaders != "" {
+						m.config.AI.APICustomHeaders = tempConfig.AI.APICustomHeaders
+					}
+					if tempConfig.AI.TokensMaxInput > 0 {
+						m.config.AI.TokensMaxInput = tempConfig.AI.TokensMaxInput
+					}
+					if tempConfig.AI.TokensMaxOutput > 0 {
+						m.config.AI.TokensMaxOutput = tempConfig.AI.TokensMaxOutput
+					}
+
+					// Changelog-Einstellungen übernehmen
+					if tempConfig.Changelog.Style != "" {
+						m.config.Changelog.Style = tempConfig.Changelog.Style
+					}
+					if tempConfig.Changelog.Template != "" {
+						m.config.Changelog.Template = tempConfig.Changelog.Template
+					}
+
+					// Pfad aktualisieren, da die lokale Konfiguration Vorrang hat
+					m.configPath = localConfigPath
+				}
+			}
+		}
 	}
 
-	// Sensible Daten aus Umgebungsvariablen laden
+	// 4. Umgebungsvariablen laden (haben höchste Priorität)
 	m.loadSensitiveEnvVars()
 
-	// Repository-spezifische .env-Datei laden, falls vorhanden
+	// 5. Repository-spezifische .env-Datei laden, falls vorhanden
 	m.loadEnvFile()
 
 	return nil
@@ -254,20 +292,7 @@ func (m *Manager) InitConfig(configPath string) error {
 
 // SaveConfig speichert die Konfiguration in einer Datei
 func (m *Manager) SaveConfig(configPath string) error {
-	// Speichere API-Schlüssel (temporär)
-	apiKeys := make(map[string]map[string]string)
-
-	// Sichere vorhandene API-Schlüssel
-	for modelName, model := range m.config.AI.Models {
-		if model.APIKey != "" {
-			if apiKeys[model.Provider] == nil {
-				apiKeys[model.Provider] = make(map[string]string)
-			}
-			apiKeys[model.Provider][modelName] = model.APIKey
-		}
-	}
-
-	// API-Schlüssel für TOML-Serialisierung entfernen (sollten nicht in Datei gespeichert werden)
+	// API-Schlüssel für TOML-Serialisierung behandeln
 	// Nur in globaler Konfiguration speichern wir API-Schlüssel
 	isGlobalConfig := false
 	homeDir, err := os.UserHomeDir()
@@ -276,14 +301,12 @@ func (m *Manager) SaveConfig(configPath string) error {
 		isGlobalConfig = strings.HasPrefix(configPath, globalConfigDir)
 	}
 
+	// Sichere vorhandene API-Schlüssel
+	apiKey := m.config.AI.APIKey
+
 	// API-Schlüssel nur in globaler Konfiguration speichern
 	if !isGlobalConfig {
-		for modelName, model := range m.config.AI.Models {
-			if model.APIKey != "" {
-				model.APIKey = "" // Entferne API-Schlüssel aus lokaler Konfiguration
-				m.config.AI.Models[modelName] = model
-			}
-		}
+		m.config.AI.APIKey = ""
 
 		// Jira API-Schlüssel ebenfalls entfernen
 		if m.config.Changelog.Jira.APIKey != "" {
@@ -308,21 +331,24 @@ func (m *Manager) SaveConfig(configPath string) error {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 
-	// API-Schlüssel wiederherstellen (nach dem Speichern)
-	for provider, models := range apiKeys {
-		for modelName, apiKey := range models {
-			if model, ok := m.config.AI.Models[modelName]; ok && model.Provider == provider {
-				model.APIKey = apiKey
-				m.config.AI.Models[modelName] = model
-			}
-		}
-	}
+	// API-Schlüssel wiederherstellen (falls lokal entfernt)
+	m.config.AI.APIKey = apiKey
 
 	return nil
 }
 
 // SetConfigValue setzt einen Konfigurationswert anhand eines Pfades (z.B. "general.log_level")
 func (m *Manager) SetConfigValue(path, value string) error {
+	// Sonderbehandlung für AI-Einstellungen
+	if path == "ai.enable" {
+		if value == "true" || value == "1" {
+			m.config.AI.Enable = true
+		} else if value == "false" || value == "0" {
+			m.config.AI.Enable = false
+		}
+		return nil
+	}
+
 	v := viper.New()
 	v.SetConfigType("toml")
 
@@ -353,19 +379,8 @@ func (m *Manager) GetConfig() Config {
 }
 
 // loadSensitiveEnvVars lädt sensible Daten aus der globalen Konfiguration
-// Diese Methode sollte NICHT Umgebungsvariablen aus der Shell laden
+// Diese Methode sollte NICHT API-Schlüssel aus der Shell laden
 func (m *Manager) loadSensitiveEnvVars() {
-	// Diese Methode lädt keine API-Schlüssel mehr aus Umgebungsvariablen
-	// Stattdessen erfolgt das API-Key-Management ausschließlich über:
-	// 1. .env-Datei für lokale Projekte (über loadEnvFile)
-	// 2. Globale Konfiguration für globale Einstellungen
-
-	// Die Überprüfung auf Umgebungsvariablen wurde entfernt, da API-Schlüssel
-	// nicht aus Shell-Umgebungsvariablen geladen werden sollen.
-
-	// Generelle Konfigurationswerte (keine API-Schlüssel) dürfen weiterhin
-	// aus Umgebungsvariablen kommen.
-
 	// General-Konfigurationswerte aus Umgebungsvariablen
 	if logLevel := os.Getenv("CLIKD_GENERAL_LOG_LEVEL"); logLevel != "" {
 		m.config.General.LogLevel = logLevel
@@ -378,21 +393,35 @@ func (m *Manager) loadSensitiveEnvVars() {
 		m.config.AI.Enable = false
 	}
 
-	if model := os.Getenv("CLIKD_AI_DEFAULT_MODEL"); model != "" {
-		m.config.AI.DefaultModel = model
+	if provider := os.Getenv("CLIKD_AI_PROVIDER"); provider != "" {
+		m.config.AI.Provider = provider
 	}
 
-	if provider := os.Getenv("CLIKD_AI_DEFAULT_PROVIDER"); provider != "" {
-		m.config.AI.DefaultProvider = provider
+	if model := os.Getenv("CLIKD_MODEL"); model != "" {
+		m.config.AI.Model = model
 	}
 
-	if verbose := os.Getenv("CLIKD_AI_VERBOSE"); verbose == "true" || verbose == "1" {
-		m.config.AI.Verbose = true
-	} else if verbose == "false" || verbose == "0" {
-		m.config.AI.Verbose = false
+	if apiURL := os.Getenv("CLIKD_API_URL"); apiURL != "" {
+		m.config.AI.APIURL = apiURL
 	}
 
-	// Andere, nicht-API-Key-Konfigurationswerte aus Umgebungsvariablen
+	if apiHeaders := os.Getenv("CLIKD_API_CUSTOM_HEADERS"); apiHeaders != "" {
+		m.config.AI.APICustomHeaders = apiHeaders
+	}
+
+	if maxInput := os.Getenv("CLIKD_TOKENS_MAX_INPUT"); maxInput != "" {
+		if val, err := strconv.Atoi(maxInput); err == nil && val > 0 {
+			m.config.AI.TokensMaxInput = val
+		}
+	}
+
+	if maxOutput := os.Getenv("CLIKD_TOKENS_MAX_OUTPUT"); maxOutput != "" {
+		if val, err := strconv.Atoi(maxOutput); err == nil && val > 0 {
+			m.config.AI.TokensMaxOutput = val
+		}
+	}
+
+	// Andere, nicht-AI-Konfigurationswerte aus Umgebungsvariablen
 	if style := os.Getenv("CLIKD_CHANGELOG_STYLE"); style != "" {
 		m.config.Changelog.Style = style
 	}
@@ -411,80 +440,56 @@ func (m *Manager) loadSensitiveEnvVars() {
 // loadEnvFile lädt API-Schlüssel aus einer .env-Datei im Projektverzeichnis
 // Diese Methode ist speziell für API-Schlüssel und andere sensible Daten vorgesehen
 func (m *Manager) loadEnvFile() {
-	// Versuche, .env-Datei zu öffnen
-	envFile, err := os.Open(".env")
-	if err != nil {
-		// .env-Datei existiert nicht oder kann nicht geöffnet werden
-		return
-	}
-	defer envFile.Close()
+	// Prüfen, ob eine lokale Konfiguration existiert
+	localConfigExists := utils.IsLocalConfigPresent()
 
-	// Definiere eine Liste von API-Schlüsseln, die geladen werden sollen
-	apiKeyPatterns := []struct {
-		Provider string
-		EnvVar   string
-	}{
-		{"openai", "CLIKD_OPENAI_API_KEY"},
-		{"openai", "OPENAI_API_KEY"}, // Unterstützung für Legacy-Format
-		{"mistral", "CLIKD_MISTRAL_API_KEY"},
-		{"mistral", "MISTRAL_API_KEY"}, // Unterstützung für Legacy-Format
-		{"anthropic", "CLIKD_ANTHROPIC_API_KEY"},
-		{"anthropic", "ANTHROPIC_API_KEY"}, // Unterstützung für Legacy-Format
-		{"azure-openai", "CLIKD_AZURE_OPENAI_API_KEY"},
-		{"azure-openai", "AZURE_OPENAI_API_KEY"}, // Unterstützung für Legacy-Format
-	}
+	// Provider-spezifische Informationen basierend auf der aktuellen Konfiguration
+	var providerInfo utils.ProviderKeyInfo
 
-	// Jira-API-Schlüssel
-	jiraKeyPatterns := []string{
-		"CLIKD_JIRA_API_KEY",
-		"JIRA_API_KEY", // Unterstützung für Legacy-Format
-	}
-
-	// .env-Datei zeilenweise lesen
-	scanner := bufio.NewScanner(envFile)
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Kommentare und leere Zeilen überspringen
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		// Nach KEY=VALUE-Format suchen
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		// Anführungszeichen entfernen, falls vorhanden
-		value = strings.Trim(value, `"'`)
-
-		// API-Schlüssel für AI-Modelle setzen
-		for _, pattern := range apiKeyPatterns {
-			if key == pattern.EnvVar {
-				// Für jedes Modell mit dem passenden Provider den API-Schlüssel setzen
-				for modelName, modelConfig := range m.config.AI.Models {
-					if modelConfig.Provider == pattern.Provider {
-						modelConfig.APIKey = value
-						m.config.AI.Models[modelName] = modelConfig
-					}
-				}
-				break
-			}
-		}
-
-		// Jira-API-Schlüssel setzen
-		for _, pattern := range jiraKeyPatterns {
-			if key == pattern {
-				m.config.Changelog.Jira.APIKey = value
-				break
-			}
+	// Provider-spezifische Konfiguration auswählen
+	switch strings.ToLower(m.config.AI.Provider) {
+	case "openai":
+		providerInfo = utils.OpenAIProvider
+	case "mistral":
+		providerInfo = utils.MistralProvider
+	case "anthropic":
+		providerInfo = utils.AnthropicProvider
+	case "groq":
+		providerInfo = utils.GroqProvider
+	case "openrouter":
+		providerInfo = utils.OpenRouterProvider
+	default:
+		// Fallback zu generischem Provider
+		providerInfo = utils.ProviderKeyInfo{
+			Name:            m.config.AI.Provider,
+			ConfigKey:       "ai.api_key",
+			EnvVarName:      "CLIKD_API_KEY",
+			EnvVarNameShort: "API_KEY",
+			Required:        false,
 		}
 	}
+
+	// API-Schlüssel für den aktuellen Provider abrufen
+	// Nur wenn KI aktiviert ist, markieren wir den Schlüssel als erforderlich
+	if m.config.AI.Enable {
+		providerInfo.Required = true
+	}
+
+	// Schlüssel laden mit Fallback-Logik
+	apiKey, err := utils.GetAPIKey(providerInfo, localConfigExists)
+	if err == nil && apiKey != "" {
+		// Wenn ein Schlüssel gefunden wurde, in der Konfiguration speichern
+		m.config.AI.APIKey = apiKey
+	}
+}
+
+// Validiere Provider-Modell-Kombination
+// Diese Methode bleibt für Kompatibilität bestehen, aber ohne die Konfiguration zu überprüfen
+func (m *Manager) validateProviderModel() error {
+	// Da wir keine Provider/Modell-Felder mehr in der Konfiguration haben,
+	// macht diese Validierung keinen Sinn mehr. Die Validierung erfolgt
+	// stattdessen zur Laufzeit, wenn die API aufgerufen wird.
+	return nil
 }
 
 // MaskAPIKey maskiert einen API-Schlüssel aus Sicherheitsgründen
