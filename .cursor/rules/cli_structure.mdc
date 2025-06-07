@@ -16,6 +16,7 @@ Diese Regel definiert die grundlegende Architektur, Struktur und Standardpraktik
   - Hauptaufgabe: Definition von Cobra-Befehlen, Flags und Unterbefehlen
   - Datei `cmd.go`: Definiert den Hauptunterbefehl und exportiert `New{Command}Cmd()`
   - Kann zusätzliche Dateien enthalten, die weitere Unterbefehle definieren
+  - Datei `ui.go`: Enthält interaktive Bubble Tea-basierte UI-Implementierungen (wenn verwendet)
 
 - **`pkg/internal/{module}/`**: Enthält die eigentliche Implementierung der Funktionalität
   - Hauptaufgabe: Kernlogik, unabhängig von CLI-Aspekten implementiert
@@ -26,6 +27,11 @@ Diese Regel definiert die grundlegende Architektur, Struktur und Standardpraktik
 
 - **`pkg/utils/`**: Gemeinsame Hilfsfunktionen für die gesamte CLI
   - Hauptaufgabe: Wiederverwendbare Funktionen wie Logging, Fehlerbehandlung, etc.
+
+- **`pkg/ui/`**: Enthält das modulare UI-System für interaktive Benutzeroberflächen
+  - **`pkg/ui/components/`**: Wiederverwendbare UI-Komponenten (Select, Input, Confirm, etc.)
+  - **`pkg/ui/styles.go`**: Gemeinsame Stile und Design-Tokens für konsistentes Aussehen
+  - Basiert auf dem Bubble Tea Framework für Terminal-UIs
 
 ## Standards für die Befehlsimplementierung
 
@@ -62,7 +68,42 @@ func New{Command}Cmd() *cobra.Command {
 }
 ```
 
-### 2. Registrierung im Root-Befehl
+### 2. Implementierung interaktiver Benutzeroberflächen
+
+Für interaktive Befehle kann die moderne Bubble Tea-basierte UI verwendet werden:
+
+```go
+// In pkg/commands/{command}/ui.go
+package {command}
+
+import (
+    "clikd/pkg/ui"
+    "clikd/pkg/ui/components"
+)
+
+// run{Command}WithBubbleTea führt den Befehl mit moderner UI aus
+func run{Command}WithBubbleTea(options ...any) error {
+    // Komponenten verwenden
+    result := components.RunSelect("Titel", items)
+    
+    // oder
+    confirmed := components.Confirm("Titel", "Nachricht")
+    
+    // oder
+    input := components.RunInput("Titel", "Beschreibung", "Platzhalter")
+    
+    // Progress anzeigen
+    components.RunProgress("Titel", "Beschreibung", func(setPercent, setDone) {
+        // Arbeitsschritte ausführen
+        setPercent(0.5) // 50%
+        setDone()
+    })
+    
+    return nil
+}
+```
+
+### 3. Registrierung im Root-Befehl
 
 ```go
 // In cmd/clikd/main.go
@@ -81,7 +122,7 @@ func newRootCmd() *cobra.Command {
 }
 ```
 
-### 3. Implementierung der Kernfunktionalität
+### 4. Implementierung der Kernfunktionalität
 
 ```go
 // In pkg/internal/{module}/{file}.go
@@ -123,8 +164,8 @@ package {module}
 - KI-Konfiguration verwendet ein vereinfachtes Modell mit einem Provider und einem Modell
 - Die Konfiguration validiert automatisch, ob das gewählte Modell mit dem gewählten Provider kompatibel ist
 - API-Schlüssel werden AUSSCHLIESSLICH aus zwei Quellen geladen:
-  1. Für lokale Repository-Projekte: Aus der `.env`-Datei im Projektverzeichnis
-  2. Für globale Operationen: Aus der globalen Konfigurationsdatei (`$HOME/.clikd/config.toml`)
+  1. Für lokale Repository-Projekte: Aus der `.env`-Datei im Projektverzeichnis mit `CLIKD_API_KEY`
+  2. Für globale Operationen: Aus der globalen Konfigurationsdatei (`$HOME/.clikd/config.toml`) mit `ai.api_key`
 - Shell-Umgebungsvariablen werden NIEMALS direkt als Quelle für API-Schlüssel verwendet
 - Die vereinfachte KI-Konfiguration in der globalen Konfigurationsdatei sieht wie folgt aus:
   ```toml
@@ -137,21 +178,20 @@ package {module}
 
 - Beispiel für eine lokale `.env`-Datei:
   ```
-  # API-Schlüssel für lokales Projekt
-  CLIKD_MISTRAL_API_KEY=sk-...
-  CLIKD_OPENAI_API_KEY=sk-...
+  # API-Schlüssel für lokales Projekt (vereinfachtes Modell)
+  CLIKD_API_KEY=sk-...
   ```
 
 - Für die Schlüsselabfrage ist die Funktion `utils.GetAPIKey()` zu verwenden, die die korrekte Hierarchie implementiert
-- Wenn kein API-Schlüssel für den konfigurierten Provider gefunden wird, zeigt das System automatisch hilfreiche Fehlermeldungen an:
+- Wenn kein API-Schlüssel gefunden wird, zeigt das System automatisch hilfreiche Fehlermeldungen an:
   ```
-  API-Schlüssel für Mistral nicht gefunden. Sie können den Schlüssel auf folgende Weise hinzufügen:
+  API-Schlüssel nicht gefunden. Sie können den Schlüssel auf folgende Weise hinzufügen:
 
   1. Erstellen Sie eine .env-Datei im Projektverzeichnis und fügen Sie hinzu:
-     CLIKD_MISTRAL_API_KEY=ihr_api_schlüssel
+     CLIKD_API_KEY=ihr_api_schlüssel
 
   2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:
-     clikd config set ai.api_key ihr_api_schlüssel
+     clikd init config set ai.api_key=ihr_api_schlüssel
 
   Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: https://console.mistral.ai/api-keys/
   ```
@@ -179,6 +219,42 @@ package {module}
   // Client verwenden...
   ```
 
+## UI-System (Bubble Tea)
+
+Das modulare UI-System basiert auf Bubble Tea und bietet folgende Komponenten:
+
+- **Select**: Auswahl aus einer Liste von Optionen
+- **Multiselect**: Mehrfachauswahl aus einer Liste von Optionen
+- **Input**: Textfeld für Benutzereingaben
+- **PasswordInput**: Maskiertes Textfeld für sensible Eingaben
+- **Confirm**: Ja/Nein-Bestätigungsdialog
+- **Progress**: Fortschrittsanzeige für längere Operationen
+- **List**: Formatierte Listen mit optionalen Tags und Status
+- **Message**: Informations- und Hinweisdialoge
+
+Die Komponenten verwenden ein einheitliches Styling und Design-System, das in `pkg/ui/styles.go` definiert ist.
+
+### Beispiel für die Verwendung des UI-Systems:
+
+```go
+// Provider auswählen
+providerItems := make([]components.SelectItem, len(providerOptions))
+for i, provider := range providerOptions {
+    providerItems[i] = components.SelectItem{
+        Title:       provider,
+        Description: fmt.Sprintf("Standardmodell: %s", defaultModel),
+        Value:       provider,
+    }
+}
+
+selectedProvider := components.RunSelect("Wählen Sie einen Provider", providerItems)
+if selectedProvider == nil {
+    return fmt.Errorf("abbruch durch Benutzer")
+}
+
+provider := selectedProvider.Value.(string)
+```
+
 ## Fehlerbehandlung und Logging
 
 - Den gemeinsamen Logger aus `pkg/utils/logger.go` verwenden
@@ -203,6 +279,7 @@ Bei der Integration externer CLI-Tools als Unterbefehle:
 - **✅ DO**: API-Schlüssel nur in globaler Konfiguration speichern oder aus .env-Dateien laden
 - **✅ DO**: Bei lokaler Konfiguration immer API-Schlüssel aus `.env` laden oder Benutzer informieren
 - **✅ DO**: Validieren, ob die gewählte Provider-Modell-Kombination kompatibel ist
+- **✅ DO**: Moderne UI mit Bubble Tea für interaktive Befehle verwenden
 
 - **❌ DON'T**: Geschäftslogik in `pkg/commands` implementieren
 - **❌ DON'T**: Zu viele Ebenen von Unterbefehlen erstellen (max. 2-3)
@@ -210,6 +287,7 @@ Bei der Integration externer CLI-Tools als Unterbefehle:
 - **❌ DON'T**: API-Schlüssel in Repository-spezifischen Konfigurationen oder im Code speichern
 - **❌ DON'T**: Globale API-Schlüssel ohne Einverständnis des Benutzers in einem lokalen Projekt verwenden
 - **❌ DON'T**: Unnötige Parameter wie Temperature, TopP oder ContextWindow in der Konfiguration mitführen
+- **❌ DON'T**: Provider-spezifische API-Schlüssel verwenden, stattdessen das vereinfachte Modell mit `CLIKD_API_KEY` verwenden
 
 ## Testbarkeit
 

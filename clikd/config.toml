@@ -56,8 +56,8 @@ issue_pattern = '([A-Z]+-\d+)'
 
 [ai]
 enable = true
-provider = 'groq'
-model = 'gemma-7b-it'
+provider = 'mistral'
+model = 'mistral-medium'
 api_key = ''
 api_url = ''
 api_custom_headers = ''

@@ -192,13 +192,16 @@ func runGenerator(query string) error {
 
 	templatePath := ""
 
-	// Prüfen, ob ein hardcoded Template-Pfad funktioniert
-	directTemplatePath := filepath.Join(wd, "clikd", "templates", "changelog.md")
+	// Immer "clikd" als Basisverzeichnis verwenden
+	baseDir := "clikd"
+
+	// Prüfen, ob ein Template-Pfad mit dem korrekten Verzeichnis funktioniert
+	directTemplatePath := filepath.Join(wd, baseDir, "templates", "changelog.md")
 	if _, err := os.Stat(directTemplatePath); err == nil {
-		logger.Debug("Found template at hardcoded path: %s", directTemplatePath)
+		logger.Debug("Found template at path: %s", directTemplatePath)
 		templatePath = directTemplatePath
 	} else {
-		logger.Debug("Hardcoded template path not found: %s", directTemplatePath)
+		logger.Debug("Template path not found: %s", directTemplatePath)
 	}
 
 	// Laden der clikd-Konfiguration, um die Template-Einstellungen zu erhalten
@@ -247,7 +250,7 @@ func runGenerator(query string) error {
 
 						// Verschiedene Alternativen durchprobieren
 						alternatives := []string{
-							filepath.Join(wd, "clikd", "templates", "changelog.md"),
+							filepath.Join(wd, baseDir, "templates", "changelog.md"),
 							filepath.Join(clikdDir, "templates", "changelog.md"),
 							filepath.Join(wd, tmplRelPath),
 						}
