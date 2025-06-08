@@ -61,9 +61,11 @@ func (m SelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter", " ":
 			m.Selected = &m.Items[m.Cursor]
-			return m, func() tea.Msg {
-				return SelectResultMsg{Value: m.Selected.Value}
-			}
+			return m, tea.Batch(
+				func() tea.Msg {
+					return SelectResultMsg{Value: m.Selected.Value}
+				},
+			)
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}

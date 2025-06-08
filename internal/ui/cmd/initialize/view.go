@@ -62,6 +62,11 @@ func View(m InitModel) string {
 		content += styles.H2.Render("Select Log Level") + "\n\n"
 		content += styles.InfoText("Loading options...")
 
+	case StepColorConfig:
+		content += styles.SectionTitle("General Configuration") + "\n\n"
+		content += styles.H2.Render("Terminal Color") + "\n\n"
+		content += styles.NormalText.Render("Enable colored terminal output?") + "\n\n"
+
 	case StepAIConfig:
 		content += styles.SectionTitle("AI Configuration") + "\n\n"
 		content += styles.NormalText.Render("Do you want to enable AI features?") + "\n\n"

@@ -65,13 +65,43 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Force = true
 			return m, initConfigManager(m.ConfigPath, m.ConfigExists && !m.Force)
 
+		case StepColorConfig:
+			// Save color configuration
+			m.Manager.SetConfigValue("general.color", BoolToString(msg.Result))
+			// Move to AI configuration
+			m.CurrentStep = StepAIConfig
+			// Directly initialize the AI confirmation dialog
+			confirmModel := bubble.NewConfirmModel(
+				"AI Configuration",
+				"Do you want to enable AI features?",
+			)
+			m.confirmModel = &confirmModel
+			return m, nil
+
 		case StepAIConfig:
 			m.AIEnabled = msg.Result
 			m.Manager.SetConfigValue("ai.enable", BoolToString(msg.Result))
 
 			if msg.Result {
-				// Set up provider selection
-				return m, setupProviderSelection(m)
+				// Set up provider selection directly
+				m.CurrentStep = StepProviderSelection
+
+				// Get available providers
+				providers := []string{"mistral", "anthropic", "openai"}
+				providerItems := make([]bubble.SelectItem, len(providers))
+
+				for i, provider := range providers {
+					defaultModel, _ := config.GetDefaultModelForProvider(provider)
+					providerItems[i] = bubble.SelectItem{
+						Title:       provider,
+						Description: fmt.Sprintf("Default model: %s", defaultModel),
+						Value:       provider,
+					}
+				}
+
+				selectModel := bubble.NewSelectModel("Select AI Provider", providerItems)
+				m.selectModel = &selectModel
+				return m, nil
 			} else {
 				// Skip AI config, go to changelog
 				m.CurrentStep = StepChangelogConfig
@@ -85,22 +115,67 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case StepGeneralConfig:
 			if value, ok := msg.Value.(string); ok {
 				m.Manager.SetConfigValue("general.log_level", value)
-				// Setup color confirmation
-				return m, setupColorConfig(m)
+				// Initialize color confirmation model directly and set the step
+				m.CurrentStep = StepColorConfig
+				confirmModel := bubble.NewConfirmModel(
+					"Terminal Color",
+					"Enable colored terminal output?",
+				)
+				m.confirmModel = &confirmModel
+				// Return empty command to trigger re-rendering
+				return m, nil
 			}
 
 		case StepProviderSelection:
 			if value, ok := msg.Value.(string); ok {
 				m.AIProvider = value
 				m.Manager.SetConfigValue("ai.provider", value)
-				return m, setupModelSelection(m, value)
+
+				// Initialize model selection directly
+				m.CurrentStep = StepModelSelection
+
+				// For simplicity, just hardcode some models for each provider
+				var models []string
+				switch value {
+				case "mistral":
+					models = []string{"mistral-tiny", "mistral-small", "mistral-medium", "mistral-large"}
+				case "anthropic":
+					models = []string{"claude-3-opus", "claude-3-sonnet", "claude-3-haiku"}
+				case "openai":
+					models = []string{"gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"}
+				default:
+					// Use default model if provider not recognized
+					defaultModel, _ := config.GetDefaultModelForProvider(value)
+					m.AIModel = defaultModel
+					m.Manager.SetConfigValue("ai.model", defaultModel)
+
+					// Skip to changelog config
+					m.CurrentStep = StepChangelogConfig
+					return m, createProjectStructure(m)
+				}
+
+				modelItems := make([]bubble.SelectItem, len(models))
+				for i, model := range models {
+					modelItems[i] = bubble.SelectItem{
+						Title:       model,
+						Description: "", // Add description if available
+						Value:       model,
+					}
+				}
+
+				selectModel := bubble.NewSelectModel(fmt.Sprintf("Select Model for %s", value), modelItems)
+				m.selectModel = &selectModel
+				return m, nil
 			}
 
 		case StepModelSelection:
 			if value, ok := msg.Value.(string); ok {
 				m.AIModel = value
 				m.Manager.SetConfigValue("ai.model", value)
-				return m, setupAdvancedOptions(m)
+
+				// Skip advanced options and API key config, go directly to project structure
+				m.CurrentStep = StepChangelogConfig
+				return m, createProjectStructure(m)
 			}
 		}
 
@@ -155,7 +230,13 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Manager.SetConfigValue("general.log_level", "info")
 			m.Manager.SetConfigValue("general.color", "true")
 			m.CurrentStep = StepAIConfig
-			return m, setupAIConfig(m)
+			// Initialize AI confirmation dialog directly for non-interactive mode
+			confirmModel := bubble.NewConfirmModel(
+				"AI Configuration",
+				"Do you want to enable AI features?",
+			)
+			m.confirmModel = &confirmModel
+			return m, nil
 		}
 
 		// Setup log level selection
@@ -176,7 +257,7 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Message = "Configuration completed successfully."
 		m.MessageType = "success"
 		m.Done = true
-		return m, nil
+		return m, tea.Quit
 
 	case ProjectStructureErrorMsg:
 		// Project structure creation failed
@@ -184,6 +265,21 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Message = fmt.Sprintf("Error creating project structure: %s", msg.Error)
 		m.MessageType = "error"
 		return m, tea.Quit
+
+	case ForceStepChangeMsg:
+		m.CurrentStep = msg.NewStep
+
+		// Initialize appropriate component based on new step
+		switch msg.NewStep {
+		case StepColorConfig:
+			confirmModel := bubble.NewConfirmModel(
+				"Terminal Color",
+				"Enable colored terminal output?",
+			)
+			m.confirmModel = &confirmModel
+		}
+
+		return m, nil
 	}
 
 	return m, tea.Batch(cmds...)
@@ -191,91 +287,7 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // Helper functions to set up components for different steps
 
-func setupColorConfig(m InitModel) tea.Cmd {
-	confirmModel := bubble.NewConfirmModel(
-		"Terminal Color",
-		"Enable colored terminal output?",
-	)
-	m.confirmModel = &confirmModel
-	return nil
-}
-
-func setupAIConfig(m InitModel) tea.Cmd {
-	confirmModel := bubble.NewConfirmModel(
-		"AI Configuration",
-		"Do you want to enable AI features?",
-	)
-	m.confirmModel = &confirmModel
-	return nil
-}
-
-func setupProviderSelection(m InitModel) tea.Cmd {
-	m.CurrentStep = StepProviderSelection
-
-	// Get available providers
-	providers := []string{"mistral", "anthropic", "openai"}
-	providerItems := make([]bubble.SelectItem, len(providers))
-
-	for i, provider := range providers {
-		defaultModel, _ := config.GetDefaultModelForProvider(provider)
-		providerItems[i] = bubble.SelectItem{
-			Title:       provider,
-			Description: fmt.Sprintf("Default model: %s", defaultModel),
-			Value:       provider,
-		}
-	}
-
-	selectModel := bubble.NewSelectModel("Select AI Provider", providerItems)
-	m.selectModel = &selectModel
-	return nil
-}
-
-func setupModelSelection(m InitModel, provider string) tea.Cmd {
-	m.CurrentStep = StepModelSelection
-
-	// For simplicity, just hardcode some models for each provider
-	var models []string
-	switch provider {
-	case "mistral":
-		models = []string{"mistral-tiny", "mistral-small", "mistral-medium", "mistral-large"}
-	case "anthropic":
-		models = []string{"claude-3-opus", "claude-3-sonnet", "claude-3-haiku"}
-	case "openai":
-		models = []string{"gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"}
-	default:
-		// Use default model if provider not recognized
-		defaultModel, _ := config.GetDefaultModelForProvider(provider)
-		m.AIModel = defaultModel
-		m.Manager.SetConfigValue("ai.model", defaultModel)
-		return setupAdvancedOptions(m)
-	}
-
-	modelItems := make([]bubble.SelectItem, len(models))
-	for i, model := range models {
-		modelItems[i] = bubble.SelectItem{
-			Title:       model,
-			Description: "", // Add description if available
-			Value:       model,
-		}
-	}
-
-	selectModel := bubble.NewSelectModel(fmt.Sprintf("Select Model for %s", provider), modelItems)
-	m.selectModel = &selectModel
-	return nil
-}
-
-func setupAdvancedOptions(m InitModel) tea.Cmd {
-	m.CurrentStep = StepAdvancedAIOptions
-	// For simplicity, we'll skip this for now and move directly to API key config
-	return setupAPIKeyConfig(m)
-}
-
-func setupAPIKeyConfig(m InitModel) tea.Cmd {
-	m.CurrentStep = StepAPIKeyConfig
-	// For simplicity, we'll skip this for now and move directly to changelog config
-	return setupChangelogConfig(m)
-}
-
+// setupChangelogConfig prepares the changelog configuration UI
 func setupChangelogConfig(m InitModel) tea.Cmd {
 	m.CurrentStep = StepChangelogConfig
 	// For simplicity, we'll go directly to project structure

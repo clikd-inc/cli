@@ -17,6 +17,7 @@ const (
 	StepCreateDirs        = "create_dirs"
 	StepConfirmOverwrite  = "confirm_overwrite"
 	StepGeneralConfig     = "general_config"
+	StepColorConfig       = "color_config"
 	StepAIConfig          = "ai_config"
 	StepProviderSelection = "provider_selection"
 	StepModelSelection    = "model_selection"
@@ -114,6 +115,11 @@ type ConfirmResult struct {
 type SelectResult struct {
 	Value interface{}
 	Step  string
+}
+
+// ForceStepChangeMsg ist eine spezielle Nachricht, die verwendet wird, um einen Schrittwechsel zu erzwingen
+type ForceStepChangeMsg struct {
+	NewStep string
 }
 
 // StepCompleteMsg is sent when a step is completed

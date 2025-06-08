@@ -3,7 +3,6 @@ package bubble
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"clikd/internal/ui/styles"
 )
@@ -33,7 +32,7 @@ func NewInputModel(title, description, placeholder string) InputModel {
 	ti.Width = 60
 	ti.Prompt = "> "
 	ti.TextStyle = styles.Normal
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(styles.Primary)
+	ti.PromptStyle = styles.InputPrompt
 	ti.Cursor.Blink = true
 	ti.Focus()
 

@@ -8,14 +8,14 @@ import (
 var (
 	// Primary palette
 	Primary   = lipgloss.Color("#9D5CFF") // Main brand color
-	Secondary = lipgloss.Color("#00B3E6") // Secondary brand color
+	Secondary = lipgloss.Color("#C17BFF") // Lighter purple, complementary to Primary
 	Accent    = lipgloss.Color("#FFCC00") // Accent color
 
 	// Status colors
 	Success = lipgloss.Color("#2ECC71") // Green
 	Error   = lipgloss.Color("#E74C3C") // Red
 	Warning = lipgloss.Color("#F39C12") // Orange
-	Info    = lipgloss.Color("#3498DB") // Blue
+	Info    = lipgloss.Color("#5E9CF9") // Lighter blue, more compatible with purple
 
 	// Neutral colors
 	Text         = lipgloss.Color("#FFFFFF") // Main text
@@ -26,6 +26,10 @@ var (
 	Selected     = lipgloss.Color("#555555") // Selected item
 	Inactive     = lipgloss.Color("#666666") // Inactive elements
 	DisabledText = lipgloss.Color("#777777") // Disabled text
+
+	// Link colors
+	LinkNormal = lipgloss.Color("#E668FF") // Lighter purple for links
+	LinkHover  = lipgloss.Color("#FF99FF") // Even lighter for hover state
 )
 
 // TextStyles - Basic text styles
@@ -102,6 +106,20 @@ var (
 	Logo = lipgloss.NewStyle().
 		Foreground(Primary).
 		Bold(true)
+
+	// Link styles
+	Link = lipgloss.NewStyle().
+		Foreground(LinkNormal).
+		Underline(true)
+
+	LinkActive = lipgloss.NewStyle().
+			Foreground(LinkHover).
+			Underline(true).
+			Bold(true)
+
+	// Input styles
+	InputPrompt = lipgloss.NewStyle().
+			Foreground(Primary)
 )
 
 // UI Icons for command line interface
@@ -163,6 +181,16 @@ func SuccessText(text string) string {
 // HighlightText renders text in the highlight style
 func HighlightText(text string) string {
 	return HighlightStyle.Render(text)
+}
+
+// LinkText renders text as a link
+func LinkText(text string) string {
+	return Link.Render(text)
+}
+
+// ActiveLinkText renders text as an active/hover link
+func ActiveLinkText(text string) string {
+	return LinkActive.Render(text)
 }
 
 // Layout helper functions
