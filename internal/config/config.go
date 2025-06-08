@@ -7,29 +7,29 @@ import (
 )
 
 var (
-	// globalManager ist die Singleton-Instanz des Konfigurationsmanagers
+	// globalManager is the singleton instance of the configuration manager
 	globalManager *Manager
 
-	// mutex für thread-sichere Initialisierung
+	// mutex for thread-safe initialization
 	managerMutex sync.Mutex
 )
 
-// Initialize initialisiert die globale Konfiguration
-// Wenn configFile leer ist, wird der Standardpfad verwendet
+// Initialize initializes the global configuration
+// If configFile is empty, the default path is used
 func Initialize(configFile string) error {
 	managerMutex.Lock()
 	defer managerMutex.Unlock()
 
-	// Neue Manager-Instanz erstellen
+	// Create new manager instance
 	manager := NewManager()
 
-	// Konfiguration laden
+	// Load configuration
 	if err := manager.InitConfig(configFile); err != nil {
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	// Umgebungsvariablen explizit überprüfen und setzen (für Tests)
-	// Diese Werte überschreiben alles, was über die loadSensitiveEnvVars-Methode geladen wurde
+	// Explicitly check and set environment variables (for tests)
+	// These values override anything loaded via the loadSensitiveEnvVars method
 	if logLevel := os.Getenv("CLIKD_GENERAL_LOG_LEVEL"); logLevel != "" {
 		manager.config.General.LogLevel = logLevel
 	}
@@ -42,7 +42,7 @@ func Initialize(configFile string) error {
 		manager.config.AI.Provider = provider
 	}
 
-	// API-Schlüssel explizit für Tests prüfen
+	// Explicitly check API keys for tests
 	if apiKey := os.Getenv("CLIKD_API_KEY"); apiKey != "" {
 		manager.config.AI.APIKey = apiKey
 	} else if openaiKey := os.Getenv("CLIKD_OPENAI_API_KEY"); openaiKey != "" && manager.config.AI.Provider == "openai" {
@@ -53,27 +53,27 @@ func Initialize(configFile string) error {
 		manager.config.AI.APIKey = anthropicKey
 	}
 
-	// Globale Instanz setzen
+	// Set global instance
 	globalManager = manager
 
 	return nil
 }
 
-// Get gibt die aktuelle Konfiguration zurück
-// Wenn die Konfiguration noch nicht initialisiert wurde, wird ein Fehler zurückgegeben
+// Get returns the current configuration
+// If the configuration has not been initialized yet, an error is returned
 func Get() (*ConfigData, error) {
 	if globalManager == nil {
 		return nil, fmt.Errorf("configuration not initialized, call Initialize() first")
 	}
 
-	// Konvertiere die neue Config-Struktur in die alte ConfigData-Struktur
+	// Convert the new config structure to the old ConfigData structure
 	config := globalManager.GetConfig()
 	configData := convertToConfigData(config)
 	return configData, nil
 }
 
-// GetManager gibt den globalen Konfigurationsmanager zurück
-// Wenn der Manager noch nicht initialisiert wurde, wird ein Fehler zurückgegeben
+// GetManager returns the global configuration manager
+// If the manager has not been initialized yet, an error is returned
 func GetManager() (*Manager, error) {
 	if globalManager == nil {
 		return nil, fmt.Errorf("configuration not initialized, call Initialize() first")
@@ -82,26 +82,26 @@ func GetManager() (*Manager, error) {
 	return globalManager, nil
 }
 
-// GetConfigFilePath gibt den Pfad zur verwendeten Konfigurationsdatei zurück
+// GetConfigFilePath returns the path to the used configuration file
 func GetConfigFilePath() (string, error) {
 	if globalManager == nil {
 		return "", fmt.Errorf("configuration not initialized, call Initialize() first")
 	}
 
-	// In der neuen Implementierung ist dies einfach configPath
+	// In the new implementation, this is simply configPath
 	return globalManager.configPath, nil
 }
 
-// Set setzt einen Konfigurationswert im globalen Manager
+// Set sets a configuration value in the global manager
 func Set(key string, value interface{}) error {
 	if globalManager == nil {
 		return fmt.Errorf("configuration not initialized, call Initialize() first")
 	}
 
-	// Konvertiere den Wert in einen String für die neue SetConfigValue-Methode
+	// Convert the value to a string for the new SetConfigValue method
 	valueStr := fmt.Sprintf("%v", value)
 
-	// Für einige häufig verwendete Schlüssel direkt setzen
+	// For some commonly used keys, set directly
 	if key == "general.log_level" {
 		globalManager.config.General.LogLevel = valueStr
 		return nil
@@ -116,11 +116,11 @@ func Set(key string, value interface{}) error {
 		return nil
 	}
 
-	// Ansonsten die allgemeine SetConfigValue-Methode verwenden
+	// Otherwise use the general SetConfigValue method
 	return globalManager.SetConfigValue(key, valueStr)
 }
 
-// Save speichert die aktuelle Konfiguration in die Datei
+// Save saves the current configuration to the file
 func Save(filePath string) error {
 	if globalManager == nil {
 		return fmt.Errorf("configuration not initialized, call Initialize() first")
@@ -129,34 +129,34 @@ func Save(filePath string) error {
 	return globalManager.SaveConfig(filePath)
 }
 
-// GetAIModelConfig gibt die Konfiguration für ein bestimmtes KI-Modell zurück
+// GetAIModelConfig returns the configuration for a specific AI model
 func GetAIModelConfig(modelName string) (ModelConfig, error) {
 	config, err := Get()
 	if err != nil {
 		return ModelConfig{}, err
 	}
 
-	// Validiere die Provider-Modell-Kombination
+	// Validate the provider-model combination
 	provider := config.AI.Provider
 	model := config.AI.Model
 
-	// Falls ein spezifisches Modell angefragt wurde, verwende dieses für die Validierung
+	// If a specific model was requested, use it for validation
 	if modelName != "" && modelName != model {
-		// Wenn ein anderes Modell als das konfigurierte angefragt wurde,
-		// prüfen, ob es mit dem Provider kompatibel ist
+		// If a model different from the configured one was requested,
+		// check if it's compatible with the provider
 		if err := ValidateProviderModel(provider, modelName); err != nil {
-			return ModelConfig{}, fmt.Errorf("ungültige Konfiguration: %w", err)
+			return ModelConfig{}, fmt.Errorf("invalid configuration: %w", err)
 		}
-		// Falls kompatibel, verwende das angeforderte Modell für die Rückgabe
+		// If compatible, use the requested model for the return
 		model = modelName
 	} else {
-		// Ansonsten validiere die konfigurierte Kombination
+		// Otherwise validate the configured combination
 		if err := ValidateProviderModel(provider, model); err != nil {
-			return ModelConfig{}, fmt.Errorf("ungültige Konfiguration: %w", err)
+			return ModelConfig{}, fmt.Errorf("invalid configuration: %w", err)
 		}
 	}
 
-	// ModelConfig erstellen
+	// Create ModelConfig
 	modelConfig := ModelConfig{
 		Provider: provider,
 		ModelID:  model,
@@ -167,8 +167,8 @@ func GetAIModelConfig(modelName string) (ModelConfig, error) {
 	return modelConfig, nil
 }
 
-// EnsureInitialized stellt sicher, dass die Konfiguration initialisiert ist
-// Wenn nicht, wird sie mit Standardwerten initialisiert
+// EnsureInitialized ensures that the configuration is initialized
+// If not, it will be initialized with default values
 func EnsureInitialized() (*ConfigData, error) {
 	if globalManager == nil {
 		if err := Initialize(""); err != nil {
@@ -176,13 +176,13 @@ func EnsureInitialized() (*ConfigData, error) {
 		}
 	}
 
-	// Konvertiere die neue Config-Struktur in die alte ConfigData-Struktur
+	// Convert the new Config structure to the old ConfigData structure
 	config := globalManager.GetConfig()
 	configData := convertToConfigData(config)
 	return configData, nil
 }
 
-// Reset setzt die globale Konfiguration zurück (hauptsächlich für Tests)
+// Reset resets the global configuration (mainly for tests)
 func Reset() {
 	managerMutex.Lock()
 	defer managerMutex.Unlock()
@@ -190,7 +190,7 @@ func Reset() {
 	globalManager = nil
 }
 
-// convertToConfigData konvertiert die neue Config-Struktur in die alte ConfigData-Struktur
+// convertToConfigData converts the new Config structure to the old ConfigData structure
 func convertToConfigData(config Config) *ConfigData {
 	configData := &ConfigData{
 		Version: config.Version,
@@ -248,7 +248,7 @@ func convertToConfigData(config Config) *ConfigData {
 		},
 	}
 
-	// Konvertiere PatternMaps
+	// Convert PatternMaps
 	for _, patternMap := range config.Changelog.Options.Header.PatternMaps {
 		if pattern, ok := patternMap["pattern"]; ok {
 			configData.Changelog.Options.Header.PatternMaps = append(
@@ -256,8 +256,8 @@ func convertToConfigData(config Config) *ConfigData {
 		}
 	}
 
-	// Konvertiere Commit-Filters
-	// In der neuen Struktur ist es map[string]string, in der alten map[string][]string
+	// Convert Commit-Filters
+	// In the new structure it's map[string]string, in the old one map[string][]string
 	for key, value := range config.Changelog.Options.Commits.Filters {
 		configData.Changelog.Options.Commits.Filters[key] = []string{value}
 	}
@@ -265,7 +265,7 @@ func convertToConfigData(config Config) *ConfigData {
 	return configData
 }
 
-// boolToSortString konvertiert einen bool-Wert in einen Sort-String ("asc" oder "desc")
+// boolToSortString converts a bool value to a sort string ("asc" or "desc")
 func boolToSortString(sort bool) string {
 	if sort {
 		return "asc"
