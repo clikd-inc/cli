@@ -209,66 +209,10 @@ func convertToConfigData(config Config) *ConfigData {
 			TokensMaxOutput:  config.AI.TokensMaxOutput,
 		},
 		Changelog: ChangelogConfig{
-			Style:            config.Changelog.Style,
-			Template:         config.Changelog.Template,
-			JiraIntegration:  config.Changelog.JiraIntegration,
-			Sort:             boolToSortString(config.Changelog.Sort),
-			TagFilterPattern: config.Changelog.TagFilterPattern,
-			Path:             config.Changelog.Path,
-			NoCase:           config.Changelog.NoCase,
-			Jira: JiraConfig{
-				BaseURL:      config.Changelog.Jira.BaseURL,
-				Username:     config.Changelog.Jira.Username,
-				APIKey:       config.Changelog.Jira.APIKey,
-				ProjectKey:   config.Changelog.Jira.ProjectKey,
-				IssuePattern: config.Changelog.Jira.IssuePattern,
-			},
-			Info: ChangelogInfoConfig{
-				Title:         config.Changelog.Info.Title,
-				RepositoryURL: config.Changelog.Info.RepositoryURL,
-			},
-			Options: ChangelogOptionsConfig{
-				Commits: ChangelogCommitsConfig{
-					SortBy:  config.Changelog.Options.Commits.SortBy,
-					Filters: make(map[string][]string),
-				},
-				CommitGroups: ChangelogCommitGroupsConfig{
-					GroupBy:   config.Changelog.Options.CommitGroups.GroupBy,
-					SortBy:    config.Changelog.Options.CommitGroups.SortBy,
-					TitleMaps: config.Changelog.Options.CommitGroups.TitleMaps,
-				},
-				Header: ChangelogHeaderConfig{
-					Pattern:     config.Changelog.Options.Header.Pattern,
-					PatternMaps: []string{},
-				},
-				Notes: ChangelogNotesConfig{
-					Keywords: config.Changelog.Options.Notes.Keywords,
-				},
-			},
+			Template:   config.Changelog.Template,
+			ConfigFile: config.Changelog.ConfigFile,
 		},
 	}
 
-	// Convert PatternMaps
-	for _, patternMap := range config.Changelog.Options.Header.PatternMaps {
-		if pattern, ok := patternMap["pattern"]; ok {
-			configData.Changelog.Options.Header.PatternMaps = append(
-				configData.Changelog.Options.Header.PatternMaps, pattern)
-		}
-	}
-
-	// Convert Commit-Filters
-	// In the new structure it's map[string]string, in the old one map[string][]string
-	for key, value := range config.Changelog.Options.Commits.Filters {
-		configData.Changelog.Options.Commits.Filters[key] = []string{value}
-	}
-
 	return configData
-}
-
-// boolToSortString converts a bool value to a sort string ("asc" or "desc")
-func boolToSortString(sort bool) string {
-	if sort {
-		return "asc"
-	}
-	return "desc"
 }

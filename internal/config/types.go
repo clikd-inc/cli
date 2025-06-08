@@ -75,18 +75,8 @@ type ChangelogCommandConfig struct {
 
 // ChangelogConfig enthält Changelog-bezogene Einstellungen
 type ChangelogConfig struct {
-	Style            string     `mapstructure:"style"`
-	Template         string     `mapstructure:"template"`
-	JiraIntegration  bool       `mapstructure:"jira_integration"`
-	Sort             string     `mapstructure:"sort"`
-	TagFilterPattern string     `mapstructure:"tag_filter_pattern"`
-	Path             string     `mapstructure:"path"`
-	NoCase           bool       `mapstructure:"no_case"`
-	Jira             JiraConfig `mapstructure:"jira"`
-
-	// Erweiterte Optionen, die in der alten YAML-Konfiguration vorhanden waren
-	Info    ChangelogInfoConfig    `mapstructure:"info"`
-	Options ChangelogOptionsConfig `mapstructure:"options"`
+	Template   string `mapstructure:"template"`
+	ConfigFile string `mapstructure:"config_file"`
 }
 
 // ChangelogInfoConfig enthält Metadaten für den Changelog

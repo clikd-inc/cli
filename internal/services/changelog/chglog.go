@@ -1,19 +1,18 @@
-// Package chglog implements main logic for the CHANGELOG generate.
 package changelog
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
-	"regexp"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
-
-	"clikd/internal/services/git"
-	"clikd/internal/utils"
+	"github.com/tsuyoshiwada/go-gitcmd"
 )
 
 // Options is an option used to process commits
@@ -55,8 +54,8 @@ type Info struct {
 // RenderData is the data passed to the template
 type RenderData struct {
 	Info       *Info
-	Unreleased *git.Unreleased
-	Versions   []*git.Version
+	Unreleased *Unreleased
+	Versions   []*Version
 }
 
 // Config for generating CHANGELOG
@@ -97,23 +96,19 @@ func normalizeConfig(config *Config) {
 
 // Generator of CHANGELOG
 type Generator struct {
-	config     *Config
-	gitService git.Service
-	jiraClient JiraClient
-	logger     utils.Logger
+	client          gitcmd.Client
+	config          *Config
+	tagReader       *tagReader
+	tagSelector     *tagSelector
+	commitParser    *commitParser
+	commitExtractor *commitExtractor
 }
 
 // NewGenerator receives `Config` and create an new `Generator`
-func NewGenerator(logger utils.Logger, config *Config) *Generator {
-	// Repository directory
-	repoDir := config.WorkingDir
-
-	// Create Git service with the target repository
-	gitService, err := git.NewServiceWithRepoDir(repoDir)
-	if err != nil {
-		logger.Error("Failed to create Git service: %v", err)
-		return nil
-	}
+func NewGenerator(logger *Logger, config *Config) *Generator {
+	client := gitcmd.New(&gitcmd.Config{
+		Bin: config.Bin,
+	})
 
 	jiraClient := NewJiraClient(config)
 
@@ -124,10 +119,12 @@ func NewGenerator(logger utils.Logger, config *Config) *Generator {
 	normalizeConfig(config)
 
 	return &Generator{
-		config:     config,
-		gitService: gitService,
-		jiraClient: jiraClient,
-		logger:     logger,
+		client:          client,
+		config:          config,
+		tagReader:       newTagReader(client, config.Options.TagFilterPattern, config.Options.Sort),
+		tagSelector:     newTagSelector(),
+		commitParser:    newCommitParser(logger, client, jiraClient, config),
+		commitExtractor: newCommitExtractor(config.Options),
 	}
 }
 
@@ -140,75 +137,41 @@ func NewGenerator(logger utils.Logger, config *Config) *Generator {
 //	..<tagname>  - Commit from the oldest tag to `<tagname>` (e.g. `..1.0.0`)
 //	<tagname>    - Commit contained in `<tagname>` (e.g. `1.0.0`)
 func (gen *Generator) Generate(w io.Writer, query string) error {
-	fmt.Printf("DEBUG: Generate called with query: %q\n", query)
-
-	// Check current working directory
-	if currWd, err := os.Getwd(); err == nil {
-		fmt.Printf("DEBUG: Current working directory in Generate: %s\n", currWd)
-	}
-
-	// Get tags using Git service
-	tags, first, err := gen.getTags(query)
+	back, err := gen.workdir()
 	if err != nil {
-		fmt.Printf("DEBUG: Error in getTags: %v\n", err)
 		return err
 	}
-	fmt.Printf("DEBUG: getTags returned %d tags, first=%s\n", len(tags), first)
-
-	// Debug: Show detailed information for each tag
-	for i, tag := range tags {
-		prevName := "nil"
-		if tag.Previous != nil {
-			prevName = tag.Previous.Name
+	defer func() {
+		if err = back(); err != nil {
+			log.Fatal(err)
 		}
-		fmt.Printf("DEBUG: tag[%d]: name=%s, date=%s, previous=%s\n",
-			i, tag.Name, tag.Date.Format("2006-01-02 15:04:05"), prevName)
+	}()
+
+	tags, first, err := gen.getTags(query)
+	if err != nil {
+		return err
 	}
 
 	unreleased, err := gen.readUnreleased(tags)
 	if err != nil {
-		fmt.Printf("DEBUG: Error in readUnreleased: %v\n", err)
 		return err
-	}
-	fmt.Printf("DEBUG: readUnreleased result: commitGroups=%d, commits=%d\n",
-		len(unreleased.CommitGroups), len(unreleased.Commits))
-
-	// Debug: Show details for unreleased commits
-	for i, commit := range unreleased.Commits {
-		fmt.Printf("DEBUG: unreleased commit[%d]: hash=%s, subject=%s\n",
-			i, commit.Hash.Short, commit.Subject)
 	}
 
 	versions, err := gen.readVersions(tags, first)
 	if err != nil {
-		fmt.Printf("DEBUG: Error in readVersions: %v\n", err)
 		return err
-	}
-	fmt.Printf("DEBUG: readVersions returned %d versions\n", len(versions))
-	for i, v := range versions {
-		fmt.Printf("DEBUG: version[%d]: tag=%s, commits=%d, commitGroups=%d\n",
-			i, v.Tag.Name, len(v.Commits), len(v.CommitGroups))
-
-		// Debug: Show details for version commits
-		for j, commit := range v.Commits {
-			fmt.Printf("DEBUG: version[%d] commit[%d]: hash=%s, subject=%s\n",
-				i, j, commit.Hash.Short, commit.Subject)
-		}
 	}
 
 	if len(versions) == 0 {
-		fmt.Printf("DEBUG: No versions found for query %q\n", query)
 		return fmt.Errorf("commits corresponding to \"%s\" was not found", query)
 	}
 
 	return gen.render(w, unreleased, versions)
 }
 
-func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*git.Version, error) {
-	fmt.Printf("DEBUG: readVersions called with %d tags, first=%s\n", len(tags), first)
-
+func (gen *Generator) readVersions(tags []*Tag, first string) ([]*Version, error) {
 	next := gen.config.Options.NextTag
-	versions := []*git.Version{}
+	versions := []*Version{}
 
 	for i, tag := range tags {
 		var (
@@ -234,58 +197,52 @@ func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*git.Versio
 			}
 		}
 
-		fmt.Printf("DEBUG: Processing tag[%d] %s with rev=%s\n", i, tag.Name, rev)
-
-		// Get commits for this revision using Git service
-		commits, err := gen.gitService.GetCommits(rev, gen.config.Options.Paths)
+		commits, err := gen.commitParser.Parse(rev)
 		if err != nil {
 			return nil, err
 		}
 
-		// Process commits
-		commits = gen.processCommits(commits)
+		commitGroups, mergeCommits, revertCommits, noteGroups := gen.commitExtractor.Extract(commits)
 
-		// Extrahiere und gruppiere Commits mit dem Git-Service
-		commitGroups, mergeCommits, revertCommits, noteGroups := gen.extractCommits(commits)
-
-		version := &git.Version{
+		versions = append(versions, &Version{
 			Tag:           tag,
-			Commits:       commits,
 			CommitGroups:  commitGroups,
+			Commits:       commits,
 			MergeCommits:  mergeCommits,
 			RevertCommits: revertCommits,
 			NoteGroups:    noteGroups,
-		}
+		})
 
-		versions = append(versions, version)
+		// Instead of `getTags()`, assign the date to the tag
+		if isNext && len(commits) != 0 {
+			tag.Date = commits[0].Author.Date
+		}
 	}
 
 	return versions, nil
 }
 
-func (gen *Generator) readUnreleased(tags []*git.Tag) (*git.Unreleased, error) {
-	if len(tags) == 0 {
-		return &git.Unreleased{}, nil
+func (gen *Generator) readUnreleased(tags []*Tag) (*Unreleased, error) {
+	if gen.config.Options.NextTag != "" {
+		return &Unreleased{}, nil
 	}
 
-	rev := tags[0].Name + "..HEAD"
-	fmt.Printf("DEBUG: readUnreleased: Getting commits with rev=%s\n", rev)
+	rev := "HEAD"
 
-	// Get commits for unreleased changes using Git service
-	commits, err := gen.gitService.GetCommits(rev, gen.config.Options.Paths)
+	if len(tags) > 0 {
+		rev = tags[0].Name + "..HEAD"
+	}
+
+	commits, err := gen.commitParser.Parse(rev)
 	if err != nil {
 		return nil, err
 	}
 
-	// Process commits
-	commits = gen.processCommits(commits)
+	commitGroups, mergeCommits, revertCommits, noteGroups := gen.commitExtractor.Extract(commits)
 
-	// Extrahiere und gruppiere Commits mit dem Git-Service
-	commitGroups, mergeCommits, revertCommits, noteGroups := gen.extractCommits(commits)
-
-	unreleased := &git.Unreleased{
-		Commits:       commits,
+	unreleased := &Unreleased{
 		CommitGroups:  commitGroups,
+		Commits:       commits,
 		MergeCommits:  mergeCommits,
 		RevertCommits: revertCommits,
 		NoteGroups:    noteGroups,
@@ -294,21 +251,52 @@ func (gen *Generator) readUnreleased(tags []*git.Tag) (*git.Unreleased, error) {
 	return unreleased, nil
 }
 
-func (gen *Generator) getTags(query string) ([]*git.Tag, string, error) {
-	// Get all tags using Git service
-	tagsWithDetails, err := gen.gitService.GetAllTagsWithDetails()
-	if err != nil {
-		return nil, "", err
-	}
-	fmt.Printf("DEBUG: getTags: Found %d tags\n", len(tagsWithDetails))
-
-	// Select tags based on query using Git service
-	selectedTags, first, err := gen.gitService.SelectTagsWithQuery(tagsWithDetails, query)
+func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
+	tags, err := gen.tagReader.ReadAll()
 	if err != nil {
 		return nil, "", err
 	}
 
-	return selectedTags, first, nil
+	next := gen.config.Options.NextTag
+	if next != "" {
+		for _, tag := range tags {
+			if next == tag.Name {
+				return nil, "", fmt.Errorf("\"%s\" tag already exists", next)
+			}
+		}
+
+		var previous *RelateTag
+		if len(tags) > 0 {
+			previous = &RelateTag{
+				Name:    tags[0].Name,
+				Subject: tags[0].Subject,
+				Date:    tags[0].Date,
+			}
+		}
+
+		// Assign the date with `readVersions()`
+		tags = append([]*Tag{
+			{
+				Name:     next,
+				Subject:  next,
+				Previous: previous,
+			},
+		}, tags...)
+	}
+
+	if len(tags) == 0 {
+		return nil, "", errors.New("git-tag does not exist")
+	}
+
+	first := ""
+	if query != "" {
+		tags, first, err = gen.tagSelector.Select(tags, query)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	return tags, first, nil
 }
 
 func (gen *Generator) workdir() (func() error, error) {
@@ -327,424 +315,47 @@ func (gen *Generator) workdir() (func() error, error) {
 	}, nil
 }
 
-func (gen *Generator) render(w io.Writer, unreleased *git.Unreleased, versions []*git.Version) error {
-	fmap := template.FuncMap{
-		"datetime": func(layout string, input time.Time) string {
-			return input.Format(layout)
-		},
-	}
-
-	// Combine with sprig functions
-	for k, v := range sprig.TxtFuncMap() {
-		fmap[k] = v
-	}
-
-	fname := gen.config.Template
-	if !filepath.IsAbs(fname) {
-		fname = filepath.Join(gen.config.WorkingDir, fname)
-	}
-
-	tmpl, err := template.New("").Funcs(fmap).ParseFiles(fname)
-	if err != nil {
+func (gen *Generator) render(w io.Writer, unreleased *Unreleased, versions []*Version) error {
+	if _, err := os.Stat(gen.config.Template); err != nil {
 		return err
 	}
 
-	tname := filepath.Base(fname)
-	data := &RenderData{
+	fmap := template.FuncMap{
+		// format the input time according to layout
+		"datetime": func(layout string, input time.Time) string {
+			return input.Format(layout)
+		},
+		// upper case the first character of a string
+		"upperFirst": func(s string) string {
+			if len(s) > 0 {
+				return strings.ToUpper(string(s[0])) + s[1:]
+			}
+			return ""
+		},
+		// indent all lines of s n spaces
+		"indent": func(s string, n int) string {
+			if len(s) == 0 {
+				return ""
+			}
+			pad := strings.Repeat(" ", n)
+			return pad + strings.ReplaceAll(s, "\n", "\n"+pad)
+		},
+		// While Sprig provides these functions, they change the standard input
+		// order which leads to a regression. For an example see:
+		// https://github.com/Masterminds/sprig/blob/master/functions.go#L149
+		"contains":  strings.Contains,
+		"hasPrefix": strings.HasPrefix,
+		"hasSuffix": strings.HasSuffix,
+		"replace":   strings.Replace,
+	}
+
+	fname := filepath.Base(gen.config.Template)
+
+	t := template.Must(template.New(fname).Funcs(sprig.TxtFuncMap()).Funcs(fmap).ParseFiles(gen.config.Template))
+
+	return t.Execute(w, &RenderData{
 		Info:       gen.config.Info,
 		Unreleased: unreleased,
 		Versions:   versions,
-	}
-
-	return tmpl.ExecuteTemplate(w, tname, data)
-}
-
-// Process commits using the Processor from options
-func (gen *Generator) processCommits(commits []*git.Commit) []*git.Commit {
-	processor := gen.config.Options.Processor
-	if processor == nil {
-		return commits
-	}
-
-	// Process jira issues for each commit
-	for _, commit := range commits {
-		if commit.JiraIssueID != "" {
-			gen.processJiraIssue(commit)
-		}
-	}
-
-	// Filter using the Processor
-	processed := make([]*git.Commit, 0, len(commits))
-	for _, commit := range commits {
-		// Convert git.Commit to changelog.Commit for processor
-		localCommit := convertToLocalCommit(commit)
-
-		// Process the commit
-		localProcessed := processor.ProcessCommit(localCommit)
-		if localProcessed == nil {
-			continue
-		}
-
-		// Convert back to git.Commit
-		processed = append(processed, convertToGitCommit(localProcessed))
-	}
-
-	return processed
-}
-
-// Commit is a local representation of a git commit for the changelog
-type Commit struct {
-	Hash        *Hash
-	Author      *Author
-	Committer   *Committer
-	Merge       *Merge
-	Revert      *Revert
-	Refs        []*Ref
-	Notes       []*Note
-	Mentions    []string
-	CoAuthors   []Contact
-	Signers     []Contact
-	JiraIssue   *JiraIssue
-	Header      string
-	Type        string
-	Scope       string
-	Subject     string
-	JiraIssueID string
-	Body        string
-	TrimmedBody string
-}
-
-// Hash of commit
-type Hash struct {
-	Long  string
-	Short string
-}
-
-// Contact of co-authors and signers
-type Contact struct {
-	Name  string
-	Email string
-}
-
-// Author of commit
-type Author struct {
-	Name  string
-	Email string
-	Date  time.Time
-}
-
-// Committer of commit
-type Committer struct {
-	Name  string
-	Email string
-	Date  time.Time
-}
-
-// Merge info for commit
-type Merge struct {
-	Ref    string
-	Source string
-}
-
-// Revert info for commit
-type Revert struct {
-	Header string
-}
-
-// Ref is abstract data related to commit. (e.g. `Issues`, `Pull Request`)
-type Ref struct {
-	Action string
-	Ref    string
-	Source string
-}
-
-// Note of commit
-type Note struct {
-	Title string
-	Body  string
-}
-
-// JiraIssue is information about a jira ticket
-type JiraIssue struct {
-	Key         string
-	Type        string
-	Summary     string
-	Description string
-	Labels      []string
-}
-
-// Helper function to convert git.Commit to changelog.Commit
-func convertToLocalCommit(commit *git.Commit) *Commit {
-	if commit == nil {
-		return nil
-	}
-
-	// Create a local Hash
-	hash := &Hash{}
-	if commit.Hash != nil {
-		hash.Long = commit.Hash.Long
-		hash.Short = commit.Hash.Short
-	}
-
-	// Create a local Author
-	author := &Author{}
-	if commit.Author != nil {
-		author.Name = commit.Author.Name
-		author.Email = commit.Author.Email
-		author.Date = commit.Author.Date
-	}
-
-	// Create a local Committer
-	committer := &Committer{}
-	if commit.Committer != nil {
-		committer.Name = commit.Committer.Name
-		committer.Email = commit.Committer.Email
-		committer.Date = commit.Committer.Date
-	}
-
-	// Create a local Merge
-	var merge *Merge
-	if commit.Merge != nil {
-		merge = &Merge{
-			Ref:    commit.Merge.Ref,
-			Source: commit.Merge.Source,
-		}
-	}
-
-	// Create a local Revert
-	var revert *Revert
-	if commit.Revert != nil {
-		revert = &Revert{
-			Header: commit.Revert.Header,
-		}
-	}
-
-	// Convert Refs
-	refs := make([]*Ref, 0, len(commit.Refs))
-	for _, r := range commit.Refs {
-		refs = append(refs, &Ref{
-			Action: r.Action,
-			Ref:    r.Ref,
-			Source: r.Source,
-		})
-	}
-
-	// Convert Notes
-	notes := make([]*Note, 0, len(commit.Notes))
-	for _, n := range commit.Notes {
-		notes = append(notes, &Note{
-			Title: n.Title,
-			Body:  n.Body,
-		})
-	}
-
-	// Convert Contact lists
-	coAuthors := make([]Contact, 0, len(commit.CoAuthors))
-	for _, c := range commit.CoAuthors {
-		coAuthors = append(coAuthors, Contact{
-			Name:  c.Name,
-			Email: c.Email,
-		})
-	}
-
-	signers := make([]Contact, 0, len(commit.Signers))
-	for _, s := range commit.Signers {
-		signers = append(signers, Contact{
-			Name:  s.Name,
-			Email: s.Email,
-		})
-	}
-
-	// Create a local JiraIssue
-	var jiraIssue *JiraIssue
-	if commit.JiraIssue != nil {
-		jiraIssue = &JiraIssue{
-			Key:         commit.JiraIssue.Key,
-			Type:        commit.JiraIssue.Type,
-			Summary:     commit.JiraIssue.Summary,
-			Description: commit.JiraIssue.Description,
-			Labels:      commit.JiraIssue.Labels,
-		}
-	}
-
-	return &Commit{
-		Hash:        hash,
-		Author:      author,
-		Committer:   committer,
-		Merge:       merge,
-		Revert:      revert,
-		Refs:        refs,
-		Notes:       notes,
-		Mentions:    commit.Mentions,
-		CoAuthors:   coAuthors,
-		Signers:     signers,
-		JiraIssue:   jiraIssue,
-		Header:      commit.Header,
-		Type:        commit.Type,
-		Scope:       commit.Scope,
-		Subject:     commit.Subject,
-		JiraIssueID: commit.JiraIssueID,
-		Body:        commit.Body,
-		TrimmedBody: commit.TrimmedBody,
-	}
-}
-
-// Helper function to convert changelog.Commit to git.Commit
-func convertToGitCommit(commit *Commit) *git.Commit {
-	if commit == nil {
-		return nil
-	}
-
-	// Create a git.Hash
-	hash := &git.Hash{}
-	if commit.Hash != nil {
-		hash.Long = commit.Hash.Long
-		hash.Short = commit.Hash.Short
-	}
-
-	// Create a git.Author
-	author := &git.Author{}
-	if commit.Author != nil {
-		author.Name = commit.Author.Name
-		author.Email = commit.Author.Email
-		author.Date = commit.Author.Date
-	}
-
-	// Create a git.Committer
-	committer := &git.Committer{}
-	if commit.Committer != nil {
-		committer.Name = commit.Committer.Name
-		committer.Email = commit.Committer.Email
-		committer.Date = commit.Committer.Date
-	}
-
-	// Create a git.Merge
-	var merge *git.Merge
-	if commit.Merge != nil {
-		merge = &git.Merge{
-			Ref:    commit.Merge.Ref,
-			Source: commit.Merge.Source,
-		}
-	}
-
-	// Create a git.Revert
-	var revert *git.Revert
-	if commit.Revert != nil {
-		revert = &git.Revert{
-			Header: commit.Revert.Header,
-		}
-	}
-
-	// Convert Refs
-	refs := make([]*git.Ref, 0, len(commit.Refs))
-	for _, r := range commit.Refs {
-		refs = append(refs, &git.Ref{
-			Action: r.Action,
-			Ref:    r.Ref,
-			Source: r.Source,
-		})
-	}
-
-	// Convert Notes
-	notes := make([]*git.Note, 0, len(commit.Notes))
-	for _, n := range commit.Notes {
-		notes = append(notes, &git.Note{
-			Title: n.Title,
-			Body:  n.Body,
-		})
-	}
-
-	// Convert Contact lists
-	coAuthors := make([]git.Contact, 0, len(commit.CoAuthors))
-	for _, c := range commit.CoAuthors {
-		coAuthors = append(coAuthors, git.Contact{
-			Name:  c.Name,
-			Email: c.Email,
-		})
-	}
-
-	signers := make([]git.Contact, 0, len(commit.Signers))
-	for _, s := range commit.Signers {
-		signers = append(signers, git.Contact{
-			Name:  s.Name,
-			Email: s.Email,
-		})
-	}
-
-	// Create a git.JiraIssue
-	var jiraIssue *git.JiraIssue
-	if commit.JiraIssue != nil {
-		jiraIssue = &git.JiraIssue{
-			Key:         commit.JiraIssue.Key,
-			Type:        commit.JiraIssue.Type,
-			Summary:     commit.JiraIssue.Summary,
-			Description: commit.JiraIssue.Description,
-			Labels:      commit.JiraIssue.Labels,
-		}
-	}
-
-	return &git.Commit{
-		Hash:        hash,
-		Author:      author,
-		Committer:   committer,
-		Merge:       merge,
-		Revert:      revert,
-		Refs:        refs,
-		Notes:       notes,
-		Mentions:    commit.Mentions,
-		CoAuthors:   coAuthors,
-		Signers:     signers,
-		JiraIssue:   jiraIssue,
-		Header:      commit.Header,
-		Type:        commit.Type,
-		Scope:       commit.Scope,
-		Subject:     commit.Subject,
-		JiraIssueID: commit.JiraIssueID,
-		Body:        commit.Body,
-		TrimmedBody: commit.TrimmedBody,
-	}
-}
-
-func (gen *Generator) processJiraIssue(commit *git.Commit) {
-	issue, err := gen.jiraClient.GetJiraIssue(commit.JiraIssueID)
-	if err != nil {
-		gen.logger.Error(fmt.Sprintf("Failed to parse Jira story %s: %s\n", commit.JiraIssueID, err))
-		return
-	}
-
-	// Update commit with Jira information
-	commit.Type = gen.config.Options.JiraTypeMaps[issue.Fields.Type.Name]
-	commit.JiraIssue = &git.JiraIssue{
-		Key:         issue.Key,
-		Type:        issue.Fields.Type.Name,
-		Summary:     issue.Fields.Summary,
-		Description: issue.Fields.Description,
-		Labels:      issue.Fields.Labels,
-	}
-
-	// Apply JiraIssueDescriptionPattern if configured
-	if gen.config.Options.JiraIssueDescriptionPattern != "" {
-		reJiraIssueDescription := regexp.MustCompile(gen.config.Options.JiraIssueDescriptionPattern)
-		res := reJiraIssueDescription.FindStringSubmatch(commit.JiraIssue.Description)
-		if len(res) > 1 {
-			commit.JiraIssue.Description = res[1]
-		}
-	}
-}
-
-// extractCommits extrahiert Commit-Gruppen, Merge- und Revert-Commits sowie Notizen aus den Commits
-// Nutzt die zentrale Extrakt-Funktionalität des Git-Services
-func (gen *Generator) extractCommits(commits []*git.Commit) ([]*git.CommitGroup, []*git.Commit, []*git.Commit, []*git.NoteGroup) {
-	// Git-Service-Optionen aus Changelog-Optionen erstellen
-	gitOpts := &git.Options{
-		CommitFilters:         gen.config.Options.CommitFilters,
-		CommitSortBy:          gen.config.Options.CommitSortBy,
-		CommitGroupBy:         gen.config.Options.CommitGroupBy,
-		CommitGroupSortBy:     gen.config.Options.CommitGroupSortBy,
-		CommitGroupTitleOrder: gen.config.Options.CommitGroupTitleOrder,
-		CommitGroupTitleMaps:  gen.config.Options.CommitGroupTitleMaps,
-		NoCaseSensitive:       gen.config.Options.NoCaseSensitive,
-	}
-
-	return gen.gitService.ExtractCommits(commits, gitOpts)
+	})
 }

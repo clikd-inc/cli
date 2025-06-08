@@ -32,43 +32,8 @@ type Config struct {
 		Color    bool   `toml:"color"`
 	} `toml:"general"`
 	Changelog struct {
-		Style            string `toml:"style"`
-		Template         string `toml:"template"`
-		Sort             bool   `toml:"sort"`
-		JiraIntegration  bool   `toml:"jira_integration"`
-		TagFilterPattern string `toml:"tag_filter_pattern"`
-		Path             string `toml:"path"`
-		NoCase           bool   `toml:"no_case"`
-		Info             struct {
-			Title         string `toml:"title"`
-			RepositoryURL string `toml:"repository_url"`
-		} `toml:"info"`
-		Options struct {
-			Commits struct {
-				SortBy  string            `toml:"sort_by"`
-				Filters map[string]string `toml:"filters"`
-			} `toml:"commits"`
-			CommitGroups struct {
-				GroupBy   string            `toml:"group_by"`
-				SortBy    string            `toml:"sort_by"`
-				TitleMaps map[string]string `toml:"title_maps"`
-			} `toml:"commit_groups"`
-			Header struct {
-				Pattern     string              `toml:"pattern"`
-				PatternMaps []map[string]string `toml:"pattern_maps"`
-			} `toml:"header"`
-			Notes struct {
-				Keywords []string `toml:"keywords"`
-			} `toml:"notes"`
-		} `toml:"options"`
-		Jira struct {
-			URL          string `toml:"url"`
-			BaseURL      string `toml:"base_url"`
-			Username     string `toml:"username"`
-			APIKey       string `toml:"api_key"`
-			ProjectKey   string `toml:"project_key"`
-			IssuePattern string `toml:"issue_pattern"`
-		} `toml:"jira"`
+		Template   string `toml:"template"`
+		ConfigFile string `toml:"config_file"`
 	} `toml:"changelog"`
 	AI struct {
 		// Enable aktiviert oder deaktiviert alle KI-Funktionen global.
@@ -115,50 +80,8 @@ func createDefaultConfig() Config {
 	c.General.Color = true
 
 	// Changelog
-	c.Changelog.Style = "conventional"
 	c.Changelog.Template = ""
-	c.Changelog.Sort = true
-	c.Changelog.JiraIntegration = false
-	c.Changelog.TagFilterPattern = ""
-	c.Changelog.Path = "CHANGELOG.md"
-	c.Changelog.NoCase = false
-
-	// Changelog Info
-	c.Changelog.Info.Title = ""
-	c.Changelog.Info.RepositoryURL = ""
-
-	// Changelog Options - Commits
-	c.Changelog.Options.Commits.SortBy = "scope"
-	c.Changelog.Options.Commits.Filters = make(map[string]string)
-
-	// Changelog Options - CommitGroups
-	c.Changelog.Options.CommitGroups.GroupBy = "type"
-	c.Changelog.Options.CommitGroups.SortBy = "title"
-	c.Changelog.Options.CommitGroups.TitleMaps = map[string]string{
-		"feat":     "Features",
-		"fix":      "Bug Fixes",
-		"perf":     "Performance Improvements",
-		"refactor": "Code Refactoring",
-		"docs":     "Documentation",
-		"test":     "Tests",
-		"build":    "Build System",
-		"ci":       "Continuous Integration",
-	}
-
-	// Changelog Options - Header
-	c.Changelog.Options.Header.Pattern = "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
-	c.Changelog.Options.Header.PatternMaps = []map[string]string{
-		{"pattern": "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"},
-	}
-
-	// Changelog Options - Notes
-	c.Changelog.Options.Notes.Keywords = []string{"BREAKING CHANGE", "DEPRECATED"}
-
-	// Changelog Jira
-	c.Changelog.Jira.BaseURL = ""
-	c.Changelog.Jira.Username = ""
-	c.Changelog.Jira.ProjectKey = ""
-	c.Changelog.Jira.IssuePattern = "([A-Z]+-\\d+)"
+	c.Changelog.ConfigFile = ""
 
 	// AI
 	c.AI.Enable = true
@@ -267,11 +190,11 @@ func (m *Manager) InitConfig(configPath string) error {
 					}
 
 					// Changelog-Einstellungen übernehmen
-					if tempConfig.Changelog.Style != "" {
-						m.config.Changelog.Style = tempConfig.Changelog.Style
-					}
 					if tempConfig.Changelog.Template != "" {
 						m.config.Changelog.Template = tempConfig.Changelog.Template
+					}
+					if tempConfig.Changelog.ConfigFile != "" {
+						m.config.Changelog.ConfigFile = tempConfig.Changelog.ConfigFile
 					}
 
 					// Pfad aktualisieren, da die lokale Konfiguration Vorrang hat
@@ -307,11 +230,6 @@ func (m *Manager) SaveConfig(configPath string) error {
 	// API-Schlüssel nur in globaler Konfiguration speichern
 	if !isGlobalConfig {
 		m.config.AI.APIKey = ""
-
-		// Jira API-Schlüssel ebenfalls entfernen
-		if m.config.Changelog.Jira.APIKey != "" {
-			m.config.Changelog.Jira.APIKey = ""
-		}
 	}
 
 	// TOML serialisieren
@@ -378,8 +296,7 @@ func (m *Manager) GetConfig() Config {
 	return m.config
 }
 
-// loadSensitiveEnvVars lädt sensible Daten aus der globalen Konfiguration
-// Diese Methode sollte NICHT API-Schlüssel aus der Shell laden
+// loadSensitiveEnvVars lädt sensible Daten aus Umgebungsvariablen
 func (m *Manager) loadSensitiveEnvVars() {
 	// General-Konfigurationswerte aus Umgebungsvariablen
 	if logLevel := os.Getenv("CLIKD_GENERAL_LOG_LEVEL"); logLevel != "" {
@@ -421,19 +338,14 @@ func (m *Manager) loadSensitiveEnvVars() {
 		}
 	}
 
-	// Andere, nicht-AI-Konfigurationswerte aus Umgebungsvariablen
-	if style := os.Getenv("CLIKD_CHANGELOG_STYLE"); style != "" {
-		m.config.Changelog.Style = style
-	}
-
+	// Template
 	if template := os.Getenv("CLIKD_CHANGELOG_TEMPLATE"); template != "" {
 		m.config.Changelog.Template = template
 	}
 
-	if sort := os.Getenv("CLIKD_CHANGELOG_SORT"); sort == "true" || sort == "1" {
-		m.config.Changelog.Sort = true
-	} else if sort == "false" || sort == "0" {
-		m.config.Changelog.Sort = false
+	// ConfigFile
+	if configFile := os.Getenv("CLIKD_CHANGELOG_CONFIG_FILE"); configFile != "" {
+		m.config.Changelog.ConfigFile = configFile
 	}
 }
 

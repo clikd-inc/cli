@@ -19,48 +19,8 @@ func DefaultConfig() *ConfigData {
 			TokensMaxOutput:  500,
 		},
 		Changelog: ChangelogConfig{
-			Style:            "github",
-			Template:         "templates/changelog.md",
-			JiraIntegration:  false,
-			Sort:             "semver",
-			TagFilterPattern: "v*",
-			Path:             "",
-			NoCase:           false,
-			Jira: JiraConfig{
-				BaseURL:      "",
-				Username:     "",
-				ProjectKey:   "",
-				IssuePattern: "[A-Z]+-[0-9]+",
-			},
-			Info: ChangelogInfoConfig{
-				Title:         "CHANGELOG",
-				RepositoryURL: "",
-			},
-			Options: ChangelogOptionsConfig{
-				Commits: ChangelogCommitsConfig{
-					SortBy: "Scope",
-					Filters: map[string][]string{
-						"Type": {"feat", "fix", "perf", "refactor"},
-					},
-				},
-				CommitGroups: ChangelogCommitGroupsConfig{
-					GroupBy: "Type",
-					SortBy:  "Title",
-					TitleMaps: map[string]string{
-						"feat":     "Features",
-						"fix":      "Bug Fixes",
-						"perf":     "Performance Improvements",
-						"refactor": "Code Refactoring",
-					},
-				},
-				Header: ChangelogHeaderConfig{
-					Pattern:     "^(\\w*)\\:\\s(.*)$",
-					PatternMaps: []string{"Type", "Subject"},
-				},
-				Notes: ChangelogNotesConfig{
-					Keywords: []string{"BREAKING CHANGE"},
-				},
-			},
+			Template:   "clikd/changelog/standard.tpl.md",
+			ConfigFile: "clikd/changelog/standard.yml",
 		},
 	}
 }
