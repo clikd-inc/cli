@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"clikd/pkg/ai"
-	"clikd/pkg/commands/changelog"
-	"clikd/pkg/commands/initialize"
-	"clikd/pkg/commands/version"
-	"clikd/pkg/config"
-	"clikd/pkg/utils"
+	"clikd/internal/ai"
+	"clikd/internal/cli/commands/changelog"
+	"clikd/internal/cli/commands/initialize"
+	"clikd/internal/cli/commands/version"
+	"clikd/internal/config"
+	"clikd/internal/utils"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -27,7 +27,7 @@ var (
 	aiEnabled   bool
 	colorOutput bool
 	appConfig   *config.ConfigData
-	logger      *utils.Logger
+	logger      utils.Logger
 	configFile  string
 	verboseFlag bool
 	level       string

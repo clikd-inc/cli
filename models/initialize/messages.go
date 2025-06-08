@@ -1,7 +1,7 @@
 package initialize
 
 import (
-	"clikd/pkg/config"
+	"clikd/internal/config"
 	"fmt"
 )
 

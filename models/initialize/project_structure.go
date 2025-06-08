@@ -1,7 +1,7 @@
 package initialize
 
 import (
-	"clikd/pkg/config"
+	"clikd/internal/config"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -45,7 +45,7 @@ func createProjectStructure(m InitModel) tea.Cmd {
 				fileInfo, statErr := os.Stat("clikd")
 				if statErr == nil && !fileInfo.IsDir() {
 					return ProjectStructureErrorMsg{
-						Error: fmt.Errorf("Eine Datei mit dem Namen 'clikd' existiert bereits. Auf Windows können Dateien und Verzeichnisse nicht denselben Namen haben. Bitte umbenennen oder löschen Sie die Datei 'clikd', um fortzufahren."),
+						Error: fmt.Errorf("a file with the name 'clikd' already exists. On Windows, files and directories cannot have the same name. Please rename or delete the file 'clikd' to continue"),
 					}
 				}
 			}

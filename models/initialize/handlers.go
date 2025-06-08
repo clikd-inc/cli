@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"clikd/pkg/config"
+	"clikd/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

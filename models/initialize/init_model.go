@@ -3,7 +3,7 @@ package initialize
 import (
 	"fmt"
 
-	"clikd/pkg/config"
+	"clikd/internal/config"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"

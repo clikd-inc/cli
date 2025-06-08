@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"clikd/pkg/styles"
+	"clikd/internal/styles"
 )
 
 // View renders the model
