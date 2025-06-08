@@ -9,6 +9,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Use the same logger instance as in client.go
+var logConfig = utils.NewLogger("info", true)
+
 // Provider represents an AI provider type
 type Provider string
 
@@ -91,19 +94,24 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 
 	// If AI is not enabled, return the config as is
 	if !config.EnableAI {
+		logConfig.Debug("AI is disabled in configuration")
 		return config, nil
 	}
 
 	// Set API key from environment variables if not set
 	if config.APIKey == "" {
+		logConfig.Debug("API key not set in config, attempting to get from environment")
 		apiKey, err := utils.GetAPIKey(mapProviderToKeyInfo(config.Provider), true)
 		if err != nil {
+			// Log the error
+			logConfig.Error("Failed to get API key for provider %s: %v", config.Provider, err)
 			// Wenn der API-Schlüssel nicht gefunden werden konnte, geben wir eine
 			// benutzerfreundliche Fehlermeldung zurück.
 			return config, fmt.Errorf("API-Schlüssel für %s nicht gefunden. %s",
 				config.Provider, getAPIKeySetupInstructions(config.Provider))
 		}
 		config.APIKey = apiKey
+		logConfig.Debug("API key successfully retrieved from environment for provider %s", config.Provider)
 	}
 
 	// Set API URL from environment variables if not set
@@ -111,11 +119,14 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 		envVarName := getEndpointEnvVar(config.Provider)
 		if envVarName != "" {
 			if envValue := os.Getenv(envVarName); envValue != "" {
+				logConfig.Debug("Using API URL from environment variable %s", envVarName)
 				config.APIURL = envValue
 			}
 		}
 	}
 
+	logConfig.Debug("AI configuration loaded: provider=%s, model=%s, enabled=%v",
+		config.Provider, config.Model, config.EnableAI)
 	return config, nil
 }
 
@@ -125,6 +136,8 @@ func (c *Config) GetModelConfig(modelName string) (ModelConfig, error) {
 	if modelName == "" {
 		modelName = c.Model
 	}
+
+	logConfig.Debug("Getting model config for %s with provider %s", modelName, c.Provider)
 
 	// Create a ModelConfig based on the provider and model
 	modelConfig := ModelConfig{
@@ -159,6 +172,7 @@ func (c *Config) GetModelConfig(modelName string) (ModelConfig, error) {
 
 	// If API key is not set, try to get it
 	if modelConfig.APIKey == "" && c.Provider != ProviderLocal {
+		logConfig.Error("API key not configured for %s", c.Provider)
 		return modelConfig, fmt.Errorf("API-Schlüssel für %s nicht konfiguriert. %s",
 			c.Provider, getAPIKeySetupInstructions(c.Provider))
 	}
@@ -185,7 +199,7 @@ func mapProviderToKeyInfo(provider Provider) utils.ProviderKeyInfo {
 		// Generische Struktur für andere Provider
 		return utils.ProviderKeyInfo{
 			Name:            string(provider),
-			ConfigKey:       fmt.Sprintf("ai.api_key"),
+			ConfigKey:       "ai.api_key",
 			EnvVarName:      fmt.Sprintf("CLIKD_%s_API_KEY", provider),
 			EnvVarNameShort: fmt.Sprintf("%s_API_KEY", provider),
 			Required:        true,
@@ -219,11 +233,6 @@ func getEndpointEnvVar(provider Provider) string {
 	default:
 		return "CLIKD_API_URL"
 	}
-}
-
-// requiresEndpoint returns whether the provider requires an endpoint
-func requiresEndpoint(provider Provider) bool {
-	return provider == ProviderLocal
 }
 
 // getProviderWebsite returns the website URL for the provider

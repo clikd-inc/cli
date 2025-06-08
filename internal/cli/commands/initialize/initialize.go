@@ -1,7 +1,7 @@
 package initialize
 
 import (
-	"clikd/models/initialize"
+	"clikd/internal/ui/cmd/initialize"
 
 	"github.com/spf13/cobra"
 )
@@ -17,7 +17,7 @@ func NewInitCmd() *cobra.Command {
 		Short: "Initialize the clikd configuration",
 		Long:  `Initialize the clikd configuration either globally or for the current project.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return initialize.RunInitialization(global, force, yes)
+			return initialize.RunInitializationUI(global, force, yes)
 		},
 	}
 

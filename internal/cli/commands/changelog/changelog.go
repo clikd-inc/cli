@@ -1,21 +1,20 @@
 package changelog
 
 import (
-	"clikd/internal/changelog"
+	"clikd/internal/config"
+	"clikd/internal/services/changelog"
 	"clikd/internal/utils"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-
-	"clikd/internal/config"
 
 	"github.com/spf13/cobra"
 )
 
 // Variablen für Flags
 var (
-	// initFlag wurde entfernt, da die Funktionalität in den init-Befehl integriert wurde
 	configFlag           string
 	templateFlag         string
 	repositoryURLFlag    string
@@ -31,7 +30,6 @@ var (
 	jiraTokenFlag        string
 	sortFlag             string
 	pathsFlag            []string
-	// AI-Flags für bestimmte Funktionen bleiben erhalten für fine-grained control
 )
 
 // NewChangelogCmd erstellt ein neues Changelog-Kommando
@@ -56,32 +54,16 @@ Special Features:
   - Path Filtering: Filter commits by specific files or directories with --path.
   - Tag Filtering: Filter tags using regular expressions with --tag-filter-pattern.
   - Semver Sorting: Sort tags by semantic version instead of date with --sort=semver.
-  - AI Features: Enable or disable AI features via global configuration ('ai.enable=true').
-    The --ai flag can be used to override this setting for a single command.
-
-AI Configuration:
-  AI features can be configured in the global configuration file:
-  - Enable/disable AI: 'ai.enable=true/false'
-  - Set default model: 'ai.default_model=mistral-medium'
-  
-  For local projects, create a .env file with the required API keys.
-  For global usage, add API keys to the global configuration.
 
 Examples:
   # Initialize changelog configuration with the global init command
   clikd init
 
-  # Generate changelog for all tags to stdout (uses configuration setting for AI)
+  # Generate changelog for all tags to stdout
   clikd changelog
 
-  # Generate changelog to file (uses configuration setting for AI)
+  # Generate changelog to file
   clikd changelog -o CHANGELOG.md
-
-  # Override configuration and enable AI for this command only
-  clikd changelog --ai -o CHANGELOG.md
-
-  # Override configuration and disable AI for this command only
-  clikd changelog --ai=false -o CHANGELOG.md
 
   # Generate changelog for specific tag range
   clikd changelog v1.0.0..v2.0.0 -o CHANGELOG.md
@@ -93,19 +75,7 @@ Examples:
   clikd changelog --path="internal/,cmd/" -o CHANGELOG.md`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := utils.NewLogger("info", true)
-
-			// KI-Funktionalität initialisieren
-			if err := InitializeAI(); err != nil {
-				logger.Error("Fehler bei der KI-Initialisierung: %v", err)
-				logger.Info("Changelog wird ohne KI-Funktionen generiert")
-				// Wir gehen weiter, auch wenn die KI-Initialisierung fehlschlägt
-			} else if changelog.IsAIEnabled() {
-				// Zeige KI-Status, wenn KI aktiviert ist
-				ShowAIStatus()
-			} else {
-				logger.Info("Changelog wird ohne KI-Funktionen generiert")
-				logger.Info("Um KI zu aktivieren, verwenden Sie --ai oder setzen Sie ai.enable=true in der Konfiguration")
-			}
+			logger.Info("Starting changelog generation")
 
 			// Sonst den normalen Changelog-Generator ausführen
 			query := ""
@@ -117,7 +87,7 @@ Examples:
 		},
 	}
 
-	// Flags hinzufügen - initFlag wurde entfernt
+	// Flags hinzufügen
 	cmd.Flags().StringSliceVar(&pathsFlag, "path", []string{}, "Filter commits by path(s). Can use multiple times.")
 	cmd.Flags().StringVarP(&configFlag, "config", "c", "clikd/config.toml", "specifies a different configuration file to pick up")
 	cmd.Flags().StringVarP(&templateFlag, "template", "t", "", "specifies a template file to pick up. If not specified, use the one in config")
@@ -134,13 +104,8 @@ Examples:
 	cmd.Flags().StringVar(&jiraTokenFlag, "jira-token", "", "Jira token")
 	cmd.Flags().StringVar(&sortFlag, "sort", "date", "Specify how to sort tags; currently supports \"date\" or by \"semver\"")
 
-	// KI-bezogene Flags hinzufügen (für fine-grained control)
-	AddAIFlags(cmd)
-
 	return cmd
 }
-
-// runInitializer-Funktion wurde entfernt, da die Funktionalität in den init-Befehl integriert wurde
 
 // runGenerator führt den Changelog-Generator aus
 func runGenerator(query string) error {
@@ -248,59 +213,43 @@ func runGenerator(query string) error {
 
 						// Verschiedene Alternativen durchprobieren
 						alternatives := []string{
-							filepath.Join(wd, baseDir, "templates", "changelog.md"),
-							filepath.Join(clikdDir, "templates", "changelog.md"),
 							filepath.Join(wd, tmplRelPath),
+							filepath.Join(wd, baseDir, tmplRelPath),
+							filepath.Join(wd, baseDir, "templates", filepath.Base(tmplRelPath)),
 						}
 
-						for _, altPath := range alternatives {
-							logger.Debug("Trying alternative path: %s", altPath)
-							if _, err := os.Stat(altPath); err == nil {
-								logger.Debug("Found template at alternative path: %s", altPath)
-								templatePath = altPath
+						for _, alt := range alternatives {
+							logger.Debug("Trying alternative template path: %s", alt)
+							if _, err := os.Stat(alt); err == nil {
+								logger.Debug("Template file found at alternative path: %s", alt)
+								templatePath = alt
 								break
 							}
+						}
+
+						if templatePath == "" {
+							logger.Error("Template file not found at any expected location")
+							return fmt.Errorf("template file not found at any expected location")
 						}
 					}
 				}
 			}
-
-			logger.Debug("Final template path: %s", templatePath)
-
-			// Prüfen, ob die Template-Datei existiert
-			if templatePath == "" {
-				logger.Error("No valid template path found")
-				return fmt.Errorf("no valid template path found")
-			}
-
-			if fileInfo, err := os.Stat(templatePath); err != nil {
-				logger.Error("Template file not found at: %s", templatePath)
-				return err
-			} else if fileInfo.IsDir() {
-				// Es ist ein Verzeichnis, keine Datei
-				logger.Error("Template path is a directory, not a file: %s", templatePath)
-				return fmt.Errorf("template path is a directory, not a file: %s", templatePath)
-			}
-
-			// Override template flag if it was not explicitly set
-			if templateFlag == "" {
-				templateFlag = templatePath
-				logger.Debug("Setting template flag to: %s", templateFlag)
-			} else {
-				logger.Debug("Template flag already set to: %s", templateFlag)
-			}
 		}
 	} else {
-		// Wenn die Konfigurationsdatei nicht existiert, einen Fehler zurückgeben
-		logger.Error("Configuration file not found at %s", configPath)
-		return fmt.Errorf("configuration file not found at %s", configPath)
+		logger.Debug("Configuration file not found: %s", configPath)
+		if templatePath == "" {
+			logger.Error("No template path found")
+			return fmt.Errorf("no template path found")
+		}
 	}
 
-	// Erstellen der Changelog-Kommando-Konfiguration (ersetzt den alten CLIContext)
+	logger.Info("Using template: %s", templatePath)
+
+	// Command-Konfiguration erstellen
 	cmdConfig := &changelog.CommandConfig{
-		WorkingDir:       testRepoDir, // Explizit das Test-Repository-Verzeichnis verwenden
+		WorkingDir:       testRepoDir, // Für Tests explizit ein Test-Repository festlegen
 		ConfigPath:       configPath,
-		Template:         templateFlag,
+		Template:         templatePath,
 		RepositoryURL:    repositoryURLFlag,
 		OutputPath:       outputFlag,
 		Silent:           silentFlag,
@@ -317,70 +266,39 @@ func runGenerator(query string) error {
 		Sort:             sortFlag,
 	}
 
-	logger.Debug("Command Config - WorkingDir: %s", cmdConfig.WorkingDir)
-	logger.Debug("Command Config - ConfigPath: %s", cmdConfig.ConfigPath)
-	logger.Debug("Command Config - Template: %s", cmdConfig.Template)
-
-	// Explizit das Template im Kontext setzen, um die Template-Pfad-Normalisierung zu überspringen
-	if templatePath != "" {
-		cmdConfig.Template = templatePath
-		logger.Debug("Overriding Command Config Template to: %s", cmdConfig.Template)
-	}
-
-	// Changelog-Konfiguration laden mit der neuen Funktion aus dem changelog-Paket
-	chglogConfig, err := changelog.LoadConfigFromCommand(cmdConfig)
+	// Konfiguration laden
+	config, err := changelog.LoadConfigFromCommand(cmdConfig)
 	if err != nil {
 		logger.Error("Failed to load config: %v", err)
 		return err
 	}
 
-	// Explizit das Arbeitsverzeichnis auf das Test-Repository setzen
-	chglogConfig.WorkingDir = testRepoDir
-	logger.Debug("Set config WorkingDir to: %s", chglogConfig.WorkingDir)
+	// Generator erstellen
+	generator := changelog.NewGenerator(logger, config)
 
-	logger.Debug("Loaded config - Template: %s", chglogConfig.Template)
+	// Output-Writer bestimmen
+	var writer io.Writer
+	if cmdConfig.OutputPath == "" {
+		// Wenn kein Output-Pfad angegeben ist, wird auf stdout ausgegeben
+		writer = os.Stdout
+	} else {
+		// Verzeichnis erstellen, falls es nicht existiert
+		dir := filepath.Dir(cmdConfig.OutputPath)
+		if dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("failed to create directory: %v", err)
+			}
+		}
 
-	// Sicherstellen, dass der Template-Pfad korrekt in der Konfiguration gesetzt ist
-	if templatePath != "" {
-		chglogConfig.Template = templatePath
-		logger.Debug("Set final template path in config to: %s", chglogConfig.Template)
+		// Datei öffnen
+		file, err := os.Create(cmdConfig.OutputPath)
+		if err != nil {
+			return fmt.Errorf("failed to create file: %v", err)
+		}
+		defer file.Close()
+		writer = file
 	}
-
-	logger.Debug("Final template path used: %s", chglogConfig.Template)
-
-	// Prüfen, ob diese Datei tatsächlich existiert
-	if _, err := os.Stat(chglogConfig.Template); err != nil {
-		logger.Error("Final template file not found at: %s", chglogConfig.Template)
-		return err
-	}
-
-	// Changelog-Generator erstellen und ausführen
-	// Direkt den zentralen Logger verwenden mit angepassten Einstellungen
-	level := "info"
-	if cmdConfig.Silent {
-		level = "warn" // Wenn silent ist true, nur Warnungen und Fehler ausgeben
-	}
-
-	// Neuen Logger erstellen basierend auf den Konfigurationsoptionen
-	chglogLogger := utils.NewLogger(level, !cmdConfig.NoEmoji)
-
-	// Generator mit dem Logger erstellen
-	generator := changelog.NewGenerator(chglogLogger, chglogConfig)
-
-	// Output-Writer erstellen
-	writer, err := utils.CreateOutputWriter(cmdConfig.OutputPath, logger)
-	if err != nil {
-		logger.Error("Failed to create output writer: %v", err)
-		return err
-	}
-	defer utils.CloseOutputWriter(writer, logger)
 
 	// Changelog generieren
-	err = generator.Generate(writer, cmdConfig.Query)
-	if err != nil {
-		logger.Error("Failed to generate changelog: %v", err)
-		return err
-	}
-
-	return nil
+	return generator.Generate(writer, query)
 }

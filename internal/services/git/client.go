@@ -9,85 +9,149 @@ import (
 	gitcmd "github.com/tsuyoshiwada/go-gitcmd"
 )
 
-// Service bietet eine zentrale Schnittstelle für alle Git-Operationen
-type Service struct {
-	client      gitcmd.Client
-	repoDir     string
-	tagReader   *tagReader
-	tagSelector *tagSelector
-	logger      utils.Logger
+// Client definiert die Schnittstelle für Git-Operationen auf niedriger Ebene
+type Client interface {
+	// GetRepositoryRoot gibt den absoluten Pfad zum Root des Git-Repositories zurück
+	GetRepositoryRoot() (string, error)
+
+	// IsGitRepository prüft, ob das aktuelle Verzeichnis ein Git-Repository ist
+	IsGitRepository() (bool, error)
+
+	// GetCommits holt alle Commits im Repository basierend auf den Filteroptionen
+	GetCommits(options CommitOptions) ([]*Commit, error)
+
+	// GetLatestTag gibt das neueste Tag im Repository zurück
+	GetLatestTag() (string, error)
+
+	// GetTags gibt alle Tags im Repository zurück
+	GetTags() ([]string, error)
+
+	// GetTagsWithPattern gibt Tags zurück, die einem bestimmten Pattern entsprechen
+	GetTagsWithPattern(pattern string) ([]string, error)
+
+	// GetCommitsBetweenTags gibt alle Commits zwischen zwei Tags zurück
+	GetCommitsBetweenTags(fromTag, toTag string) ([]*Commit, error)
+
+	// GetStagedChanges gibt die gestaged Änderungen zurück
+	GetStagedChanges() (string, error)
+
+	// GetDiffBetweenTags gibt die Diff zwischen zwei Tags zurück
+	GetDiffBetweenTags(fromTag, toTag string) (string, error)
+
+	// CreateTag erstellt ein neues Tag
+	CreateTag(tag string, message string) error
+
+	// HasRemote prüft, ob das Repository einen Remote hat
+	HasRemote() (bool, error)
+
+	// GetCurrentBranch gibt den aktuellen Branch zurück
+	GetCurrentBranch() (string, error)
+
+	// Exec führt einen Git-Befehl direkt aus
+	Exec(subcmd string, args ...string) (string, error)
+
+	// CanExec prüft, ob Git ausgeführt werden kann
+	CanExec() error
+
+	// InsideWorkTree prüft, ob wir uns in einem Git-Repository befinden
+	InsideWorkTree() error
 }
 
-// ServiceOptions enthält die Konfigurationsoptionen für den Git-Service
-type ServiceOptions struct {
-	RepoDir string
-	Logger  utils.Logger
+// CommitOptions enthält die Optionen für das Abrufen von Commits
+type CommitOptions struct {
+	Revision string   // Git-Revision (z.B. "HEAD", "master", Tag)
+	Paths    []string // Pfade, für die Commits abgerufen werden sollen
 }
 
-// NewService erstellt einen neuen Git-Service
-func NewService(repoDir string) *Service {
-	return NewServiceWithOptions(ServiceOptions{
-		RepoDir: repoDir,
-		Logger:  utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"}),
-	})
+// TagSelectionOptions enthält die Optionen für die Tag-Auswahl
+type TagSelectionOptions struct {
+	Query string // Format: <old>..<new>, <tag>.., ..<tag>, <tag>
 }
 
-// NewServiceWithOptions erstellt einen neuen Git-Service mit benutzerdefinierten Optionen
-func NewServiceWithOptions(opts ServiceOptions) *Service {
-	// Fallback-Logger erstellen, wenn keiner übergeben wurde
-	logger := opts.Logger
-	if logger == nil {
-		logger = utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
-	}
+// ClientImpl ist die konkrete Implementierung des Client-Interfaces
+type ClientImpl struct {
+	client  gitcmd.Client
+	repoDir string
+	logger  utils.Logger
+}
+
+// NewClient erstellt einen neuen Git-Client
+func NewClient() (Client, error) {
+	logger := utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
 
 	// Git-Client erstellen
-	client := &customGitClient{
-		wrapped: gitcmd.New(&gitcmd.Config{
-			Bin: "git",
-		}),
-		repoDir: opts.RepoDir,
+	client := gitcmd.New(&gitcmd.Config{
+		Bin: "git",
+	})
+
+	// Aktuelles Arbeitsverzeichnis als Standard-Repository-Verzeichnis verwenden
+	repoDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("Fehler beim Ermitteln des aktuellen Verzeichnisses: %w", err)
+	}
+
+	return &ClientImpl{
+		client:  client,
+		repoDir: repoDir,
 		logger:  logger,
+	}, nil
+}
+
+// NewClientWithRepoDir erstellt einen neuen Git-Client für ein bestimmtes Repository-Verzeichnis
+func NewClientWithRepoDir(repoDir string) (Client, error) {
+	logger := utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
+
+	// Git-Client erstellen
+	client := gitcmd.New(&gitcmd.Config{
+		Bin: "git",
+	})
+
+	if repoDir == "" {
+		// Aktuelles Arbeitsverzeichnis als Standard-Repository-Verzeichnis verwenden
+		var err error
+		repoDir, err = os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("Fehler beim Ermitteln des aktuellen Verzeichnisses: %w", err)
+		}
 	}
 
-	// Tag-Reader und Selektor erstellen
-	tagReader := newTagReader(client, "", "date")
-	tagSelector := newTagSelector(logger)
+	return &ClientImpl{
+		client:  client,
+		repoDir: repoDir,
+		logger:  logger,
+	}, nil
+}
 
-	return &Service{
-		client:      client,
-		repoDir:     opts.RepoDir,
-		tagReader:   tagReader,
-		tagSelector: tagSelector,
-		logger:      logger,
+// GetRepositoryRoot implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetRepositoryRoot() (string, error) {
+	out, err := c.Exec("rev-parse", "--show-toplevel")
+	if err != nil {
+		c.logger.Error("Fehler beim Ermitteln des Repository-Roots: %v", err)
+		return "", err
 	}
+	return strings.TrimSpace(out), nil
 }
 
-// GetTags gibt alle Tags im Repository zurück
-func (s *Service) GetTags() ([]*Tag, error) {
-	s.logger.Debug("Lese alle Git-Tags")
-	return s.tagReader.ReadAll()
+// IsGitRepository implementiert die Client-Schnittstelle
+func (c *ClientImpl) IsGitRepository() (bool, error) {
+	err := c.InsideWorkTree()
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
-// SelectTags wählt Tags basierend auf einer Abfrage aus
-// Format der Abfrage:
-//
-//	<old>..<new> - Commits zwischen <old> und <new> Tag
-//	<tag>..      - Commits vom <tag> bis zum neuesten Tag
-//	..<tag>      - Commits vom ältesten Tag bis zum <tag>
-//	<tag>        - Commits nur für das <tag>
-func (s *Service) SelectTags(tags []*Tag, query string) ([]*Tag, string, error) {
-	s.logger.Debug("Wähle Tags mit Abfrage: %s", query)
-	return s.tagSelector.Select(tags, query)
-}
+// GetCommits implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetCommits(options CommitOptions) ([]*Commit, error) {
+	c.logger.Debug("Hole Commits für Revision: %s", options.Revision)
 
-// GetCommits holt Commits basierend auf einer Revision
-func (s *Service) GetCommits(rev string) ([]*Commit, error) {
-	s.logger.Debug("Hole Commits für Revision: %s", rev)
-
-	paths := []string{}
+	paths := options.Paths
+	if paths == nil {
+		paths = []string{}
+	}
 
 	args := []string{
-		rev,
+		options.Revision,
 		"--no-decorate",
 		"--pretty=" + logFormat,
 	}
@@ -97,9 +161,9 @@ func (s *Service) GetCommits(rev string) ([]*Commit, error) {
 		args = append(args, paths...)
 	}
 
-	out, err := s.client.Exec("log", args...)
+	out, err := c.Exec("log", args...)
 	if err != nil {
-		s.logger.Error("Fehler beim Ausführen von git log: %v", err)
+		c.logger.Error("Fehler beim Ausführen von git log: %v", err)
 		return nil, err
 	}
 
@@ -124,34 +188,95 @@ func (s *Service) GetCommits(rev string) ([]*Commit, error) {
 	return commits, nil
 }
 
-// GetCurrentBranch gibt den aktuellen Branch-Namen zurück
-func (s *Service) GetCurrentBranch() (string, error) {
-	s.logger.Debug("Ermittle aktuellen Branch")
-	out, err := s.client.Exec("rev-parse", "--abbrev-ref", "HEAD")
+// GetLatestTag implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetLatestTag() (string, error) {
+	out, err := c.Exec("describe", "--tags", "--abbrev=0")
 	if err != nil {
-		s.logger.Error("Fehler beim Ermitteln des aktuellen Branches: %v", err)
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
 }
 
-// ExtractCommits gruppiert Commits basierend auf den konfigurierten Optionen
-// und extrahiert Merge- und Revert-Commits sowie Notizen
-func (s *Service) ExtractCommits(commits []*Commit, opts *Options) ([]*CommitGroup, []*Commit, []*Commit, []*NoteGroup) {
-	s.logger.Debug("Extrahiere und gruppiere %d Commits", len(commits))
-	extractor := newCommitExtractor(opts, s.logger)
-	return extractor.Extract(commits)
+// GetTags implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetTags() ([]string, error) {
+	out, err := c.Exec("tag", "--sort=-creatordate")
+	if err != nil {
+		return nil, err
+	}
+
+	tags := strings.Split(strings.TrimSpace(out), "\n")
+	// Leere Tags entfernen
+	var result []string
+	for _, tag := range tags {
+		if tag != "" {
+			result = append(result, tag)
+		}
+	}
+
+	return result, nil
 }
 
-// customGitClient ist ein Wrapper um gitcmd.Client, der alle Befehle im korrekten Repository-Verzeichnis ausführt
-type customGitClient struct {
-	wrapped gitcmd.Client
-	repoDir string
-	logger  utils.Logger
+// GetTagsWithPattern implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetTagsWithPattern(pattern string) ([]string, error) {
+	out, err := c.Exec("tag", "-l", pattern, "--sort=-creatordate")
+	if err != nil {
+		return nil, err
+	}
+
+	tags := strings.Split(strings.TrimSpace(out), "\n")
+	// Leere Tags entfernen
+	var result []string
+	for _, tag := range tags {
+		if tag != "" {
+			result = append(result, tag)
+		}
+	}
+
+	return result, nil
+}
+
+// GetCommitsBetweenTags implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetCommitsBetweenTags(fromTag, toTag string) ([]*Commit, error) {
+	revRange := fmt.Sprintf("%s..%s", fromTag, toTag)
+	return c.GetCommits(CommitOptions{Revision: revRange})
+}
+
+// GetStagedChanges implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetStagedChanges() (string, error) {
+	return c.Exec("diff", "--cached")
+}
+
+// GetDiffBetweenTags implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetDiffBetweenTags(fromTag, toTag string) (string, error) {
+	return c.Exec("diff", fromTag+".."+toTag)
+}
+
+// CreateTag implementiert die Client-Schnittstelle
+func (c *ClientImpl) CreateTag(tag string, message string) error {
+	_, err := c.Exec("tag", "-a", tag, "-m", message)
+	return err
+}
+
+// HasRemote implementiert die Client-Schnittstelle
+func (c *ClientImpl) HasRemote() (bool, error) {
+	out, err := c.Exec("remote")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
+// GetCurrentBranch implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetCurrentBranch() (string, error) {
+	out, err := c.Exec("rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
 }
 
 // Exec führt den Git-Befehl im Repository-Verzeichnis aus
-func (c *customGitClient) Exec(subcmd string, args ...string) (string, error) {
+func (c *ClientImpl) Exec(subcmd string, args ...string) (string, error) {
 	c.logger.Debug("Führe Git-Befehl aus: %s %s", subcmd, strings.Join(args, " "))
 
 	// Ursprüngliches Arbeitsverzeichnis speichern
@@ -168,7 +293,7 @@ func (c *customGitClient) Exec(subcmd string, args ...string) (string, error) {
 	}
 
 	// Git-Befehl ausführen
-	out, err := c.wrapped.Exec(subcmd, args...)
+	out, err := c.client.Exec(subcmd, args...)
 	if err != nil {
 		c.logger.Error("Git-Befehl fehlgeschlagen: %v", err)
 	}
@@ -186,37 +311,28 @@ func (c *customGitClient) Exec(subcmd string, args ...string) (string, error) {
 }
 
 // CanExec prüft, ob der Git-Befehl ausgeführt werden kann
-func (c *customGitClient) CanExec() error {
-	c.logger.Debug("Prüfe, ob Git ausgeführt werden kann")
-	return c.wrapped.CanExec()
+func (c *ClientImpl) CanExec() error {
+	return c.client.CanExec()
 }
 
 // InsideWorkTree prüft, ob wir uns innerhalb eines Git-Arbeitsbaumes befinden
-func (c *customGitClient) InsideWorkTree() error {
-	c.logger.Debug("Prüfe, ob wir uns in einem Git-Repository befinden")
-
+func (c *ClientImpl) InsideWorkTree() error {
 	// Ursprüngliches Arbeitsverzeichnis speichern
 	origWd, err := os.Getwd()
 	if err != nil {
-		c.logger.Error("Fehler beim Ermitteln des aktuellen Verzeichnisses: %v", err)
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
 	// In das Repository-Verzeichnis wechseln
 	if err := os.Chdir(c.repoDir); err != nil {
-		c.logger.Error("Fehler beim Wechseln in das Repository-Verzeichnis: %v", err)
 		return fmt.Errorf("failed to change to repository directory: %w", err)
 	}
 
 	// Prüfen, ob wir uns in einem Git-Arbeitsbaum befinden
-	result := c.wrapped.InsideWorkTree()
-	if result != nil {
-		c.logger.Error("Nicht in einem Git-Repository: %v", result)
-	}
+	result := c.client.InsideWorkTree()
 
 	// Zum ursprünglichen Verzeichnis zurückkehren
 	if chdirErr := os.Chdir(origWd); chdirErr != nil {
-		c.logger.Error("Fehler beim Zurückkehren zum ursprünglichen Verzeichnis: %v", chdirErr)
 		// Falls die InsideWorkTree-Prüfung erfolgreich war, geben wir den Fehler beim Verzeichniswechsel zurück
 		if result == nil {
 			return chdirErr

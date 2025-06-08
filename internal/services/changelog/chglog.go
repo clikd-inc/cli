@@ -98,7 +98,7 @@ func normalizeConfig(config *Config) {
 // Generator of CHANGELOG
 type Generator struct {
 	config     *Config
-	gitService *git.Service
+	gitService git.Service
 	jiraClient JiraClient
 	logger     utils.Logger
 }
@@ -106,10 +106,14 @@ type Generator struct {
 // NewGenerator receives `Config` and create an new `Generator`
 func NewGenerator(logger utils.Logger, config *Config) *Generator {
 	// Repository directory
-	repoDir := "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo"
+	repoDir := config.WorkingDir
 
 	// Create Git service with the target repository
-	gitService := git.NewService(repoDir)
+	gitService, err := git.NewServiceWithRepoDir(repoDir)
+	if err != nil {
+		logger.Error("Failed to create Git service: %v", err)
+		return nil
+	}
 
 	jiraClient := NewJiraClient(config)
 
@@ -233,7 +237,7 @@ func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*git.Versio
 		fmt.Printf("DEBUG: Processing tag[%d] %s with rev=%s\n", i, tag.Name, rev)
 
 		// Get commits for this revision using Git service
-		commits, err := gen.gitService.GetCommits(rev)
+		commits, err := gen.gitService.GetCommits(rev, gen.config.Options.Paths)
 		if err != nil {
 			return nil, err
 		}
@@ -268,7 +272,7 @@ func (gen *Generator) readUnreleased(tags []*git.Tag) (*git.Unreleased, error) {
 	fmt.Printf("DEBUG: readUnreleased: Getting commits with rev=%s\n", rev)
 
 	// Get commits for unreleased changes using Git service
-	commits, err := gen.gitService.GetCommits(rev)
+	commits, err := gen.gitService.GetCommits(rev, gen.config.Options.Paths)
 	if err != nil {
 		return nil, err
 	}
@@ -292,18 +296,17 @@ func (gen *Generator) readUnreleased(tags []*git.Tag) (*git.Unreleased, error) {
 
 func (gen *Generator) getTags(query string) ([]*git.Tag, string, error) {
 	// Get all tags using Git service
-	tags, err := gen.gitService.GetTags()
+	tagsWithDetails, err := gen.gitService.GetAllTagsWithDetails()
 	if err != nil {
 		return nil, "", err
 	}
-	fmt.Printf("DEBUG: getTags: Found %d tags\n", len(tags))
+	fmt.Printf("DEBUG: getTags: Found %d tags\n", len(tagsWithDetails))
 
 	// Select tags based on query using Git service
-	selectedTags, first, err := gen.gitService.SelectTags(tags, query)
+	selectedTags, first, err := gen.gitService.SelectTagsWithQuery(tagsWithDetails, query)
 	if err != nil {
 		return nil, "", err
 	}
-	fmt.Printf("DEBUG: getTags: Selected %d tags based on query %q\n", len(selectedTags), query)
 
 	return selectedTags, first, nil
 }

@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"clikd/internal/ai"
 	"clikd/internal/cli/commands/changelog"
 	"clikd/internal/cli/commands/initialize"
 	"clikd/internal/cli/commands/version"
 	"clikd/internal/config"
+	"clikd/internal/services/ai"
 	"clikd/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -152,9 +152,18 @@ Use it to automate workflows and enhance productivity.`,
 			v.SetConfigType("yaml")
 
 			// Load AI configuration from global configuration
-			aiConfig, err := ai.LoadConfig(v)
+			modelConfig, err := config.GetAIModelConfig(modelName)
 			if err != nil {
 				return fmt.Errorf("Error loading AI configuration: %w", err)
+			}
+
+			// Convert ModelConfig to ai.Config
+			aiConfig := &ai.Config{
+				Provider: ai.Provider(modelConfig.Provider),
+				Model:    modelConfig.ModelID,
+				APIKey:   modelConfig.APIKey,
+				APIURL:   modelConfig.Endpoint,
+				EnableAI: true,
 			}
 
 			// Create client

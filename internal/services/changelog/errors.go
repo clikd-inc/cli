@@ -2,7 +2,6 @@ package changelog
 
 import (
 	"errors"
-	"fmt"
 )
 
 // Errors entsprechend dem original-package
@@ -42,13 +41,4 @@ var (
 
 	// ErrInvalidJiraURL wird zurückgegeben, wenn die Jira-URL ungültig ist
 	ErrInvalidJiraURL = errors.New("invalid jira url")
-
-	// Fehlende Fehlerdefinitionen
-	errNotFoundTag      = errors.New("failed to find tag")
-	errFailedQueryParse = errors.New("failed to parse query")
 )
-
-// Fehler mit Format-String und Argumenten erzeugen
-func errorf(format string, args ...interface{}) error {
-	return fmt.Errorf(format, args...)
-}

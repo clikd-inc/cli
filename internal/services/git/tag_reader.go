@@ -8,17 +8,16 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	gitcmd "github.com/tsuyoshiwada/go-gitcmd"
 )
 
 type tagReader struct {
-	client    gitcmd.Client
+	client    Client
 	separator string
 	reFilter  *regexp.Regexp
 	sortBy    string
 }
 
-func newTagReader(client gitcmd.Client, filterPattern string, sort string) *tagReader {
+func newTagReader(client Client, filterPattern string, sort string) *tagReader {
 	return &tagReader{
 		client:    client,
 		separator: "@@__CHGLOG__@@",
