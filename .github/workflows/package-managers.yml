@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
 
+# Neue Berechtigungen hinzufügen
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build:
     runs-on: macos-latest
@@ -54,7 +59,7 @@ jobs:
             dist/clikd_*.zip
             dist/clikd_*_checksums.txt
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
   homebrew:
     needs: build
@@ -66,7 +71,7 @@ jobs:
           mkdir -p dist
           gh release download v$VERSION --dir dist
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
       - name: Generate Homebrew Formula
         run: |
@@ -115,7 +120,7 @@ jobs:
           end
           EOF
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
       - name: Commit to Homebrew Tap
         uses: actions/checkout@v4
@@ -149,7 +154,7 @@ jobs:
           mkdir -p dist
           gh release download v$VERSION --dir dist
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
       - name: Generate Scoop Manifest
         shell: pwsh
@@ -180,7 +185,7 @@ jobs:
           
           Set-Content -Path dist/scoop/clikd.json -Value $scoopManifest
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
       - name: Commit to Scoop Bucket
         uses: actions/checkout@v4
