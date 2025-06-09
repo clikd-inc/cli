@@ -2,122 +2,86 @@ package changelog
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 )
 
-// ProcessorFactory erstellt Prozessoren für die Changelog-Generierung
-type ProcessorFactory struct {
-	hostRegistry map[string]string
-}
+// ProcessorType definiert die verfügbaren Processor-Typen
+type ProcessorType string
 
-// NewProcessorFactory erstellt eine neue ProcessorFactory-Instanz
+const (
+	ProcessorTypeGitHub    ProcessorType = "github"
+	ProcessorTypeGitLab    ProcessorType = "gitlab"
+	ProcessorTypeBitbucket ProcessorType = "bitbucket"
+)
+
+// ProcessorFactory erstellt Processor-Instanzen basierend auf dem Typ
+type ProcessorFactory struct{}
+
+// NewProcessorFactory erstellt eine neue ProcessorFactory
 func NewProcessorFactory() *ProcessorFactory {
-	return &ProcessorFactory{
-		hostRegistry: map[string]string{
-			"github":    "github.com",
-			"gitlab":    "gitlab.com",
-			"bitbucket": "bitbucket.org",
-		},
-	}
+	return &ProcessorFactory{}
 }
 
-// Create erstellt einen Prozessor basierend auf der Konfiguration
-func (factory *ProcessorFactory) Create(config *Config) (Processor, error) {
-	if config.Info.RepositoryURL == "" {
-		return nil, nil
-	}
-
-	obj, err := url.Parse(config.Info.RepositoryURL)
-	if err != nil {
-		return nil, err
-	}
-
-	host := obj.Host
-
-	// Wähle den passenden Prozessor basierend auf dem Host
-	hostURL := fmt.Sprintf("%s://%s", obj.Scheme, obj.Host)
-
-	switch {
-	case strings.Contains(host, "github.com"):
-		return &GitHubProcessorAdapter{
-			ProcessorAdapter: ProcessorAdapter{
-				Host:   hostURL,
-				config: config,
-			},
-		}, nil
-	case strings.Contains(host, "gitlab.com"):
-		return &GitLabProcessorAdapter{
-			ProcessorAdapter: ProcessorAdapter{
-				Host:   hostURL,
-				config: config,
-			},
-		}, nil
-	case strings.Contains(host, "bitbucket.org"):
-		return &BitbucketProcessorAdapter{
-			ProcessorAdapter: ProcessorAdapter{
-				Host:   hostURL,
-				config: config,
-			},
-		}, nil
+// CreateProcessor erstellt einen Processor basierend auf dem Typ und Host
+func (f *ProcessorFactory) CreateProcessor(processorType ProcessorType, host string) (Processor, error) {
+	switch processorType {
+	case ProcessorTypeGitHub:
+		processor := &GitHubProcessor{
+			Host: host,
+		}
+		return processor, nil
+	case ProcessorTypeGitLab:
+		processor := &GitLabProcessor{
+			Host: host,
+		}
+		return processor, nil
+	case ProcessorTypeBitbucket:
+		processor := &BitbucketProcessor{
+			Host: host,
+		}
+		return processor, nil
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("unknown processor type: %s", processorType)
 	}
 }
 
-// ProcessorAdapter ist eine Basisstruktur für Prozessor-Adapter
-type ProcessorAdapter struct {
-	Host   string
-	config *Config
+// CreateProcessorFromString erstellt einen Processor aus einem String
+func (f *ProcessorFactory) CreateProcessorFromString(processorStr string) (Processor, error) {
+	if processorStr == "" {
+		return nil, nil
+	}
+
+	// Format: "type" oder "type:host"
+	parts := strings.SplitN(processorStr, ":", 2)
+	processorType := ProcessorType(strings.ToLower(parts[0]))
+
+	host := ""
+	if len(parts) > 1 {
+		host = parts[1]
+	}
+
+	return f.CreateProcessor(processorType, host)
 }
 
-// GitHubProcessorAdapter adaptiert den GitHubProcessor für die Processor-Schnittstelle
-type GitHubProcessorAdapter struct {
-	ProcessorAdapter
+// GetAvailableProcessors gibt eine Liste der verfügbaren Processor-Typen zurück
+func (f *ProcessorFactory) GetAvailableProcessors() []ProcessorType {
+	return []ProcessorType{
+		ProcessorTypeGitHub,
+		ProcessorTypeGitLab,
+		ProcessorTypeBitbucket,
+	}
 }
 
-// Bootstrap implementiert die Processor-Schnittstelle
-func (p *GitHubProcessorAdapter) Bootstrap(config *Config) error {
-	// Konfiguration für GitHub spezifisch anpassen
-	return nil
-}
-
-// ProcessCommit implementiert die Processor-Schnittstelle
-func (p *GitHubProcessorAdapter) ProcessCommit(commit *ChangelogCommit) *ChangelogCommit {
-	// GitHub-spezifische Verarbeitung des Commits
-	return commit
-}
-
-// GitLabProcessorAdapter adaptiert den GitLabProcessor für die Processor-Schnittstelle
-type GitLabProcessorAdapter struct {
-	ProcessorAdapter
-}
-
-// Bootstrap implementiert die Processor-Schnittstelle
-func (p *GitLabProcessorAdapter) Bootstrap(config *Config) error {
-	// Konfiguration für GitLab spezifisch anpassen
-	return nil
-}
-
-// ProcessCommit implementiert die Processor-Schnittstelle
-func (p *GitLabProcessorAdapter) ProcessCommit(commit *ChangelogCommit) *ChangelogCommit {
-	// GitLab-spezifische Verarbeitung des Commits
-	return commit
-}
-
-// BitbucketProcessorAdapter adaptiert den BitbucketProcessor für die Processor-Schnittstelle
-type BitbucketProcessorAdapter struct {
-	ProcessorAdapter
-}
-
-// Bootstrap implementiert die Processor-Schnittstelle
-func (p *BitbucketProcessorAdapter) Bootstrap(config *Config) error {
-	// Konfiguration für Bitbucket spezifisch anpassen
-	return nil
-}
-
-// ProcessCommit implementiert die Processor-Schnittstelle
-func (p *BitbucketProcessorAdapter) ProcessCommit(commit *ChangelogCommit) *ChangelogCommit {
-	// Bitbucket-spezifische Verarbeitung des Commits
-	return commit
+// GetDefaultHost gibt den Standard-Host für einen Processor-Typ zurück
+func (f *ProcessorFactory) GetDefaultHost(processorType ProcessorType) string {
+	switch processorType {
+	case ProcessorTypeGitHub:
+		return "https://github.com"
+	case ProcessorTypeGitLab:
+		return "https://gitlab.com"
+	case ProcessorTypeBitbucket:
+		return "https://bitbucket.org"
+	default:
+		return ""
+	}
 }

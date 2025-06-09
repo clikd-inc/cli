@@ -20,6 +20,9 @@ type Client interface {
 	// GetCommits holt alle Commits im Repository basierend auf den Filteroptionen
 	GetCommits(options CommitOptions) ([]*Commit, error)
 
+	// GetCommitsWithOptions holt alle Commits mit vollständigen Pattern-Optionen
+	GetCommitsWithOptions(options CommitOptions) ([]*Commit, error)
+
 	// GetLatestTag gibt das neueste Tag im Repository zurück
 	GetLatestTag() (string, error)
 
@@ -57,10 +60,20 @@ type Client interface {
 	InsideWorkTree() error
 }
 
-// CommitOptions enthält die Optionen für das Abrufen von Commits
+// CommitOptions definiert die Optionen für das Abrufen von Commits
 type CommitOptions struct {
 	Revision string   // Git-Revision (z.B. "HEAD", "master", Tag)
 	Paths    []string // Pfade, für die Commits abgerufen werden sollen
+	// Pattern-Konfiguration
+	HeaderPattern     string   // Ein regulärer Ausdruck für das Parsen des Commit-Headers
+	HeaderPatternMaps []string // Eine Regel für die Zuordnung des Ergebnisses von `HeaderPattern` zur Eigenschaft von `Commit`
+	MergePattern      string   // Ein regulärer Ausdruck für das Parsen des Merge-Commits
+	MergePatternMaps  []string // Ähnlich wie `HeaderPatternMaps`
+	RevertPattern     string   // Ein regulärer Ausdruck für das Parsen des Revert-Commits
+	RevertPatternMaps []string // Ähnlich wie `HeaderPatternMaps`
+	RefActions        []string // Wortliste von `Ref.Action`
+	IssuePrefix       []string // Präfix für Issues (z.B. `#`, `gh-`)
+	NoteKeywords      []string // Schlüsselwortliste zum Finden von `Note`
 }
 
 // TagSelectionOptions enthält die Optionen für die Tag-Auswahl
@@ -77,7 +90,8 @@ type ClientImpl struct {
 
 // NewClient erstellt einen neuen Git-Client
 func NewClient() (Client, error) {
-	logger := utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
+	// Verwende den globalen Logger anstatt hardcoded "info"
+	logger := utils.DefaultLogger.WithFields(map[string]interface{}{"module": "git"})
 
 	// Git-Client erstellen
 	client := gitcmd.New(&gitcmd.Config{
@@ -99,7 +113,8 @@ func NewClient() (Client, error) {
 
 // NewClientWithRepoDir erstellt einen neuen Git-Client für ein bestimmtes Repository-Verzeichnis
 func NewClientWithRepoDir(repoDir string) (Client, error) {
-	logger := utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
+	// Verwende den globalen Logger anstatt hardcoded "info"
+	logger := utils.DefaultLogger.WithFields(map[string]interface{}{"module": "git"})
 
 	// Git-Client erstellen
 	client := gitcmd.New(&gitcmd.Config{
@@ -145,18 +160,48 @@ func (c *ClientImpl) IsGitRepository() (bool, error) {
 func (c *ClientImpl) GetCommits(options CommitOptions) ([]*Commit, error) {
 	c.logger.Debug("Hole Commits für Revision: %s", options.Revision)
 
+	// Verwende Standardwerte für Pattern, falls nicht angegeben
+	if options.HeaderPattern == "" {
+		options.HeaderPattern = "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
+		options.HeaderPatternMaps = []string{"Type", "Scope", "Subject"}
+	}
+	if options.MergePattern == "" {
+		options.MergePattern = "^Merge pull request #(\\d+) from (.*)$"
+		options.MergePatternMaps = []string{"Ref", "Source"}
+	}
+	if options.RevertPattern == "" {
+		options.RevertPattern = "^Revert \"([\\s\\S]*)\"$"
+		options.RevertPatternMaps = []string{"Header"}
+	}
+	if len(options.RefActions) == 0 {
+		options.RefActions = []string{"close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved"}
+	}
+	if len(options.IssuePrefix) == 0 {
+		options.IssuePrefix = []string{"#"}
+	}
+	if len(options.NoteKeywords) == 0 {
+		options.NoteKeywords = []string{"BREAKING CHANGE"}
+	}
+
+	return c.GetCommitsWithOptions(options)
+}
+
+// GetCommitsWithOptions implementiert die Client-Schnittstelle
+func (c *ClientImpl) GetCommitsWithOptions(options CommitOptions) ([]*Commit, error) {
+	c.logger.Debug("Hole Commits für Revision: %s", options.Revision)
+
 	// Verwende den vollständigen commitParser anstelle der einfachen parseCommit Funktion
 	config := &Config{
 		Options: &Options{
-			HeaderPattern:     "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$",
-			HeaderPatternMaps: []string{"Type", "Scope", "Subject"},
-			MergePattern:      "^Merge branch '(\\w+)'$",
-			MergePatternMaps:  []string{"Source"},
-			RevertPattern:     "^Revert \"([\\s\\S]*)\"$",
-			RevertPatternMaps: []string{"Header"},
-			RefActions:        []string{"close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved"},
-			IssuePrefix:       []string{"#"},
-			NoteKeywords:      []string{"BREAKING CHANGE"},
+			HeaderPattern:     options.HeaderPattern,
+			HeaderPatternMaps: options.HeaderPatternMaps,
+			MergePattern:      options.MergePattern,
+			MergePatternMaps:  options.MergePatternMaps,
+			RevertPattern:     options.RevertPattern,
+			RevertPatternMaps: options.RevertPatternMaps,
+			RefActions:        options.RefActions,
+			IssuePrefix:       options.IssuePrefix,
+			NoteKeywords:      options.NoteKeywords,
 			Paths:             options.Paths,
 		},
 	}

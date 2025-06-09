@@ -148,12 +148,14 @@ func (p *commitParser) Parse(rev string) ([]*Commit, error) {
 	}
 
 	// Debug: Führe einen direkten Git-Befehl aus, um zu überprüfen, ob Commits vorhanden sind
-	baseArgs := []string{"-C", "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo", "log", rev, "--pretty=format:%h - %s"}
-	p.logger.Debug("Executing direct git command", "command", "git "+strings.Join(baseArgs, " "))
-	if out, err := exec.Command("git", baseArgs...).CombinedOutput(); err == nil {
-		p.logger.Debug("Direct git log output", "output", string(out))
-	} else {
-		p.logger.Debug("Error in direct git log", "error", err, "output", string(out))
+	if wd, err := os.Getwd(); err == nil {
+		baseArgs := []string{"-C", wd, "log", rev, "--pretty=format:%h - %s"}
+		p.logger.Debug("Executing direct git command", "command", "git "+strings.Join(baseArgs, " "))
+		if out, err := exec.Command("git", baseArgs...).CombinedOutput(); err == nil {
+			p.logger.Debug("Direct git log output", "output", string(out))
+		} else {
+			p.logger.Debug("Error in direct git log", "error", err, "output", string(out))
+		}
 	}
 
 	// Debug: Zeige das aktuelle Arbeitsverzeichnis

@@ -25,6 +25,7 @@ type CLIContext struct {
 	JiraURL          string
 	Paths            []string
 	Sort             string
+	Processor        string
 }
 
 // InitContext enthält den Kontext für die Initialisierung

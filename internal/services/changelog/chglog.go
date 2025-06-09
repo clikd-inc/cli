@@ -89,9 +89,17 @@ func NewGenerator(logger utils.Logger, config *Config) *Generator {
 
 	normalizeConfig(config)
 
-	// Git-Service mit angepassten Optionen erstellen
+	// Git-Service mit Tag-Filter-Konfiguration erstellen
 	gitClientWrapper, _ := git.NewClientWithRepoDir(config.WorkingDir)
-	gitService := git.NewServiceWithClient(gitClientWrapper)
+
+	// Tag-Filter-Pattern und Sort-Option aus der Konfiguration verwenden
+	tagFilterPattern := config.Options.TagFilterPattern
+	tagSortBy := config.Options.Sort
+	if tagSortBy == "" {
+		tagSortBy = "date" // Standard-Sortierung
+	}
+
+	gitService := git.NewServiceWithOptions(gitClientWrapper, tagFilterPattern, tagSortBy)
 
 	return &Generator{
 		client:     client,
@@ -178,6 +186,8 @@ func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*ChangelogV
 			CommitGroupBy:        gen.config.Options.CommitGroupBy,
 			CommitGroupSortBy:    gen.config.Options.CommitGroupSortBy,
 			CommitGroupTitleMaps: gen.config.Options.CommitGroupTitleMaps,
+			CommitFilters:        gen.config.Options.CommitFilters,
+			CommitSortBy:         gen.config.Options.CommitSortBy,
 		})
 
 		// Konvertiere Git-Commits zu Changelog-Commits
@@ -252,6 +262,8 @@ func (gen *Generator) readUnreleased(tags []*git.Tag) (*ChangelogUnreleased, err
 		CommitGroupBy:        gen.config.Options.CommitGroupBy,
 		CommitGroupSortBy:    gen.config.Options.CommitGroupSortBy,
 		CommitGroupTitleMaps: gen.config.Options.CommitGroupTitleMaps,
+		CommitFilters:        gen.config.Options.CommitFilters,
+		CommitSortBy:         gen.config.Options.CommitSortBy,
 	})
 
 	// Konvertiere Git-Commits zu Changelog-Commits
@@ -340,6 +352,9 @@ func (gen *Generator) getTags(query string) ([]*git.Tag, string, error) {
 	if query != "" {
 		tags, first, err = gen.gitService.SelectTagsWithQuery(tags, query)
 		if err != nil {
+			if errors.Is(err, git.ErrNotFoundTag) {
+				return nil, "", fmt.Errorf("commits corresponding to \"%s\" was not found", query)
+			}
 			return nil, "", err
 		}
 	}

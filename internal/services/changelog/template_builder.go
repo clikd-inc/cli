@@ -7,10 +7,11 @@ type TemplateBuilder interface {
 	Builder
 }
 
-// TemplateBuilderFactory ...
-type TemplateBuilderFactory = func(string) TemplateBuilder
-
-func templateBuilderFactory(template string) TemplateBuilder {
+// TemplateBuilderFactory erzeugt Builder basierend auf Template-Typ
+// Wird in der aktuellen Implementierung nicht verwendet, aber für zukünftige Erweiterungen beibehalten
+//
+//nolint:unused
+func TemplateBuilderFactory(template string) TemplateBuilder {
 	switch template {
 	case tplKeepAChangelog.display:
 		return NewKACTemplateBuilder()

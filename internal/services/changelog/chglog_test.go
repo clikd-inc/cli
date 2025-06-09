@@ -24,7 +24,7 @@ var (
 
 // NewTestLogger erstellt einen Logger für Tests
 func NewTestLogger(stdout, stderr io.Writer, noColor, emoji bool) utils.Logger {
-	logLevel := "info"
+	logLevel := "debug"
 	if stdout == nil && stderr == nil {
 		// Stille Tests
 		logLevel = "error"

@@ -12,13 +12,13 @@ import (
 //   - Automatic link to references (#123 -> [#123](https://github.com/owner/repo/issues/123))
 type GitHubProcessor struct {
 	Host      string // Host name used for link destination. Note: You must include the protocol (e.g. "https://github.com")
-	config    *ChangelogConfig
+	config    *Config
 	reMention *regexp.Regexp
 	reIssue   *regexp.Regexp
 }
 
 // Bootstrap ...
-func (p *GitHubProcessor) Bootstrap(config *ChangelogConfig) {
+func (p *GitHubProcessor) Bootstrap(config *Config) error {
 	p.config = config
 
 	if p.Host == "" {
@@ -29,6 +29,8 @@ func (p *GitHubProcessor) Bootstrap(config *ChangelogConfig) {
 
 	p.reMention = regexp.MustCompile(`@(\w+)`)
 	p.reIssue = regexp.MustCompile(`(?i)(#|gh-)(\d+)`)
+
+	return nil
 }
 
 // ProcessCommit ...
@@ -68,14 +70,14 @@ func (p *GitHubProcessor) addLinks(input string) string {
 //   - Automatic link to references merge request (!123 -> [#123](https://gitlab.com/owner/repo/merge_requests/123))
 type GitLabProcessor struct {
 	Host           string // Host name used for link destination. Note: You must include the protocol (e.g. "https://gitlab.com")
-	config         *ChangelogConfig
+	config         *Config
 	reMention      *regexp.Regexp
 	reIssue        *regexp.Regexp
 	reMergeRequest *regexp.Regexp
 }
 
 // Bootstrap ...
-func (p *GitLabProcessor) Bootstrap(config *ChangelogConfig) {
+func (p *GitLabProcessor) Bootstrap(config *Config) error {
 	p.config = config
 
 	if p.Host == "" {
@@ -87,6 +89,8 @@ func (p *GitLabProcessor) Bootstrap(config *ChangelogConfig) {
 	p.reMention = regexp.MustCompile(`@(\w+)`)
 	p.reIssue = regexp.MustCompile(`(?i)#(\d+)`)
 	p.reMergeRequest = regexp.MustCompile(`(?i)!(\d+)`)
+
+	return nil
 }
 
 // ProcessCommit ...
@@ -128,13 +132,13 @@ func (p *GitLabProcessor) addLinks(input string) string {
 //   - Automatic link to references (#123 -> [#123](https://bitbucket.org/owner/repo/issues/123/))
 type BitbucketProcessor struct {
 	Host      string // Host name used for link destination. Note: You must include the protocol (e.g. "https://bitbucket.org")
-	config    *ChangelogConfig
+	config    *Config
 	reMention *regexp.Regexp
 	reIssue   *regexp.Regexp
 }
 
 // Bootstrap ...
-func (p *BitbucketProcessor) Bootstrap(config *ChangelogConfig) {
+func (p *BitbucketProcessor) Bootstrap(config *Config) error {
 	p.config = config
 
 	if p.Host == "" {
@@ -145,6 +149,8 @@ func (p *BitbucketProcessor) Bootstrap(config *ChangelogConfig) {
 
 	p.reMention = regexp.MustCompile(`@(\w+)`)
 	p.reIssue = regexp.MustCompile(`(?i)#(\d+)`)
+
+	return nil
 }
 
 // ProcessCommit ...

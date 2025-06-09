@@ -23,7 +23,13 @@ type File interface {
 	Stat() (os.FileInfo, error)
 }
 
-var fs = &osFileSystem{}
+// FS provides file system operations
+var FS FileSystem = &osFileSystem{}
+
+// SetFS ermöglicht es, das Dateisystem für Tests zu ersetzen
+func SetFS(fs FileSystem) {
+	FS = fs
+}
 
 type osFileSystem struct{}
 

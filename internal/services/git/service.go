@@ -15,6 +15,9 @@ type Service interface {
 	// GetCommits holt alle Commits im Repository basierend auf den Filteroptionen
 	GetCommits(revision string, paths []string) ([]*Commit, error)
 
+	// GetCommitsWithOptions holt alle Commits mit vollständigen Pattern-Optionen
+	GetCommitsWithOptions(options CommitOptions) ([]*Commit, error)
+
 	// GetLatestTag gibt das neueste Tag im Repository zurück
 	GetLatestTag() (string, error)
 
@@ -70,7 +73,8 @@ func NewService() (Service, error) {
 		return nil, err
 	}
 
-	logger := utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
+	// Verwende den globalen Logger anstatt hardcoded "debug"
+	logger := utils.DefaultLogger.WithFields(map[string]interface{}{"module": "git"})
 
 	// Tag-Reader und Selektor erstellen
 	tagReader := newTagReader(client, "", "date")
@@ -86,7 +90,8 @@ func NewService() (Service, error) {
 
 // NewServiceWithClient erstellt eine neue Instanz des Git-Services mit einem benutzerdefinierten Client
 func NewServiceWithClient(client Client) Service {
-	logger := utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
+	// Verwende den globalen Logger anstatt hardcoded "debug"
+	logger := utils.DefaultLogger.WithFields(map[string]interface{}{"module": "git"})
 
 	// Tag-Reader und Selektor erstellen
 	tagReader := newTagReader(client, "", "date")
@@ -107,7 +112,8 @@ func NewServiceWithRepoDir(repoDir string) (Service, error) {
 		return nil, err
 	}
 
-	logger := utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
+	// Verwende den globalen Logger anstatt hardcoded "debug"
+	logger := utils.DefaultLogger.WithFields(map[string]interface{}{"module": "git"})
 
 	// Tag-Reader und Selektor erstellen
 	tagReader := newTagReader(client, "", "date")
@@ -119,6 +125,23 @@ func NewServiceWithRepoDir(repoDir string) (Service, error) {
 		tagSelector: tagSelector,
 		logger:      logger,
 	}, nil
+}
+
+// NewServiceWithOptions erstellt eine neue Instanz des Git-Services mit benutzerdefinierten Optionen
+func NewServiceWithOptions(client Client, tagFilterPattern string, tagSortBy string) Service {
+	// Verwende den globalen Logger anstatt hardcoded "debug"
+	logger := utils.DefaultLogger.WithFields(map[string]interface{}{"module": "git"})
+
+	// Tag-Reader mit Filter-Pattern und Sortierung erstellen
+	tagReader := newTagReader(client, tagFilterPattern, tagSortBy)
+	tagSelector := newTagSelector(logger)
+
+	return &ServiceImpl{
+		client:      client,
+		tagReader:   tagReader,
+		tagSelector: tagSelector,
+		logger:      logger,
+	}
 }
 
 // GetRepositoryRoot implementiert die Service-Schnittstelle
@@ -137,6 +160,11 @@ func (s *ServiceImpl) GetCommits(revision string, paths []string) ([]*Commit, er
 		Revision: revision,
 		Paths:    paths,
 	})
+}
+
+// GetCommitsWithOptions implementiert die Service-Schnittstelle
+func (s *ServiceImpl) GetCommitsWithOptions(options CommitOptions) ([]*Commit, error) {
+	return s.client.GetCommitsWithOptions(options)
 }
 
 // GetLatestTag implementiert die Service-Schnittstelle

@@ -28,6 +28,12 @@ func (s *tagSelector) Select(tags []*Tag, query string) ([]*Tag, string, error) 
 		s.logger.Debug("Input tag", "index", i, "name", tag.Name)
 	}
 
+	// Empty query should return all tags
+	if query == "" {
+		s.logger.Debug("Empty query, returning all tags")
+		return tags, "", nil
+	}
+
 	// "<old>..<new>" pattern
 	if strings.Contains(query, "..") {
 		var (
@@ -217,29 +223,17 @@ func (s *tagSelector) selectTo(tags []*Tag, to string) ([]*Tag, string, error) {
 }
 
 func (s *tagSelector) selectByTag(tags []*Tag, query string) ([]*Tag, string, error) {
-	var (
-		res    []*Tag
-		from   string
-		enable bool
-	)
-
 	for i, tag := range tags {
 		if tag.Name == query {
-			enable = true
-		}
-
-		if enable {
-			res = append(res, tag)
-			from = ""
+			// Nur das spezifische Tag zurückgeben
+			var from string
 			if i+1 < len(tags) {
 				from = tags[i+1].Name
 			}
+			s.logger.Debug("selectByTag found", "tag", tag.Name, "from", from)
+			return []*Tag{tag}, from, nil
 		}
 	}
 
-	if len(res) == 0 {
-		return nil, "", ErrNotFoundTag
-	}
-
-	return res, from, nil
+	return nil, "", ErrNotFoundTag
 }

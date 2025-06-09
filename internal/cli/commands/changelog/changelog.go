@@ -29,6 +29,7 @@ var (
 	jiraTokenFlag        string
 	sortFlag             string
 	pathsFlag            []string
+	processorFlag        string
 )
 
 // getEnvBool liest einen boolean Wert aus einer Umgebungsvariable
@@ -142,6 +143,7 @@ Examples:
 	cmd.Flags().StringVar(&jiraUsernameFlag, "jira-username", "", "Jira username")
 	cmd.Flags().StringVar(&jiraTokenFlag, "jira-token", "", "Jira token")
 	cmd.Flags().StringVar(&sortFlag, "sort", "date", "Specify how to sort tags; currently supports \"date\" or by \"semver\"")
+	cmd.Flags().StringVar(&processorFlag, "processor", "", "Processor for link conversion (github, gitlab, bitbucket). Format: 'type' or 'type:host'")
 
 	return cmd
 }
@@ -197,6 +199,7 @@ func runGenerator(query string) error {
 		JiraURL:          jiraURLFlag,
 		Paths:            pathsFlag,
 		Sort:             sortFlag,
+		Processor:        processorFlag,
 	}
 
 	// Konfiguration laden

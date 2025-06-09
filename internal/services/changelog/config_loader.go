@@ -68,6 +68,7 @@ type CommandConfig struct {
 	NextTag          string
 	TagFilterPattern string
 	Sort             string
+	Processor        string
 
 	// Jira-Integration
 	JiraUsername string
@@ -127,9 +128,20 @@ func (config *Config) Normalize(ctx *CLIContext) error {
 	}
 
 	// Template-Pfad auflösen: Wenn der Template-Pfad relativ ist,
-	// löse ihn relativ zum Konfigurationsverzeichnis auf
+	// löse ihn relativ zum Konfigurationsverzeichnis auf (wie im Original)
 	if config.Template != "" && !filepath.IsAbs(config.Template) {
-		config.Template = filepath.Join(filepath.Dir(ctx.ConfigPath), config.Template)
+		configDir := filepath.Dir(ctx.ConfigPath)
+		config.Template = filepath.Join(configDir, config.Template)
+	}
+
+	// Processor konfigurieren
+	if ctx.Processor != "" {
+		factory := NewProcessorFactory()
+		processor, err := factory.CreateProcessorFromString(ctx.Processor)
+		if err != nil {
+			return fmt.Errorf("failed to create processor: %w", err)
+		}
+		config.Options.Processor = processor
 	}
 
 	return nil
@@ -171,6 +183,7 @@ func LoadConfigFromCommand(cmdConfig *CommandConfig) (*Config, error) {
 		JiraURL:          cmdConfig.JiraURL,
 		Paths:            cmdConfig.Paths,
 		Sort:             cmdConfig.Sort,
+		Processor:        cmdConfig.Processor,
 	}
 
 	// Konfiguration laden (direkt YAML, kein TOML)

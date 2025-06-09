@@ -10,12 +10,7 @@ func TestProcessorFactory(t *testing.T) {
 	assert := assert.New(t)
 	factory := NewProcessorFactory()
 
-	processor, err := factory.Create(&Config{
-		Info: &Info{
-			RepositoryURL: "https://example.com/owner/repo",
-		},
-	})
-
+	processor, err := factory.CreateProcessorFromString("")
 	assert.Nil(err)
 	assert.Nil(processor)
 }
@@ -25,18 +20,29 @@ func TestProcessorFactoryForGitHub(t *testing.T) {
 	factory := NewProcessorFactory()
 
 	// github.com
-	processor, err := factory.Create(&Config{
+	processor, err := factory.CreateProcessorFromString("github")
+
+	assert.Nil(err)
+	assert.IsType(&GitHubProcessor{}, processor)
+
+	// Bootstrap aufrufen, um Host zu setzen
+	config := &Config{
 		Info: &Info{
 			RepositoryURL: "https://github.com/owner/repo",
 		},
-	})
+	}
+	processor.Bootstrap(config)
 
-	assert.Nil(err)
-	assert.IsType(&GitHubProcessorAdapter{}, processor)
-	githubProcessor := processor.(*GitHubProcessorAdapter)
+	githubProcessor := processor.(*GitHubProcessor)
 	assert.Equal("https://github.com", githubProcessor.Host)
 
-	// Selbst-gehostetes GitHub wurde entfernt, da Style-Eigenschaft nicht mehr unterstützt wird
+	// Mit angegebenem Host
+	processor, err = factory.CreateProcessorFromString("github:https://enterprise.github.com")
+	assert.Nil(err)
+	assert.IsType(&GitHubProcessor{}, processor)
+	processor.Bootstrap(config)
+	githubProcessor = processor.(*GitHubProcessor)
+	assert.Equal("https://enterprise.github.com", githubProcessor.Host)
 }
 
 func TestProcessorFactoryForGitLab(t *testing.T) {
@@ -44,18 +50,29 @@ func TestProcessorFactoryForGitLab(t *testing.T) {
 	factory := NewProcessorFactory()
 
 	// gitlab.com
-	processor, err := factory.Create(&Config{
+	processor, err := factory.CreateProcessorFromString("gitlab")
+
+	assert.Nil(err)
+	assert.IsType(&GitLabProcessor{}, processor)
+
+	// Bootstrap aufrufen, um Host zu setzen
+	config := &Config{
 		Info: &Info{
 			RepositoryURL: "https://gitlab.com/owner/repo",
 		},
-	})
+	}
+	processor.Bootstrap(config)
 
-	assert.Nil(err)
-	assert.IsType(&GitLabProcessorAdapter{}, processor)
-	gitlabProcessor := processor.(*GitLabProcessorAdapter)
+	gitlabProcessor := processor.(*GitLabProcessor)
 	assert.Equal("https://gitlab.com", gitlabProcessor.Host)
 
-	// Selbst-gehostetes GitLab wurde entfernt, da Style-Eigenschaft nicht mehr unterstützt wird
+	// Mit angegebenem Host
+	processor, err = factory.CreateProcessorFromString("gitlab:https://gitlab.example.com")
+	assert.Nil(err)
+	assert.IsType(&GitLabProcessor{}, processor)
+	processor.Bootstrap(config)
+	gitlabProcessor = processor.(*GitLabProcessor)
+	assert.Equal("https://gitlab.example.com", gitlabProcessor.Host)
 }
 
 func TestProcessorFactoryForBitbucket(t *testing.T) {
@@ -63,16 +80,27 @@ func TestProcessorFactoryForBitbucket(t *testing.T) {
 	factory := NewProcessorFactory()
 
 	// bitbucket.org
-	processor, err := factory.Create(&Config{
+	processor, err := factory.CreateProcessorFromString("bitbucket")
+
+	assert.Nil(err)
+	assert.IsType(&BitbucketProcessor{}, processor)
+
+	// Bootstrap aufrufen, um Host zu setzen
+	config := &Config{
 		Info: &Info{
 			RepositoryURL: "https://bitbucket.org/owner/repo",
 		},
-	})
+	}
+	processor.Bootstrap(config)
 
-	assert.Nil(err)
-	assert.IsType(&BitbucketProcessorAdapter{}, processor)
-	bitbucketProcessor := processor.(*BitbucketProcessorAdapter)
+	bitbucketProcessor := processor.(*BitbucketProcessor)
 	assert.Equal("https://bitbucket.org", bitbucketProcessor.Host)
 
-	// Selbst-gehostetes Bitbucket wurde entfernt, da Style-Eigenschaft nicht mehr unterstützt wird
+	// Mit angegebenem Host
+	processor, err = factory.CreateProcessorFromString("bitbucket:https://bitbucket.example.com")
+	assert.Nil(err)
+	assert.IsType(&BitbucketProcessor{}, processor)
+	processor.Bootstrap(config)
+	bitbucketProcessor = processor.(*BitbucketProcessor)
+	assert.Equal("https://bitbucket.example.com", bitbucketProcessor.Host)
 }

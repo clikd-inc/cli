@@ -15,7 +15,7 @@ type commitExtractor struct {
 
 func newCommitExtractor(opts *Options, logger utils.Logger) *commitExtractor {
 	if logger == nil {
-		logger = utils.NewLogger("info", true).WithFields(map[string]interface{}{"module": "git"})
+		logger = utils.DefaultLogger.WithFields(map[string]interface{}{"module": "git"})
 	}
 
 	return &commitExtractor{
@@ -46,16 +46,17 @@ func (e *commitExtractor) Extract(commits []*Commit) ([]*CommitGroup, []*Commit,
 			"hash", commit.Hash.Short,
 			"type", commit.Type,
 			"scope", commit.Scope,
-			"subject", commit.Subject)
+			"subject", commit.Subject,
+			"header", commit.Header)
 
 		if commit.Merge != nil {
-			e.logger.Debug("Commit is a merge commit", "index", i)
+			e.logger.Debug("Commit is a merge commit", "index", i, "merge", fmt.Sprintf("%+v", commit.Merge))
 			mergeCommits = append(mergeCommits, commit)
 			continue
 		}
 
 		if commit.Revert != nil {
-			e.logger.Debug("Commit is a revert commit", "index", i)
+			e.logger.Debug("Commit is a revert commit", "index", i, "revert", fmt.Sprintf("%+v", commit.Revert))
 			revertCommits = append(revertCommits, commit)
 			continue
 		}
@@ -253,6 +254,13 @@ func (e *commitExtractor) sortCommitGroups(groups []*CommitGroup) { //nolint:goc
 	for _, group := range groups {
 		group := group // pin group to avoid potential bugs with passing group to lower functions
 
+		e.logger.Debug("Sorting commits in group", "title", group.Title, "count", len(group.Commits))
+
+		// Zeige die Commits vor der Sortierung
+		for i, commit := range group.Commits {
+			e.logger.Debug("Before sort", "index", i, "scope", commit.Scope, "subject", commit.Subject)
+		}
+
 		// TODO(khos2ow): move the inline sort function to
 		// conceret implementation of sort.Interface in order
 		// to reduce cyclomatic complaxity.
@@ -264,20 +272,32 @@ func (e *commitExtractor) sortCommitGroups(groups []*CommitGroup) { //nolint:goc
 
 			a, ok = utils.DotGet(group.Commits[i], e.opts.CommitSortBy)
 			if !ok {
+				e.logger.Debug("DotGet failed for commit i", "index", i, "field", e.opts.CommitSortBy)
 				return false
 			}
 
 			b, ok = utils.DotGet(group.Commits[j], e.opts.CommitSortBy)
 			if !ok {
+				e.logger.Debug("DotGet failed for commit j", "index", j, "field", e.opts.CommitSortBy)
 				return false
 			}
 
+			e.logger.Debug("Comparing commits", "a", a, "b", b, "field", e.opts.CommitSortBy)
+
 			res, err := compare(a, "<", b)
 			if err != nil {
+				e.logger.Debug("Compare failed", "error", err)
 				return false
 			}
+
+			e.logger.Debug("Compare result", "a", a, "b", b, "result", res)
 			return res
 		})
+
+		// Zeige die Commits nach der Sortierung
+		for i, commit := range group.Commits {
+			e.logger.Debug("After sort", "index", i, "scope", commit.Scope, "subject", commit.Subject)
+		}
 	}
 }
 

@@ -11,8 +11,8 @@ import (
 func TestGitHubProcessor(t *testing.T) {
 	assert := assert.New(t)
 
-	config := &ChangelogConfig{
-		Info: ChangelogInfo{
+	config := &Config{
+		Info: &Info{
 			RepositoryURL: "https://example.com",
 		},
 	}
@@ -81,8 +81,8 @@ gh-56 hoge fuga`,
 func TestGitLabProcessor(t *testing.T) {
 	assert := assert.New(t)
 
-	config := &ChangelogConfig{
-		Info: ChangelogInfo{
+	config := &Config{
+		Info: &Info{
 			RepositoryURL: "https://example.com",
 		},
 	}
@@ -155,8 +155,8 @@ gh-56 hoge fuga`,
 func TestBitbucketProcessor(t *testing.T) {
 	assert := assert.New(t)
 
-	config := &ChangelogConfig{
-		Info: ChangelogInfo{
+	config := &Config{
+		Info: &Info{
 			RepositoryURL: "https://example.com",
 		},
 	}
