@@ -68,15 +68,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Setup GitHub CLI
-        run: |
-          gh auth login --with-token <<< "${{ secrets.GH_PAT }}"
-
       - name: Download Release Assets
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           mkdir -p dist
-          gh release download v$VERSION --dir dist
+          
+          # Direkt mit curl herunterladen statt gh CLI
+          echo "Downloading macOS ARM64 binary..."
+          curl -L -o dist/clikd_${VERSION}_darwin_arm64.zip https://github.com/clikd-inc/cli/releases/download/v${VERSION}/clikd_${VERSION}_darwin_arm64.zip
+          
+          echo "Downloading macOS AMD64 binary..."
+          curl -L -o dist/clikd_${VERSION}_darwin_amd64.zip https://github.com/clikd-inc/cli/releases/download/v${VERSION}/clikd_${VERSION}_darwin_amd64.zip
+          
+          echo "Downloading checksums file..."
+          curl -L -o dist/clikd_${VERSION}_checksums.txt https://github.com/clikd-inc/cli/releases/download/v${VERSION}/clikd_${VERSION}_checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
@@ -129,23 +134,45 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
-      - name: Commit to Homebrew Tap
+      - name: Setup Homebrew Tap Repository
         uses: actions/checkout@v4
         with:
           repository: clikd-inc/homebrew-tap
           token: ${{ secrets.GH_PAT }}
           path: homebrew-tap
           
+      - name: Initialize Homebrew Tap Repository if Empty
+        run: |
+          cd homebrew-tap
+          
+          # Überprüfen, ob das Repository leer ist
+          if [ -z "$(ls -A)" ]; then
+            echo "Repository is empty, initializing..."
+            mkdir -p Formula
+            touch Formula/.gitkeep
+            echo "# Clikd Homebrew Tap" > README.md
+            echo "" >> README.md
+            echo "Homebrew formulae for Clikd tools." >> README.md
+            
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git add .
+            git commit -m "Initial commit"
+            git branch -M main
+            git push -u origin main
+          fi
+          
       - name: Update Homebrew Tap
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          mkdir -p homebrew-tap/Formula
-          cp dist/homebrew/clikd.rb homebrew-tap/Formula/
           cd homebrew-tap
+          mkdir -p Formula
+          cp ../dist/homebrew/clikd.rb Formula/
+          
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add Formula/clikd.rb
-          git commit -m "clikd v${VERSION}"
+          git commit -m "clikd v${VERSION}" || echo "No changes to commit"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
@@ -157,17 +184,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Setup GitHub CLI
-        shell: pwsh
-        run: |
-          gh auth login --with-token "${{ secrets.GH_PAT }}"
-
       - name: Download Release Assets
         shell: pwsh
         run: |
           $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
           mkdir -p dist
-          gh release download v$VERSION --dir dist
+          
+          # PowerShell Invoke-WebRequest statt gh CLI
+          Write-Host "Downloading Windows binary..."
+          Invoke-WebRequest -Uri "https://github.com/clikd-inc/cli/releases/download/v$VERSION/clikd_$($VERSION)_windows_amd64.zip" -OutFile "dist/clikd_$($VERSION)_windows_amd64.zip"
+          
+          Write-Host "Downloading checksums file..."
+          Invoke-WebRequest -Uri "https://github.com/clikd-inc/cli/releases/download/v$VERSION/clikd_$($VERSION)_checksums.txt" -OutFile "dist/clikd_$($VERSION)_checksums.txt"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
@@ -202,25 +230,52 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
-      - name: Commit to Scoop Bucket
+      - name: Setup Scoop Bucket Repository
         uses: actions/checkout@v4
         with:
           repository: clikd-inc/scoop-bucket
           token: ${{ secrets.GH_PAT }}
           path: scoop-bucket
           
+      - name: Initialize Scoop Bucket Repository if Empty
+        shell: pwsh
+        run: |
+          cd scoop-bucket
+          
+          # Überprüfen, ob das Repository leer ist
+          if (-not (Test-Path -Path "bucket")) {
+            Write-Host "Repository is empty, initializing..."
+            New-Item -ItemType Directory -Path "bucket" -Force
+            New-Item -ItemType File -Path "bucket\.gitkeep" -Force
+            
+            $readmeContent = "# Clikd Scoop Bucket`n`nScoop bucket for Clikd tools.`n`n## Usage`n`n````nscoop bucket add clikd https://github.com/clikd-inc/scoop-bucket`nscoop install clikd`n```"
+            Set-Content -Path "README.md" -Value $readmeContent
+            
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git add .
+            git commit -m "Initial commit"
+            git branch -M main
+            git push -u origin main
+          }
+          
       - name: Update Scoop Bucket
         shell: pwsh
         run: |
           $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
-          New-Item -ItemType Directory -Path scoop-bucket/bucket -Force
-          Copy-Item dist/scoop/clikd.json scoop-bucket/bucket/
-          
           cd scoop-bucket
+          New-Item -ItemType Directory -Path bucket -Force
+          Copy-Item ../dist/scoop/clikd.json bucket/
+          
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add bucket/clikd.json
-          git commit -m "clikd v$VERSION"
-          git push
+          $hasChanges = git status --porcelain
+          if ($hasChanges) {
+            git commit -m "clikd v$VERSION"
+            git push
+          } else {
+            Write-Host "No changes to commit"
+          }
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
