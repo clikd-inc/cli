@@ -1,7 +1,9 @@
 package changelog
 
 import (
+	"bytes"
 	"clikd/internal/services/changelog"
+	"clikd/internal/ui/bubble"
 	"clikd/internal/utils"
 	"fmt"
 	"io"
@@ -99,9 +101,6 @@ Examples:
   # Filter commits by path
   clikd changelog --path="internal/,cmd/" -o CHANGELOG.md`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger := utils.NewLogger("info", true)
-			logger.Info("Starting changelog generation")
-
 			// Umgebungsvariablen auswerten und Flags überschreiben
 			noColorFlag = noColorFlag || getEnvBool("NO_COLOR", false)
 			noEmojiFlag = noEmojiFlag || getEnvBool("NO_EMOJI", false)
@@ -150,8 +149,68 @@ Examples:
 
 // runGenerator führt den Changelog-Generator aus
 func runGenerator(query string) error {
-	logger := utils.NewLogger("debug", !noColorFlag) // Verwende noColorFlag für Logger
-	logger.Info("Generating changelog for query: %s", query)
+	// Für Terminal-Ausgabe: Direkt im ChangelogViewer generieren
+	// Für Datei-Ausgabe: Minimale Logs für Feedback
+	if outputFlag == "" && !noColorFlag {
+		// Terminal-Ausgabe: Alles im ChangelogViewer
+		return runGeneratorInViewer(query)
+	} else {
+		// Datei-Ausgabe oder --no-color: Direkt ausführen
+		return runGeneratorDirect(query)
+	}
+}
+
+// runGeneratorInViewer führt die Generierung direkt im ChangelogViewer aus
+func runGeneratorInViewer(query string) error {
+	// Alle Daten für den Viewer vorbereiten
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	configPath := utils.ResolveConfigPath(configFlag)
+	configFileInfo, err := os.Stat(configPath)
+	if err != nil {
+		return fmt.Errorf("configuration file not found at %s: %v", configPath, err)
+	}
+	if configFileInfo.IsDir() {
+		configPath = filepath.Join(configPath, "config.yml")
+	}
+
+	cmdConfig := &changelog.CommandConfig{
+		WorkingDir:       wd,
+		ConfigPath:       configPath,
+		Template:         templateFlag,
+		RepositoryURL:    repositoryURLFlag,
+		OutputPath:       "",
+		Silent:           silentFlag,
+		NoColor:          noColorFlag,
+		NoEmoji:          noEmojiFlag,
+		NoCaseSensitive:  noCaseFlag,
+		Query:            query,
+		NextTag:          nextTagFlag,
+		TagFilterPattern: tagFilterPatternFlag,
+		JiraUsername:     jiraUsernameFlag,
+		JiraToken:        jiraTokenFlag,
+		JiraURL:          jiraURLFlag,
+		Paths:            pathsFlag,
+		Sort:             sortFlag,
+		Processor:        processorFlag,
+	}
+
+	// ChangelogViewer mit Generator-Daten starten
+	bubble.RunChangelogViewerWithGenerator("Changelog", cmdConfig, query)
+	return nil
+}
+
+// runGeneratorDirect führt die Generierung direkt aus (für Datei-Ausgabe oder --no-color)
+func runGeneratorDirect(query string) error {
+	// Minimaler Logger für Datei-Ausgabe
+	logLevel := "error"
+	if outputFlag != "" {
+		logLevel = "info"
+	}
+	logger := utils.NewLogger(logLevel, !noColorFlag)
 
 	// Working Directory bestimmen
 	wd, err := os.Getwd()
@@ -159,32 +218,23 @@ func runGenerator(query string) error {
 		logger.Error("Failed to get working directory: %v", err)
 		return err
 	}
-	logger.Debug("Working directory: %s", wd)
 
 	// Konfigurationspfad auflösen
 	configPath := utils.ResolveConfigPath(configFlag)
-	logger.Debug("Resolved config path: %s", configPath)
-
-	// Überprüfen, ob configPath ein Verzeichnis oder eine Datei ist
 	configFileInfo, err := os.Stat(configPath)
 	if err != nil {
 		logger.Error("Configuration file not found at %s: %v", configPath, err)
 		return fmt.Errorf("configuration file not found at %s: %v", configPath, err)
 	}
 	if configFileInfo.IsDir() {
-		// Wenn es ein Verzeichnis ist, nehmen wir an, dass die Konfiguration in config.yml ist
 		configPath = filepath.Join(configPath, "config.yml")
-		logger.Debug("Config path is a directory, using %s instead", configPath)
 	}
-
-	// Template-Pfad wird jetzt direkt aus der YAML-Konfiguration gelesen
-	// Die Template-Pfad-Logik ist jetzt in der config.go Normalize-Methode implementiert
 
 	// Command-Konfiguration erstellen
 	cmdConfig := &changelog.CommandConfig{
 		WorkingDir:       wd,
 		ConfigPath:       configPath,
-		Template:         templateFlag, // Nur setzen wenn explizit angegeben
+		Template:         templateFlag,
 		RepositoryURL:    repositoryURLFlag,
 		OutputPath:       outputFlag,
 		Silent:           silentFlag,
@@ -214,10 +264,16 @@ func runGenerator(query string) error {
 
 	// Output-Writer bestimmen
 	var writer io.Writer
+	var isStdout bool
+
 	if cmdConfig.OutputPath == "" {
-		// Wenn kein Output-Pfad angegeben ist, wird auf stdout ausgegeben
-		writer = os.Stdout
+		// Terminal-Ausgabe - verwende Buffer
+		isStdout = true
+		writer = &bytes.Buffer{}
 	} else {
+		// Datei-Ausgabe - direkt in Datei schreiben
+		isStdout = false
+
 		// Verzeichnis erstellen, falls es nicht existiert
 		dir := filepath.Dir(cmdConfig.OutputPath)
 		if dir != "." {
@@ -236,5 +292,17 @@ func runGenerator(query string) error {
 	}
 
 	// Changelog generieren
-	return generator.Generate(writer, query)
+	err = generator.Generate(writer, query)
+	if err != nil {
+		return err
+	}
+
+	// Wenn stdout verwendet wird (--no-color Fall)
+	if isStdout {
+		buffer := writer.(*bytes.Buffer)
+		markdown := buffer.String()
+		fmt.Print(markdown)
+	}
+
+	return nil
 }

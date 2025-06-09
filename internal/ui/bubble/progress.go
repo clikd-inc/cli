@@ -1,6 +1,8 @@
 package bubble
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -16,6 +18,7 @@ type ProgressModel struct {
 	Width       int
 	Done        bool
 	Callback    func(setPercent func(float64), setDone func())
+	program     *tea.Program
 }
 
 // PercentMsg is used to update the progress percentage
@@ -56,10 +59,16 @@ func (m ProgressModel) runCallback() tea.Msg {
 
 		m.Callback(
 			func(p float64) {
-				tea.NewProgram(m).Send(PercentMsg(p))
+				if m.program != nil {
+					m.program.Send(PercentMsg(p))
+				}
+				// Kleine Pause, damit der Progress sichtbar ist
+				time.Sleep(200 * time.Millisecond)
 			},
 			func() {
-				tea.NewProgram(m).Send(DoneMsg{})
+				if m.program != nil {
+					m.program.Send(DoneMsg{})
+				}
 			},
 		)
 	}()
@@ -115,5 +124,6 @@ func RunProgress(title, description string, callback func(setPercent func(float6
 	m := NewProgressModel(title, description, 50)
 	m.Callback = callback
 	p := tea.NewProgram(m)
+	m.program = p
 	p.Run()
 }

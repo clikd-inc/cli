@@ -21,8 +21,16 @@ func NewConfigBuilder() ConfigBuilder {
 func (*configBuilderImpl) Build(ans *Answer) (string, error) {
 	var msgFormat *CommitMessageFormat
 
-	for _, ff := range formats {
-		f, _ := ff.(*CommitMessageFormat)
+	// Search through all available formats
+	allFormats := []*CommitMessageFormat{
+		fmtTypeScopeSubject,
+		fmtTypeSubject,
+		fmtGitBasic,
+		fmtSubject,
+		fmtCommitEmoji,
+	}
+
+	for _, f := range allFormats {
 		if f.display == ans.CommitMessageFormat {
 			msgFormat = f
 			break

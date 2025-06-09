@@ -5,12 +5,6 @@ import (
 	"strings"
 )
 
-// Previewable ...
-type Previewable interface {
-	Display() string
-	Preview() string
-}
-
 // Defaults
 var (
 	defaultConfigDir        = "clikd/changelog"
@@ -154,13 +148,6 @@ var (
 			{"sparkles", "Features"}, {"bug", "Bug Fixes"},
 			{"zap", "Performance Improvements"}, {"recycle", "Code Refactoring"}},
 	}
-	formats = []Previewable{
-		fmtTypeScopeSubject,
-		fmtTypeSubject,
-		fmtGitBasic,
-		fmtSubject,
-		fmtCommitEmoji,
-	}
 )
 
 // TemplateStyleFormat ...
@@ -192,10 +179,5 @@ var (
 	tplCool = &TemplateStyleFormat{
 		display: "cool",
 		preview: "https://github.com/git-chglog/example-type-scope-subject/blob/master/CHANGELOG.cool.md",
-	}
-	templates = []Previewable{
-		tplKeepAChangelog,
-		tplStandard,
-		tplCool,
 	}
 )
