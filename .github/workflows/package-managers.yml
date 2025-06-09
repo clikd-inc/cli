@@ -65,6 +65,13 @@ jobs:
     needs: build
     runs-on: macos-latest
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup GitHub CLI
+        run: |
+          gh auth login --with-token <<< "${{ secrets.GH_PAT }}"
+
       - name: Download Release Assets
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
@@ -147,6 +154,14 @@ jobs:
     needs: build
     runs-on: windows-latest
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup GitHub CLI
+        shell: pwsh
+        run: |
+          gh auth login --with-token "${{ secrets.GH_PAT }}"
+
       - name: Download Release Assets
         shell: pwsh
         run: |
