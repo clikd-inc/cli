@@ -58,9 +58,6 @@ func configureChangelog() map[string]string {
 			"Enter your JIRA project prefix (e.g., PROJ)",
 			"PROJ",
 		)
-		if jiraPrefix == "" {
-			jiraPrefix = "PROJ"
-		}
 		options["jira_prefix"] = jiraPrefix
 	}
 
@@ -104,9 +101,6 @@ func configureChangelog() map[string]string {
 		"Enter pattern to filter tags (default: v*)",
 		"v*",
 	)
-	if tagFilter == "" {
-		tagFilter = "v*"
-	}
 	options["tag_filter_pattern"] = tagFilter
 
 	// Configure changelog path
@@ -115,9 +109,6 @@ func configureChangelog() map[string]string {
 		"Enter path to the changelog file",
 		"CHANGELOG.md",
 	)
-	if changelogPath == "" {
-		changelogPath = "CHANGELOG.md"
-	}
 	options["path"] = changelogPath
 
 	// Configure case sensitivity

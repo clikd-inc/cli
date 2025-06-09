@@ -147,24 +147,18 @@ func configureAdvancedAIOptions() map[string]string {
 		return options
 	}
 
-	// Configure advanced options
+	// Configure advanced options - placeholder values will be used as defaults automatically
 	options["tokens_max_input"] = bubble.RunInput(
 		"Max Input Tokens",
 		"Maximum number of input tokens (context size)",
 		"4096",
 	)
-	if options["tokens_max_input"] == "" {
-		options["tokens_max_input"] = "4096"
-	}
 
 	options["tokens_max_output"] = bubble.RunInput(
 		"Max Output Tokens",
 		"Maximum number of output tokens (response length)",
 		"500",
 	)
-	if options["tokens_max_output"] == "" {
-		options["tokens_max_output"] = "500"
-	}
 
 	options["api_url"] = bubble.RunInput(
 		"Custom API URL",

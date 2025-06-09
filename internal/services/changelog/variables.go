@@ -74,30 +74,30 @@ func (f *CommitMessageFormat) PatternMapString() string {
 // FilterTypesString ...
 func (f *CommitMessageFormat) FilterTypesString() string {
 	if len(f.typeSamples) == 0 {
-		return " []"
+		return " {}"
 	}
 
 	arr := make([]string, len(f.typeSamples))
 	for i, t := range f.typeSamples {
 		arr[i] = fmt.Sprintf(
-			"%s#%s- %s",
-			strings.Repeat(" ", 4), strings.Repeat(" ", 5),
+			"%s- %s",
+			strings.Repeat(" ", 8),
 			t.typeName)
 	}
-	return fmt.Sprintf("\n%s", strings.Join(arr, "\n"))
+	return fmt.Sprintf("\n      Type:\n%s", strings.Join(arr, "\n"))
 }
 
 // TitleMapsString ...
 func (f *CommitMessageFormat) TitleMapsString() string {
 	if len(f.typeSamples) == 0 {
-		return " []"
+		return " {}"
 	}
 
 	arr := make([]string, len(f.typeSamples))
 	for i, t := range f.typeSamples {
 		arr[i] = fmt.Sprintf(
-			"%s#%s%s: %s",
-			strings.Repeat(" ", 4), strings.Repeat(" ", 3),
+			"%s%s: %s",
+			strings.Repeat(" ", 6),
 			t.typeName, t.title)
 	}
 	return fmt.Sprintf("\n%s", strings.Join(arr, "\n"))

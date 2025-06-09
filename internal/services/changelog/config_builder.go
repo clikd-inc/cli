@@ -53,10 +53,12 @@ info:
   repository_url: %s
 options:
   commits:
-    # filters:
-    #   Type:%s
+    sort_by: Scope
+    filters:%s
   commit_groups:
-    # title_maps:%s
+    group_by: Type
+    sort_by: Title
+    title_maps:%s
   header:
     pattern: "%s"
     pattern_maps:%s

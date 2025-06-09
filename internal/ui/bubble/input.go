@@ -68,6 +68,10 @@ func (m InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter:
 			m.Value = m.TextInput.Value()
+			// If the input is empty, use the placeholder value
+			if m.Value == "" && m.Placeholder != "" {
+				m.Value = m.Placeholder
+			}
 			return m, func() tea.Msg {
 				return InputResultMsg{Value: m.Value}
 			}

@@ -41,10 +41,51 @@ func (loader *configLoaderImpl) loadYAMLConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	config := &Config{}
-	err = yaml.Unmarshal(bytes, config)
+	// Load into ChangelogConfig first (YAML structure)
+	yamlConfig := &ChangelogConfig{}
+	err = yaml.Unmarshal(bytes, yamlConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	// Convert to internal Config structure
+	config := &Config{
+		Bin:        yamlConfig.Bin,
+		Template:   yamlConfig.Template,
+		WorkingDir: "", // Will be set by caller
+		Info: &Info{
+			Title:         yamlConfig.Info.Title,
+			RepositoryURL: yamlConfig.Info.RepositoryURL,
+		},
+		Options: &Options{
+			TagFilterPattern:            yamlConfig.Options.TagFilterPattern,
+			Sort:                        yamlConfig.Options.Sort,
+			CommitFilters:               yamlConfig.Options.Commits.Filters,
+			CommitSortBy:                yamlConfig.Options.Commits.SortBy,
+			CommitGroupBy:               yamlConfig.Options.CommitGroups.GroupBy,
+			CommitGroupSortBy:           yamlConfig.Options.CommitGroups.SortBy,
+			CommitGroupTitleOrder:       yamlConfig.Options.CommitGroups.TitleOrder,
+			CommitGroupTitleMaps:        yamlConfig.Options.CommitGroups.TitleMaps,
+			HeaderPattern:               yamlConfig.Options.Header.Pattern,
+			HeaderPatternMaps:           yamlConfig.Options.Header.PatternMaps,
+			IssuePrefix:                 yamlConfig.Options.Issues.Prefix,
+			RefActions:                  yamlConfig.Options.Refs.Actions,
+			MergePattern:                yamlConfig.Options.Merges.Pattern,
+			MergePatternMaps:            yamlConfig.Options.Merges.PatternMaps,
+			RevertPattern:               yamlConfig.Options.Reverts.Pattern,
+			RevertPatternMaps:           yamlConfig.Options.Reverts.PatternMaps,
+			NoteKeywords:                yamlConfig.Options.Notes.Keywords,
+			JiraUsername:                yamlConfig.Options.Jira.ClintInfo.Username,
+			JiraToken:                   yamlConfig.Options.Jira.ClintInfo.Token,
+			JiraURL:                     yamlConfig.Options.Jira.ClintInfo.URL,
+			JiraTypeMaps:                yamlConfig.Options.Jira.Issue.TypeMaps,
+			JiraIssueDescriptionPattern: yamlConfig.Options.Jira.Issue.DescriptionPattern,
+		},
+	}
+
+	// Set defaults if not specified
+	if config.Bin == "" {
+		config.Bin = "git"
 	}
 
 	return config, nil

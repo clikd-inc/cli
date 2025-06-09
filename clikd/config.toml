@@ -4,7 +4,7 @@ version = '1.0.0'
 log_level = 'info'
 
 [ai]
-enable = true
+enable = false
 provider = 'mistral'
 model = 'mistral-medium'
 api_key = ''
