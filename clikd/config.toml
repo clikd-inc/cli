@@ -5,14 +5,6 @@ version = '1.0.0'
 log_level = 'info'
 color = true
 
-[changelog]
-style = 'conventional'
-template = 'changelog/standard.tpl.md'
-config = 'changelog/standard.yml'
-sort = true
-path = 'CHANGELOG.md'
-no_case = false
-
 [ai]
 enable = true
 provider = 'mistral'

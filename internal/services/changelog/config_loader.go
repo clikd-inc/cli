@@ -6,41 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
 )
-
-// TOMLConfig repräsentiert die Hauptkonfigurationsdatei (config.toml)
-type TOMLConfig struct {
-	Version   string             `toml:"version"`
-	General   GeneralConfig      `toml:"general"`
-	Changelog ChangelogRefConfig `toml:"changelog"`
-	AI        AIConfig           `toml:"ai"`
-}
-
-// GeneralConfig enthält allgemeine Einstellungen
-type GeneralConfig struct {
-	LogLevel string `toml:"log_level"`
-	Color    bool   `toml:"color"`
-}
-
-// ChangelogRefConfig enthält Verweise auf Changelog-Konfigurationsdateien
-type ChangelogRefConfig struct {
-	Style    string `toml:"style"`
-	Template string `toml:"template"`
-	Config   string `toml:"config"` // Verweis auf die YAML-Konfigurationsdatei
-	Sort     bool   `toml:"sort"`
-	Path     string `toml:"path"`
-	NoCase   bool   `toml:"no_case"`
-}
-
-// AIConfig enthält KI-Konfiguration
-type AIConfig struct {
-	Enable   bool   `toml:"enable"`
-	Provider string `toml:"provider"`
-	Model    string `toml:"model"`
-	APIKey   string `toml:"api_key"`
-}
 
 // ConfigLoader ...
 type ConfigLoader interface {
@@ -56,46 +23,16 @@ func NewConfigLoader() ConfigLoader {
 }
 
 func (loader *configLoaderImpl) Load(configPath string) (*Config, error) {
-	// 1. Lade die TOML-Hauptkonfiguration
-	tomlConfig, err := loader.loadTOMLConfig(configPath)
+	// Direkt die YAML-Changelog-Konfiguration laden
+	config, err := loader.loadYAMLConfig(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load TOML config: %w", err)
+		return nil, fmt.Errorf("failed to load YAML config from %s: %w", configPath, err)
 	}
 
-	// 2. Bestimme den Pfad zur YAML-Konfigurationsdatei
-	configDir := filepath.Dir(configPath)
-	yamlConfigPath := filepath.Join(configDir, "changelog", "standard.yml")
-
-	// Falls ein spezifischer Config-Pfad in der TOML angegeben ist, verwende diesen
-	if tomlConfig.Changelog.Config != "" {
-		yamlConfigPath = filepath.Join(configDir, tomlConfig.Changelog.Config)
-	}
-
-	// 3. Lade die YAML-Changelog-Konfiguration
-	config, err := loader.loadYAMLConfig(yamlConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load YAML config from %s: %w", yamlConfigPath, err)
-	}
-
-	// 4. Überschreibe mit TOML-Werten
-	if tomlConfig.Changelog.Template != "" {
-		templatePath := filepath.Join(configDir, tomlConfig.Changelog.Template)
-		config.Template = templatePath
-	}
-
-	// 5. Setze Working Directory
+	// Working Directory setzen (relativ zur Konfigurationsdatei)
 	config.WorkingDir = filepath.Dir(configPath)
 
 	return config, nil
-}
-
-func (loader *configLoaderImpl) loadTOMLConfig(path string) (*TOMLConfig, error) {
-	var config TOMLConfig
-	_, err := toml.DecodeFile(path, &config)
-	if err != nil {
-		return nil, err
-	}
-	return &config, nil
 }
 
 func (loader *configLoaderImpl) loadYAMLConfig(path string) (*Config, error) {
@@ -189,6 +126,12 @@ func (config *Config) Normalize(ctx *CLIContext) error {
 		config.Options.JiraURL = ctx.JiraURL
 	}
 
+	// Template-Pfad auflösen: Wenn der Template-Pfad relativ ist,
+	// löse ihn relativ zum Konfigurationsverzeichnis auf
+	if config.Template != "" && !filepath.IsAbs(config.Template) {
+		config.Template = filepath.Join(filepath.Dir(ctx.ConfigPath), config.Template)
+	}
+
 	return nil
 }
 
@@ -230,7 +173,7 @@ func LoadConfigFromCommand(cmdConfig *CommandConfig) (*Config, error) {
 		Sort:             cmdConfig.Sort,
 	}
 
-	// Konfiguration laden (jetzt mit korrektem TOML/YAML-System)
+	// Konfiguration laden (direkt YAML, kein TOML)
 	config, err := LoadConfig(cmdConfig.ConfigPath)
 	if err != nil {
 		return nil, err
@@ -245,7 +188,7 @@ func LoadConfigFromCommand(cmdConfig *CommandConfig) (*Config, error) {
 	return config, nil
 }
 
-// LoadConfig lädt die Konfiguration mit dem neuen TOML/YAML-System
+// LoadConfig lädt die Konfiguration direkt aus der YAML-Datei
 func LoadConfig(path string) (*Config, error) {
 	loader := NewConfigLoader()
 	return loader.Load(path)

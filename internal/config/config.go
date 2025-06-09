@@ -208,10 +208,6 @@ func convertToConfigData(config Config) *ConfigData {
 			TokensMaxInput:   config.AI.TokensMaxInput,
 			TokensMaxOutput:  config.AI.TokensMaxOutput,
 		},
-		Changelog: ChangelogConfig{
-			Template:   config.Changelog.Template,
-			ConfigFile: config.Changelog.ConfigFile,
-		},
 	}
 
 	return configData

@@ -18,9 +18,5 @@ func DefaultConfig() *ConfigData {
 			TokensMaxInput:   4096,
 			TokensMaxOutput:  500,
 		},
-		Changelog: ChangelogConfig{
-			Template:   "clikd/changelog/standard.tpl.md",
-			ConfigFile: "clikd/changelog/standard.yml",
-		},
 	}
 }

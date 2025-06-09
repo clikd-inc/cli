@@ -6,10 +6,10 @@ import (
 
 // ConfigData repräsentiert die Hauptkonfigurationsstruktur
 type ConfigData struct {
-	Version   string          `mapstructure:"version"`
-	General   GeneralConfig   `mapstructure:"general"`
-	AI        AIConfig        `mapstructure:"ai"`
-	Changelog ChangelogConfig `mapstructure:"changelog"`
+	Version string        `mapstructure:"version"`
+	General GeneralConfig `mapstructure:"general"`
+	AI      AIConfig      `mapstructure:"ai"`
+	// Changelog-Konfiguration wird direkt aus YAML geladen, nicht aus TOML
 	// Weitere Funktionen hier hinzufügen
 }
 
@@ -83,47 +83,6 @@ type ChangelogConfig struct {
 type ChangelogInfoConfig struct {
 	Title         string `mapstructure:"title"`
 	RepositoryURL string `mapstructure:"repository_url"`
-}
-
-// ChangelogOptionsConfig enthält erweiterte Optionen für den Changelog
-type ChangelogOptionsConfig struct {
-	Commits      ChangelogCommitsConfig      `mapstructure:"commits"`
-	CommitGroups ChangelogCommitGroupsConfig `mapstructure:"commit_groups"`
-	Header       ChangelogHeaderConfig       `mapstructure:"header"`
-	Notes        ChangelogNotesConfig        `mapstructure:"notes"`
-}
-
-// ChangelogCommitsConfig enthält Commit-bezogene Optionen
-type ChangelogCommitsConfig struct {
-	Filters map[string][]string `mapstructure:"filters"`
-	SortBy  string              `mapstructure:"sort_by"`
-}
-
-// ChangelogCommitGroupsConfig enthält Commit-Gruppierungsoptionen
-type ChangelogCommitGroupsConfig struct {
-	GroupBy   string            `mapstructure:"group_by"`
-	SortBy    string            `mapstructure:"sort_by"`
-	TitleMaps map[string]string `mapstructure:"title_maps"`
-}
-
-// ChangelogHeaderConfig enthält Header-bezogene Optionen
-type ChangelogHeaderConfig struct {
-	Pattern     string   `mapstructure:"pattern"`
-	PatternMaps []string `mapstructure:"pattern_maps"`
-}
-
-// ChangelogNotesConfig enthält Optionen für Notizen
-type ChangelogNotesConfig struct {
-	Keywords []string `mapstructure:"keywords"`
-}
-
-// JiraConfig enthält Jira-spezifische Einstellungen
-type JiraConfig struct {
-	BaseURL      string `mapstructure:"base_url"`
-	Username     string `mapstructure:"username"`
-	APIKey       string `mapstructure:"api_key,omitempty"`
-	ProjectKey   string `mapstructure:"project_key"`
-	IssuePattern string `mapstructure:"issue_pattern"`
 }
 
 // GetModelConfig gibt die Konfiguration für ein bestimmtes Modell zurück

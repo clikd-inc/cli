@@ -1,14 +1,13 @@
 package changelog
 
 import (
-	"clikd/internal/config"
 	"clikd/internal/services/changelog"
 	"clikd/internal/utils"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -31,6 +30,24 @@ var (
 	sortFlag             string
 	pathsFlag            []string
 )
+
+// getEnvBool liest einen boolean Wert aus einer Umgebungsvariable
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.ParseBool(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+// getEnvString liest einen String-Wert aus einer Umgebungsvariable
+func getEnvString(key string, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
 // NewChangelogCmd erstellt ein neues Changelog-Kommando
 func NewChangelogCmd() *cobra.Command {
@@ -55,6 +72,13 @@ Special Features:
   - Tag Filtering: Filter tags using regular expressions with --tag-filter-pattern.
   - Semver Sorting: Sort tags by semantic version instead of date with --sort=semver.
 
+Environment Variables:
+  NO_COLOR         - Disable color output (same as --no-color)
+  NO_EMOJI         - Disable emoji output (same as --no-emoji)
+  JIRA_URL         - Jira URL (same as --jira-url)
+  JIRA_USERNAME    - Jira username (same as --jira-username)
+  JIRA_TOKEN       - Jira token (same as --jira-token)
+
 Examples:
   # Initialize changelog configuration with the global init command
   clikd init
@@ -77,7 +101,22 @@ Examples:
 			logger := utils.NewLogger("info", true)
 			logger.Info("Starting changelog generation")
 
-			// Sonst den normalen Changelog-Generator ausführen
+			// Umgebungsvariablen auswerten und Flags überschreiben
+			noColorFlag = noColorFlag || getEnvBool("NO_COLOR", false)
+			noEmojiFlag = noEmojiFlag || getEnvBool("NO_EMOJI", false)
+
+			// Jira-Umgebungsvariablen nur setzen, wenn Flags nicht bereits gesetzt sind
+			if jiraURLFlag == "" {
+				jiraURLFlag = getEnvString("JIRA_URL", "")
+			}
+			if jiraUsernameFlag == "" {
+				jiraUsernameFlag = getEnvString("JIRA_USERNAME", "")
+			}
+			if jiraTokenFlag == "" {
+				jiraTokenFlag = getEnvString("JIRA_TOKEN", "")
+			}
+
+			// Query aus Argumenten extrahieren
 			query := ""
 			if len(args) > 0 {
 				query = args[0]
@@ -89,7 +128,7 @@ Examples:
 
 	// Flags hinzufügen
 	cmd.Flags().StringSliceVar(&pathsFlag, "path", []string{}, "Filter commits by path(s). Can use multiple times.")
-	cmd.Flags().StringVarP(&configFlag, "config", "c", "clikd/config.toml", "specifies a different configuration file to pick up")
+	cmd.Flags().StringVarP(&configFlag, "config", "c", "clikd/changelog/config.yml", "specifies a different configuration file to pick up")
 	cmd.Flags().StringVarP(&templateFlag, "template", "t", "", "specifies a template file to pick up. If not specified, use the one in config")
 	cmd.Flags().StringVar(&repositoryURLFlag, "repository-url", "", "specifies git repo URL. If not specified, use 'repository_url' in config")
 	cmd.Flags().StringVarP(&outputFlag, "output", "o", "", "output path and filename for the changelogs. If not specified, output to stdout")
@@ -109,34 +148,16 @@ Examples:
 
 // runGenerator führt den Changelog-Generator aus
 func runGenerator(query string) error {
-	logger := utils.NewLogger("debug", true) // Log-Level auf debug setzen für detailliertere Ausgaben
+	logger := utils.NewLogger("debug", !noColorFlag) // Verwende noColorFlag für Logger
 	logger.Info("Generating changelog for query: %s", query)
 
-	// Eigene Debug-Ausgabe für Git-Informationen
+	// Working Directory bestimmen
 	wd, err := os.Getwd()
 	if err != nil {
 		logger.Error("Failed to get working directory: %v", err)
 		return err
 	}
 	logger.Debug("Working directory: %s", wd)
-
-	// Für Testzwecke: Explizites Setzen des Test-Repository-Pfads
-	testRepoDir := "/Users/nyxb/Projects/nyxb/cli/clikd/test_repo"
-	logger.Debug("Test repository directory: %s", testRepoDir)
-
-	// Git-Tags auflisten (Debug)
-	if out, err := exec.Command("git", "-C", testRepoDir, "tag", "-l").Output(); err == nil {
-		logger.Debug("Available git tags: %s", string(out))
-	} else {
-		logger.Debug("Failed to list git tags: %v", err)
-	}
-
-	// Git-Log anzeigen (Debug)
-	if out, err := exec.Command("git", "-C", testRepoDir, "log", "--pretty=format:%h - %s", "-n", "5").Output(); err == nil {
-		logger.Debug("Recent git commits: %s", string(out))
-	} else {
-		logger.Debug("Failed to list git commits: %v", err)
-	}
 
 	// Konfigurationspfad auflösen
 	configPath := utils.ResolveConfigPath(configFlag)
@@ -149,107 +170,19 @@ func runGenerator(query string) error {
 		return fmt.Errorf("configuration file not found at %s: %v", configPath, err)
 	}
 	if configFileInfo.IsDir() {
-		// Wenn es ein Verzeichnis ist, nehmen wir an, dass die Konfiguration in config.toml ist
-		configPath = filepath.Join(configPath, "config.toml")
+		// Wenn es ein Verzeichnis ist, nehmen wir an, dass die Konfiguration in config.yml ist
+		configPath = filepath.Join(configPath, "config.yml")
 		logger.Debug("Config path is a directory, using %s instead", configPath)
 	}
 
-	templatePath := ""
-
-	// Immer "clikd" als Basisverzeichnis verwenden
-	baseDir := "clikd"
-
-	// Prüfen, ob ein Template-Pfad mit dem korrekten Verzeichnis funktioniert
-	directTemplatePath := filepath.Join(wd, baseDir, "templates", "changelog.md")
-	if _, err := os.Stat(directTemplatePath); err == nil {
-		templatePath = directTemplatePath
-	} else {
-		logger.Debug("Template path not found: %s", directTemplatePath)
-	}
-
-	// Laden der clikd-Konfiguration, um die Template-Einstellungen zu erhalten
-	if _, err := os.Stat(configPath); err == nil {
-		// Die TOML-Konfiguration existiert
-		logger.Debug("Found configuration at %s", configPath)
-
-		// Global configuration manager
-		cfg, err := config.Get()
-		if err != nil {
-			logger.Debug("Error getting config: %v", err)
-		} else {
-			// Get template path from clikd config
-			tmplRelPath := cfg.Changelog.Template
-			logger.Debug("Template path from config: %s", tmplRelPath)
-
-			// Wenn der Template-Pfad in der Konfiguration leer ist, verwenden wir unseren direkten Pfad
-			if tmplRelPath == "" {
-				logger.Debug("Template path in config is empty, using hardcoded path")
-				// Wir verwenden den zuvor gefundenen hardcoded Pfad
-				if templatePath != "" {
-					logger.Debug("Using previously found template path: %s", templatePath)
-				} else {
-					logger.Error("No template path found")
-					return fmt.Errorf("no template path found")
-				}
-			} else {
-				// Handle both absolute and relative paths
-				if filepath.IsAbs(tmplRelPath) {
-					logger.Debug("Template path is absolute")
-					templatePath = tmplRelPath
-				} else {
-					// If relative path, it's relative to the clikd directory
-					clikdDir := filepath.Dir(configPath)
-					logger.Debug("clikdDir: %s", clikdDir)
-
-					calculatedPath := filepath.Join(clikdDir, tmplRelPath)
-					logger.Debug("Calculated template path: %s", calculatedPath)
-
-					// Überprüfen, ob die berechnete Datei existiert
-					if _, err := os.Stat(calculatedPath); err == nil {
-						logger.Debug("Template file exists at: %s", calculatedPath)
-						templatePath = calculatedPath
-					} else {
-						logger.Debug("Template file not found at calculated path: %s", calculatedPath)
-
-						// Verschiedene Alternativen durchprobieren
-						alternatives := []string{
-							filepath.Join(wd, tmplRelPath),
-							filepath.Join(wd, baseDir, tmplRelPath),
-							filepath.Join(wd, baseDir, "templates", filepath.Base(tmplRelPath)),
-						}
-
-						for _, alt := range alternatives {
-							logger.Debug("Trying alternative template path: %s", alt)
-							if _, err := os.Stat(alt); err == nil {
-								logger.Debug("Template file found at alternative path: %s", alt)
-								templatePath = alt
-								break
-							}
-						}
-
-						if templatePath == "" {
-							logger.Error("Template file not found at any expected location")
-							return fmt.Errorf("template file not found at any expected location")
-						}
-					}
-				}
-			}
-		}
-	} else {
-		logger.Debug("Configuration file not found: %s", configPath)
-		if templatePath == "" {
-			logger.Error("No template path found")
-			return fmt.Errorf("no template path found")
-		}
-	}
-
-	logger.Info("Using template: %s", templatePath)
+	// Template-Pfad wird jetzt direkt aus der YAML-Konfiguration gelesen
+	// Die Template-Pfad-Logik ist jetzt in der config.go Normalize-Methode implementiert
 
 	// Command-Konfiguration erstellen
 	cmdConfig := &changelog.CommandConfig{
-		WorkingDir:       testRepoDir, // Für Tests explizit ein Test-Repository festlegen
+		WorkingDir:       wd,
 		ConfigPath:       configPath,
-		Template:         templatePath,
+		Template:         templateFlag, // Nur setzen wenn explizit angegeben
 		RepositoryURL:    repositoryURLFlag,
 		OutputPath:       outputFlag,
 		Silent:           silentFlag,

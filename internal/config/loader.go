@@ -31,10 +31,6 @@ type Config struct {
 		LogLevel string `toml:"log_level"`
 		Color    bool   `toml:"color"`
 	} `toml:"general"`
-	Changelog struct {
-		Template   string `toml:"template"`
-		ConfigFile string `toml:"config_file"`
-	} `toml:"changelog"`
 	AI struct {
 		// Enable aktiviert oder deaktiviert alle KI-Funktionen global.
 		// Alle weiteren KI-Einstellungen werden über Umgebungsvariablen gesteuert.
@@ -78,10 +74,6 @@ func createDefaultConfig() Config {
 	// General
 	c.General.LogLevel = "info"
 	c.General.Color = true
-
-	// Changelog
-	c.Changelog.Template = ""
-	c.Changelog.ConfigFile = ""
 
 	// AI
 	c.AI.Enable = true
@@ -187,14 +179,6 @@ func (m *Manager) InitConfig(configPath string) error {
 					}
 					if tempConfig.AI.TokensMaxOutput > 0 {
 						m.config.AI.TokensMaxOutput = tempConfig.AI.TokensMaxOutput
-					}
-
-					// Changelog-Einstellungen übernehmen
-					if tempConfig.Changelog.Template != "" {
-						m.config.Changelog.Template = tempConfig.Changelog.Template
-					}
-					if tempConfig.Changelog.ConfigFile != "" {
-						m.config.Changelog.ConfigFile = tempConfig.Changelog.ConfigFile
 					}
 
 					// Pfad aktualisieren, da die lokale Konfiguration Vorrang hat
@@ -336,16 +320,6 @@ func (m *Manager) loadSensitiveEnvVars() {
 		if val, err := strconv.Atoi(maxOutput); err == nil && val > 0 {
 			m.config.AI.TokensMaxOutput = val
 		}
-	}
-
-	// Template
-	if template := os.Getenv("CLIKD_CHANGELOG_TEMPLATE"); template != "" {
-		m.config.Changelog.Template = template
-	}
-
-	// ConfigFile
-	if configFile := os.Getenv("CLIKD_CHANGELOG_CONFIG_FILE"); configFile != "" {
-		m.config.Changelog.ConfigFile = configFile
 	}
 }
 
