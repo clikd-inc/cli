@@ -1,15 +1,15 @@
 package changelog
 
 import (
+	"clikd/internal/services/git"
 	"path/filepath"
 	"strings"
 
-	cli "github.com/clikd-inc/cli"
 	"github.com/imdario/mergo"
 )
 
-// Info ...
-type Info struct {
+// ChangelogInfo enthält Metadaten für das Changelog
+type ChangelogInfo struct {
 	Title         string `yaml:"title"`
 	RepositoryURL string `yaml:"repository_url"`
 }
@@ -68,8 +68,8 @@ type JiraOptions struct {
 	Issue     JiraIssueOptions      `yaml:"issue"`
 }
 
-// Options ...
-type Options struct {
+// ChangelogOptions ...
+type ChangelogOptions struct {
 	TagFilterPattern string             `yaml:"tag_filter_pattern"`
 	Sort             string             `yaml:"sort"`
 	Commits          CommitOptions      `yaml:"commits"`
@@ -81,26 +81,27 @@ type Options struct {
 	Reverts          PatternOptions     `yaml:"reverts"`
 	Notes            NoteOptions        `yaml:"notes"`
 	Jira             JiraOptions        `yaml:"jira"`
+	WorkingDir       string             `yaml:"working_dir"`
 }
 
-// Config ...
-type Config struct {
-	Bin      string  `yaml:"bin"`
-	Template string  `yaml:"template"`
-	Style    string  `yaml:"style"`
-	Info     Info    `yaml:"info"`
-	Options  Options `yaml:"options"`
+// ChangelogConfig ...
+type ChangelogConfig struct {
+	Bin      string           `yaml:"bin"`
+	Template string           `yaml:"template"`
+	Style    string           `yaml:"style"`
+	Info     ChangelogInfo    `yaml:"info"`
+	Options  ChangelogOptions `yaml:"options"`
 }
 
 // Normalize ...
-func (config *Config) Normalize(ctx *CLIContext) error {
-	err := mergo.Merge(config, &Config{
+func (config *ChangelogConfig) Normalize(ctx *CLIContext) error {
+	err := mergo.Merge(config, &ChangelogConfig{
 		Bin:      "git",
 		Template: "CHANGELOG.tpl.md",
-		Info: Info{
+		Info: ChangelogInfo{
 			Title: "CHANGELOG",
 		},
-		Options: Options{
+		Options: ChangelogOptions{
 			Commits: CommitOptions{
 				SortBy: "Scope",
 			},
@@ -128,7 +129,7 @@ func (config *Config) Normalize(ctx *CLIContext) error {
 }
 
 // Normalize style
-func (config *Config) normalizeStyle() {
+func (config *ChangelogConfig) normalizeStyle() {
 	switch config.Style {
 	case "github":
 		config.normalizeStyleOfGitHub()
@@ -139,7 +140,7 @@ func (config *Config) normalizeStyle() {
 	}
 }
 
-func (config *Config) normalizeTagSortBy() {
+func (config *ChangelogConfig) normalizeTagSortBy() {
 	switch {
 	case config.Options.Sort == "":
 		config.Options.Sort = "date"
@@ -153,7 +154,7 @@ func (config *Config) normalizeTagSortBy() {
 }
 
 // For GitHub
-func (config *Config) normalizeStyleOfGitHub() {
+func (config *ChangelogConfig) normalizeStyleOfGitHub() {
 	opts := config.Options
 
 	if len(opts.Issues.Prefix) == 0 {
@@ -189,7 +190,7 @@ func (config *Config) normalizeStyleOfGitHub() {
 }
 
 // For GitLab
-func (config *Config) normalizeStyleOfGitLab() {
+func (config *ChangelogConfig) normalizeStyleOfGitLab() {
 	opts := config.Options
 
 	if len(opts.Issues.Prefix) == 0 {
@@ -226,7 +227,7 @@ func (config *Config) normalizeStyleOfGitLab() {
 }
 
 // For Bitbucket
-func (config *Config) normalizeStyleOfBitbucket() {
+func (config *ChangelogConfig) normalizeStyleOfBitbucket() {
 	opts := config.Options
 
 	if len(opts.Issues.Prefix) == 0 {
@@ -287,49 +288,43 @@ func orValue(str1 string, str2 string) string {
 	return str2
 }
 
-// Convert ...
-func (config *Config) Convert(ctx *CLIContext) *cli.Config {
-	info := config.Info
+// Convert konvertiert ChangelogConfig zu git.Config
+func (config *ChangelogConfig) Convert(ctx *CLIContext) *git.Config {
 	opts := config.Options
 
 	if ctx.TagFilterPattern == "" {
 		ctx.TagFilterPattern = opts.TagFilterPattern
 	}
 
-	return &cli.Config{
-		Bin:        config.Bin,
-		WorkingDir: ctx.WorkingDir,
-		Template:   orValue(ctx.Template, config.Template),
-		Info: &cli.Info{
-			Title:         info.Title,
-			RepositoryURL: orValue(ctx.RepositoryURL, info.RepositoryURL),
-		},
-		Options: &cli.Options{
-			NextTag:                     ctx.NextTag,
-			TagFilterPattern:            ctx.TagFilterPattern,
-			Sort:                        orValue(ctx.Sort, opts.Sort),
-			NoCaseSensitive:             ctx.NoCaseSensitive,
-			Paths:                       ctx.Paths,
-			CommitFilters:               opts.Commits.Filters,
-			CommitSortBy:                opts.Commits.SortBy,
-			CommitGroupBy:               opts.CommitGroups.GroupBy,
-			CommitGroupSortBy:           opts.CommitGroups.SortBy,
-			CommitGroupTitleMaps:        opts.CommitGroups.TitleMaps,
-			CommitGroupTitleOrder:       opts.CommitGroups.TitleOrder,
-			HeaderPattern:               opts.Header.Pattern,
-			HeaderPatternMaps:           opts.Header.PatternMaps,
-			IssuePrefix:                 opts.Issues.Prefix,
-			RefActions:                  opts.Refs.Actions,
-			MergePattern:                opts.Merges.Pattern,
-			MergePatternMaps:            opts.Merges.PatternMaps,
-			RevertPattern:               opts.Reverts.Pattern,
-			RevertPatternMaps:           opts.Reverts.PatternMaps,
-			NoteKeywords:                opts.Notes.Keywords,
-			JiraUsername:                orValue(ctx.JiraUsername, opts.Jira.ClintInfo.Username),
-			JiraToken:                   orValue(ctx.JiraToken, opts.Jira.ClintInfo.Token),
-			JiraURL:                     orValue(ctx.JiraURL, opts.Jira.ClintInfo.URL),
-			JiraTypeMaps:                opts.Jira.Issue.TypeMaps,
-			JiraIssueDescriptionPattern: opts.Jira.Issue.DescriptionPattern,
-		},
+	gitOptions := &git.Options{
+		NextTag:                     ctx.NextTag,
+		TagFilterPattern:            ctx.TagFilterPattern,
+		Sort:                        orValue(ctx.Sort, opts.Sort),
+		NoCaseSensitive:             ctx.NoCaseSensitive,
+		Paths:                       ctx.Paths,
+		CommitFilters:               opts.Commits.Filters,
+		CommitSortBy:                opts.Commits.SortBy,
+		CommitGroupBy:               opts.CommitGroups.GroupBy,
+		CommitGroupSortBy:           opts.CommitGroups.SortBy,
+		CommitGroupTitleMaps:        opts.CommitGroups.TitleMaps,
+		CommitGroupTitleOrder:       opts.CommitGroups.TitleOrder,
+		HeaderPattern:               opts.Header.Pattern,
+		HeaderPatternMaps:           opts.Header.PatternMaps,
+		IssuePrefix:                 opts.Issues.Prefix,
+		RefActions:                  opts.Refs.Actions,
+		MergePattern:                opts.Merges.Pattern,
+		MergePatternMaps:            opts.Merges.PatternMaps,
+		RevertPattern:               opts.Reverts.Pattern,
+		RevertPatternMaps:           opts.Reverts.PatternMaps,
+		NoteKeywords:                opts.Notes.Keywords,
+		JiraUsername:                orValue(ctx.JiraUsername, opts.Jira.ClintInfo.Username),
+		JiraToken:                   orValue(ctx.JiraToken, opts.Jira.ClintInfo.Token),
+		JiraURL:                     orValue(ctx.JiraURL, opts.Jira.ClintInfo.URL),
+		JiraTypeMaps:                opts.Jira.Issue.TypeMaps,
+		JiraIssueDescriptionPattern: opts.Jira.Issue.DescriptionPattern,
+	}
+
+	return &git.Config{
+		Options: gitOptions,
 	}
 }

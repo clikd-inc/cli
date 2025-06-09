@@ -4,7 +4,7 @@ import (
 	"io"
 )
 
-// CLIContext ...
+// CLIContext enthält den Kontext für die CLI-Ausführung
 type CLIContext struct {
 	WorkingDir       string
 	Stdout           io.Writer
@@ -27,9 +27,23 @@ type CLIContext struct {
 	Sort             string
 }
 
-// InitContext ...
+// InitContext enthält den Kontext für die Initialisierung
 type InitContext struct {
 	WorkingDir string
 	Stdout     io.Writer
 	Stderr     io.Writer
+	Style      string // Stil des Changelogs (z.B. "github", "gitlab")
+	Template   string // Pfad zum Template
+	ConfigDir  string // Verzeichnis für Konfigurationsdateien
+}
+
+// NewCLIContext erstellt einen neuen CLI-Kontext mit Standardwerten
+func NewCLIContext(workingDir string, stdout, stderr io.Writer) *CLIContext {
+	return &CLIContext{
+		WorkingDir: workingDir,
+		Stdout:     stdout,
+		Stderr:     stderr,
+		NoColor:    false,
+		NoEmoji:    false,
+	}
 }

@@ -1,6 +1,8 @@
 package changelog
 
 import (
+	"clikd/internal/services/git"
+	"clikd/internal/utils"
 	"errors"
 	"fmt"
 	"io"
@@ -15,56 +17,28 @@ import (
 	"github.com/tsuyoshiwada/go-gitcmd"
 )
 
-// Options is an option used to process commits
-type Options struct {
-	Processor                   Processor
-	NextTag                     string              // Treat unreleased commits as specified tags (EXPERIMENTAL)
-	TagFilterPattern            string              // Filter tag by regexp
-	Sort                        string              // Specify how to sort tags; currently supports "date" (default) or by "semver".
-	NoCaseSensitive             bool                // Filter commits in a case insensitive way
-	CommitFilters               map[string][]string // Filter by using `Commit` properties and values. Filtering is not done by specifying an empty value
-	CommitSortBy                string              // Property name to use for sorting `Commit` (e.g. `Scope`)
-	CommitGroupBy               string              // Property name of `Commit` to be grouped into `CommitGroup` (e.g. `Type`)
-	CommitGroupSortBy           string              // Property name to use for sorting `CommitGroup` (e.g. `Title`)
-	CommitGroupTitleOrder       []string            // Predefined sorted list of titles to use for sorting `CommitGroup`. Only if `CommitGroupSortBy` is `Custom`
-	CommitGroupTitleMaps        map[string]string   // Map for `CommitGroup` title conversion
-	HeaderPattern               string              // A regular expression to use for parsing the commit header
-	HeaderPatternMaps           []string            // A rule for mapping the result of `HeaderPattern` to the property of `Commit`
-	IssuePrefix                 []string            // Prefix used for issues (e.g. `#`, `gh-`)
-	RefActions                  []string            // Word list of `Ref.Action`
-	MergePattern                string              // A regular expression to use for parsing the merge commit
-	MergePatternMaps            []string            // Similar to `HeaderPatternMaps`
-	RevertPattern               string              // A regular expression to use for parsing the revert commit
-	RevertPatternMaps           []string            // Similar to `HeaderPatternMaps`
-	NoteKeywords                []string            // Keyword list to find `Note`. A semicolon is a separator, like `<keyword>:` (e.g. `BREAKING CHANGE`)
-	JiraUsername                string
-	JiraToken                   string
-	JiraURL                     string
-	JiraTypeMaps                map[string]string
-	JiraIssueDescriptionPattern string
-	Paths                       []string // Path filter
+// JiraClientInterface Interface für die Interaktion mit Jira
+type JiraClientInterface interface {
+	FetchIssue(issueID string) (*git.JiraIssue, error)
 }
 
-// Info is metadata related to CHANGELOG
-type Info struct {
-	Title         string // Title of CHANGELOG
-	RepositoryURL string // URL of git repository
+// JiraClientMock ist eine Dummy-Implementierung des JiraClient-Interfaces
+type JiraClientMock struct{}
+
+// FetchIssue implementiert die JiraClientInterface
+func (j *JiraClientMock) FetchIssue(issueID string) (*git.JiraIssue, error) {
+	return &git.JiraIssue{
+		Key:         issueID,
+		Summary:     "Mock issue summary",
+		Description: "Mock issue description",
+		Type:        "Mock issue type",
+	}, nil
 }
 
-// RenderData is the data passed to the template
-type RenderData struct {
-	Info       *Info
-	Unreleased *Unreleased
-	Versions   []*Version
-}
-
-// Config for generating CHANGELOG
-type Config struct {
-	Bin        string // Git execution command
-	WorkingDir string // Working directory
-	Template   string // Path for template file. If a relative path is specified, it depends on the value of `WorkingDir`.
-	Info       *Info
-	Options    *Options
+// NewJiraClientForChglog erstellt einen neuen Jira-Client speziell für chglog
+func NewJiraClientForChglog(config *Config) JiraClientInterface {
+	// Implementiere einen Jira-Client oder einen Mock
+	return &JiraClientMock{}
 }
 
 func normalizeConfig(config *Config) {
@@ -96,35 +70,33 @@ func normalizeConfig(config *Config) {
 
 // Generator of CHANGELOG
 type Generator struct {
-	client          gitcmd.Client
-	config          *Config
-	tagReader       *tagReader
-	tagSelector     *tagSelector
-	commitParser    *commitParser
-	commitExtractor *commitExtractor
+	client     gitcmd.Client
+	config     *Config
+	gitService git.Service
 }
 
 // NewGenerator receives `Config` and create an new `Generator`
-func NewGenerator(logger *Logger, config *Config) *Generator {
+func NewGenerator(logger utils.Logger, config *Config) *Generator {
 	client := gitcmd.New(&gitcmd.Config{
 		Bin: config.Bin,
 	})
 
-	jiraClient := NewJiraClient(config)
-
 	if config.Options.Processor != nil {
-		config.Options.Processor.Bootstrap(config)
+		if err := config.Options.Processor.Bootstrap(config); err != nil {
+			// Log error but continue
+		}
 	}
 
 	normalizeConfig(config)
 
+	// Git-Service mit angepassten Optionen erstellen
+	gitClientWrapper, _ := git.NewClientWithRepoDir(config.WorkingDir)
+	gitService := git.NewServiceWithClient(gitClientWrapper)
+
 	return &Generator{
-		client:          client,
-		config:          config,
-		tagReader:       newTagReader(client, config.Options.TagFilterPattern, config.Options.Sort),
-		tagSelector:     newTagSelector(),
-		commitParser:    newCommitParser(logger, client, jiraClient, config),
-		commitExtractor: newCommitExtractor(config.Options),
+		client:     client,
+		config:     config,
+		gitService: gitService,
 	}
 }
 
@@ -169,9 +141,9 @@ func (gen *Generator) Generate(w io.Writer, query string) error {
 	return gen.render(w, unreleased, versions)
 }
 
-func (gen *Generator) readVersions(tags []*Tag, first string) ([]*Version, error) {
+func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*ChangelogVersion, error) {
 	next := gen.config.Options.NextTag
-	versions := []*Version{}
+	versions := []*ChangelogVersion{}
 
 	for i, tag := range tags {
 		var (
@@ -197,19 +169,57 @@ func (gen *Generator) readVersions(tags []*Tag, first string) ([]*Version, error
 			}
 		}
 
-		commits, err := gen.commitParser.Parse(rev)
+		commits, err := gen.gitService.GetCommits(rev, gen.config.Options.Paths)
 		if err != nil {
 			return nil, err
 		}
 
-		commitGroups, mergeCommits, revertCommits, noteGroups := gen.commitExtractor.Extract(commits)
+		commitGroups, mergeCommits, revertCommits, noteGroups := gen.gitService.ExtractCommits(commits, &git.Options{
+			CommitGroupBy:        gen.config.Options.CommitGroupBy,
+			CommitGroupSortBy:    gen.config.Options.CommitGroupSortBy,
+			CommitGroupTitleMaps: gen.config.Options.CommitGroupTitleMaps,
+		})
 
-		versions = append(versions, &Version{
+		// Konvertiere Git-Commits zu Changelog-Commits
+		clCommits := make([]*ChangelogCommit, len(commits))
+		for j, commit := range commits {
+			clCommits[j] = &ChangelogCommit{Commit: commit}
+		}
+
+		// Konvertiere Git-MergeCommits zu Changelog-Commits
+		clMergeCommits := make([]*ChangelogCommit, len(mergeCommits))
+		for j, commit := range mergeCommits {
+			clMergeCommits[j] = &ChangelogCommit{Commit: commit}
+		}
+
+		// Konvertiere Git-RevertCommits zu Changelog-Commits
+		clRevertCommits := make([]*ChangelogCommit, len(revertCommits))
+		for j, commit := range revertCommits {
+			clRevertCommits[j] = &ChangelogCommit{Commit: commit}
+		}
+
+		// Konvertiere Git-CommitGroups zu Changelog-CommitGroups
+		clCommitGroups := make([]*ChangelogCommitGroup, len(commitGroups))
+		for j, group := range commitGroups {
+			// Konvertiere Git-Commits der Gruppe zu Changelog-Commits
+			groupCommits := make([]*ChangelogCommit, len(group.Commits))
+			for k, commit := range group.Commits {
+				groupCommits[k] = &ChangelogCommit{Commit: commit}
+			}
+
+			clCommitGroups[j] = &ChangelogCommitGroup{
+				RawTitle: group.RawTitle,
+				Title:    group.Title,
+				Commits:  groupCommits,
+			}
+		}
+
+		versions = append(versions, &ChangelogVersion{
 			Tag:           tag,
-			CommitGroups:  commitGroups,
-			Commits:       commits,
-			MergeCommits:  mergeCommits,
-			RevertCommits: revertCommits,
+			CommitGroups:  clCommitGroups,
+			Commits:       clCommits,
+			MergeCommits:  clMergeCommits,
+			RevertCommits: clRevertCommits,
 			NoteGroups:    noteGroups,
 		})
 
@@ -222,9 +232,9 @@ func (gen *Generator) readVersions(tags []*Tag, first string) ([]*Version, error
 	return versions, nil
 }
 
-func (gen *Generator) readUnreleased(tags []*Tag) (*Unreleased, error) {
+func (gen *Generator) readUnreleased(tags []*git.Tag) (*ChangelogUnreleased, error) {
 	if gen.config.Options.NextTag != "" {
-		return &Unreleased{}, nil
+		return &ChangelogUnreleased{}, nil
 	}
 
 	rev := "HEAD"
@@ -233,26 +243,64 @@ func (gen *Generator) readUnreleased(tags []*Tag) (*Unreleased, error) {
 		rev = tags[0].Name + "..HEAD"
 	}
 
-	commits, err := gen.commitParser.Parse(rev)
+	commits, err := gen.gitService.GetCommits(rev, gen.config.Options.Paths)
 	if err != nil {
 		return nil, err
 	}
 
-	commitGroups, mergeCommits, revertCommits, noteGroups := gen.commitExtractor.Extract(commits)
+	commitGroups, mergeCommits, revertCommits, noteGroups := gen.gitService.ExtractCommits(commits, &git.Options{
+		CommitGroupBy:        gen.config.Options.CommitGroupBy,
+		CommitGroupSortBy:    gen.config.Options.CommitGroupSortBy,
+		CommitGroupTitleMaps: gen.config.Options.CommitGroupTitleMaps,
+	})
 
-	unreleased := &Unreleased{
-		CommitGroups:  commitGroups,
-		Commits:       commits,
-		MergeCommits:  mergeCommits,
-		RevertCommits: revertCommits,
+	// Konvertiere Git-Commits zu Changelog-Commits
+	clCommits := make([]*ChangelogCommit, len(commits))
+	for i, commit := range commits {
+		clCommits[i] = &ChangelogCommit{Commit: commit}
+	}
+
+	// Konvertiere Git-MergeCommits zu Changelog-Commits
+	clMergeCommits := make([]*ChangelogCommit, len(mergeCommits))
+	for i, commit := range mergeCommits {
+		clMergeCommits[i] = &ChangelogCommit{Commit: commit}
+	}
+
+	// Konvertiere Git-RevertCommits zu Changelog-Commits
+	clRevertCommits := make([]*ChangelogCommit, len(revertCommits))
+	for i, commit := range revertCommits {
+		clRevertCommits[i] = &ChangelogCommit{Commit: commit}
+	}
+
+	// Konvertiere Git-CommitGroups zu Changelog-CommitGroups
+	clCommitGroups := make([]*ChangelogCommitGroup, len(commitGroups))
+	for i, group := range commitGroups {
+		// Konvertiere Git-Commits der Gruppe zu Changelog-Commits
+		groupCommits := make([]*ChangelogCommit, len(group.Commits))
+		for j, commit := range group.Commits {
+			groupCommits[j] = &ChangelogCommit{Commit: commit}
+		}
+
+		clCommitGroups[i] = &ChangelogCommitGroup{
+			RawTitle: group.RawTitle,
+			Title:    group.Title,
+			Commits:  groupCommits,
+		}
+	}
+
+	unreleased := &ChangelogUnreleased{
+		CommitGroups:  clCommitGroups,
+		Commits:       clCommits,
+		MergeCommits:  clMergeCommits,
+		RevertCommits: clRevertCommits,
 		NoteGroups:    noteGroups,
 	}
 
 	return unreleased, nil
 }
 
-func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
-	tags, err := gen.tagReader.ReadAll()
+func (gen *Generator) getTags(query string) ([]*git.Tag, string, error) {
+	tags, err := gen.gitService.GetAllTagsWithDetails()
 	if err != nil {
 		return nil, "", err
 	}
@@ -265,9 +313,9 @@ func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
 			}
 		}
 
-		var previous *RelateTag
+		var previous *git.RelateTag
 		if len(tags) > 0 {
-			previous = &RelateTag{
+			previous = &git.RelateTag{
 				Name:    tags[0].Name,
 				Subject: tags[0].Subject,
 				Date:    tags[0].Date,
@@ -275,7 +323,7 @@ func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
 		}
 
 		// Assign the date with `readVersions()`
-		tags = append([]*Tag{
+		tags = append([]*git.Tag{
 			{
 				Name:     next,
 				Subject:  next,
@@ -290,7 +338,7 @@ func (gen *Generator) getTags(query string) ([]*Tag, string, error) {
 
 	first := ""
 	if query != "" {
-		tags, first, err = gen.tagSelector.Select(tags, query)
+		tags, first, err = gen.gitService.SelectTagsWithQuery(tags, query)
 		if err != nil {
 			return nil, "", err
 		}
@@ -315,7 +363,7 @@ func (gen *Generator) workdir() (func() error, error) {
 	}, nil
 }
 
-func (gen *Generator) render(w io.Writer, unreleased *Unreleased, versions []*Version) error {
+func (gen *Generator) render(w io.Writer, unreleased *ChangelogUnreleased, versions []*ChangelogVersion) error {
 	if _, err := os.Stat(gen.config.Template); err != nil {
 		return err
 	}

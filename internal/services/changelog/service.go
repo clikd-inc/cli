@@ -4,10 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"clikd/internal/services/changelog/configs"
-	tbuilders "clikd/internal/services/changelog/template_builders"
-	tpls "clikd/internal/services/changelog/templates"
 )
 
 // Service stellt Funktionen für die Changelog-Verwaltung bereit
@@ -39,24 +35,12 @@ func (s *Service) InitializeTemplates(style string, configDir string) error {
 	templatePath := filepath.Join(templateDir, style+".tpl.md")
 	configPath := filepath.Join(configDir, style+".yml")
 
-	// Hole den passenden Template-Builder
-	builder := tbuilders.GetTemplateBuilder(style)
+	// Erstelle ein Answer-Objekt (wird nicht verwendet)
+	// aber kann in zukünftigen Implementierungen nützlich sein
 
-	// Erstelle ein Answer-Objekt
-	answer := &Answer{
-		Style:               style,
-		Template:            style,
-		CommitMessageFormat: "type(scope): subject",
-		IncludeMerges:       true,
-		IncludeReverts:      true,
-		ConfigDir:           configDir,
-	}
-
-	// Generiere das Template
-	templateContent, err := builder.Build(answer)
-	if err != nil {
-		return fmt.Errorf("fehler beim Generieren des Templates: %w", err)
-	}
+	// Generiere das Template und die Konfiguration
+	templateContent := getDefaultTemplate(style)
+	configContent := getDefaultConfig(style)
 
 	// Schreibe das Template
 	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
@@ -64,7 +48,7 @@ func (s *Service) InitializeTemplates(style string, configDir string) error {
 	}
 
 	// Schreibe die Konfiguration
-	if err := os.WriteFile(configPath, []byte(configs.GetConfig(style)), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		return fmt.Errorf("fehler beim Schreiben der Konfigurations-Datei: %w", err)
 	}
 
@@ -90,7 +74,8 @@ func (s *Service) EnsureTemplateExists(templatePath, style string) error {
 	}
 
 	// Schreibe das Template
-	if err := os.WriteFile(templatePath, []byte(tpls.GetTemplate(style)), 0644); err != nil {
+	templateContent := getDefaultTemplate(style)
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
 		return fmt.Errorf("fehler beim Wiederherstellen des Templates: %w", err)
 	}
 
@@ -117,10 +102,176 @@ func (s *Service) EnsureConfigExists(configPath, style string) error {
 	}
 
 	// Schreibe die Konfiguration
-	if err := os.WriteFile(configPath, []byte(configs.GetConfig(style)), 0644); err != nil {
+	configContent := getDefaultConfig(style)
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		return fmt.Errorf("fehler beim Wiederherstellen der Konfiguration: %w", err)
 	}
 
 	fmt.Printf("Konfigurations-Datei wurde wiederhergestellt: %s\n", configPath)
 	return nil
+}
+
+// getDefaultTemplate liefert das Standard-Template für den angegebenen Stil
+func getDefaultTemplate(style string) string {
+	switch style {
+	case "github":
+		return `# {{.Info.Title}}
+{{range .Versions}}
+<a name="{{.Tag.Name}}"></a>
+## {{if .Tag.Previous}}[{{.Tag.Name}}]({{$.Info.RepositoryURL}}/compare/{{.Tag.Previous.Name}}...{{.Tag.Name}}){{else}}{{.Tag.Name}}{{end}} ({{datetime "2006-01-02" .Tag.Date}})
+{{range .CommitGroups}}
+### {{.Title}}
+{{range .Commits}}
+* {{.Subject}}{{end}}
+{{end}}
+{{range .NoteGroups}}
+### {{.Title}}
+{{range .Notes}}
+{{.Body}}
+{{end}}
+{{end}}
+{{end}}`
+	case "gitlab":
+		return `# {{.Info.Title}}
+{{range .Versions}}
+## {{if .Tag.Previous}}[{{.Tag.Name}}]({{$.Info.RepositoryURL}}/compare/{{.Tag.Previous.Name}}...{{.Tag.Name}}){{else}}{{.Tag.Name}}{{end}} ({{datetime "2006-01-02" .Tag.Date}})
+{{range .CommitGroups}}
+### {{.Title}}
+{{range .Commits}}
+* {{.Subject}}{{end}}
+{{end}}
+{{range .NoteGroups}}
+### {{.Title}}
+{{range .Notes}}
+{{.Body}}
+{{end}}
+{{end}}
+{{end}}`
+	case "bitbucket":
+		return `# {{.Info.Title}}
+{{range .Versions}}
+## {{if .Tag.Previous}}[{{.Tag.Name}}]({{$.Info.RepositoryURL}}/compare/{{.Tag.Previous.Name}}...{{.Tag.Name}}){{else}}{{.Tag.Name}}{{end}} ({{datetime "2006-01-02" .Tag.Date}})
+{{range .CommitGroups}}
+### {{.Title}}
+{{range .Commits}}
+* {{.Subject}}{{end}}
+{{end}}
+{{range .NoteGroups}}
+### {{.Title}}
+{{range .Notes}}
+{{.Body}}
+{{end}}
+{{end}}
+{{end}}`
+	default:
+		return `# {{.Info.Title}}
+{{range .Versions}}
+## {{if .Tag.Previous}}[{{.Tag.Name}}]({{$.Info.RepositoryURL}}/compare/{{.Tag.Previous.Name}}...{{.Tag.Name}}){{else}}{{.Tag.Name}}{{end}} ({{datetime "2006-01-02" .Tag.Date}})
+{{range .CommitGroups}}
+### {{.Title}}
+{{range .Commits}}
+* {{.Subject}}{{end}}
+{{end}}
+{{range .NoteGroups}}
+### {{.Title}}
+{{range .Notes}}
+{{.Body}}
+{{end}}
+{{end}}
+{{end}}`
+	}
+}
+
+// getDefaultConfig liefert die Standard-Konfiguration für den angegebenen Stil
+func getDefaultConfig(style string) string {
+	switch style {
+	case "github":
+		return `style: github
+template: templates/github.tpl.md
+info:
+  title: CHANGELOG
+  repository_url: https://github.com/clikd-inc/cli
+options:
+  commit_groups:
+    title_maps:
+      feat: Features
+      fix: Bug Fixes
+      perf: Performance Improvements
+      refactor: Code Refactoring
+  header:
+    pattern: "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
+    pattern_maps:
+      - Type
+      - Scope
+      - Subject
+  notes:
+    keywords:
+      - BREAKING CHANGE`
+	case "gitlab":
+		return `style: gitlab
+template: templates/gitlab.tpl.md
+info:
+  title: CHANGELOG
+  repository_url: https://gitlab.com/clikd-inc/cli
+options:
+  commit_groups:
+    title_maps:
+      feat: Features
+      fix: Bug Fixes
+      perf: Performance Improvements
+      refactor: Code Refactoring
+  header:
+    pattern: "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
+    pattern_maps:
+      - Type
+      - Scope
+      - Subject
+  notes:
+    keywords:
+      - BREAKING CHANGE`
+	case "bitbucket":
+		return `style: bitbucket
+template: templates/bitbucket.tpl.md
+info:
+  title: CHANGELOG
+  repository_url: https://bitbucket.org/clikd-inc/cli
+options:
+  commit_groups:
+    title_maps:
+      feat: Features
+      fix: Bug Fixes
+      perf: Performance Improvements
+      refactor: Code Refactoring
+  header:
+    pattern: "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
+    pattern_maps:
+      - Type
+      - Scope
+      - Subject
+  notes:
+    keywords:
+      - BREAKING CHANGE`
+	default:
+		return `style: github
+template: templates/github.tpl.md
+info:
+  title: CHANGELOG
+  repository_url: https://github.com/clikd-inc/cli
+options:
+  commit_groups:
+    title_maps:
+      feat: Features
+      fix: Bug Fixes
+      perf: Performance Improvements
+      refactor: Code Refactoring
+  header:
+    pattern: "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
+    pattern_maps:
+      - Type
+      - Scope
+      - Subject
+  notes:
+    keywords:
+      - BREAKING CHANGE`
+	}
 }

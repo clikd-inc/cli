@@ -3,13 +3,13 @@ package changelog
 import (
 	"io"
 
-	cli "github.com/clikd-inc/cli"
+	"clikd/internal/utils"
 )
 
 type mockGeneratorImpl struct {
-	ReturnGenerate func(io.Writer, string, *cli.Config) error
+	ReturnGenerate func(io.Writer, string, *Config) error
 }
 
-func (m *mockGeneratorImpl) Generate(logger *cli.Logger, w io.Writer, query string, config *cli.Config) error {
+func (m *mockGeneratorImpl) Generate(logger utils.Logger, w io.Writer, query string, config *Config) error {
 	return m.ReturnGenerate(w, query, config)
 }

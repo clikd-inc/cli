@@ -10,20 +10,9 @@ import (
 	"github.com/tsuyoshiwada/go-gitcmd"
 )
 
-// Answer ...
-type Answer struct {
-	RepositoryURL       string `survey:"repository_url"`
-	Style               string `survey:"style"`
-	CommitMessageFormat string `survey:"commit_message_format"`
-	Template            string `survey:"template"`
-	IncludeMerges       bool   `survey:"include_merges"`
-	IncludeReverts      bool   `survey:"include_reverts"`
-	ConfigDir           string `survey:"config_dir"`
-}
-
 // Questioner ...
 type Questioner interface {
-	Ask() (*Answer, error)
+	Ask() (*ChangelogAnswer, error)
 }
 
 type questionerImpl struct {
@@ -40,7 +29,7 @@ func NewQuestioner(client gitcmd.Client, fs FileSystem) Questioner {
 }
 
 // Ask ...
-func (q *questionerImpl) Ask() (*Answer, error) {
+func (q *questionerImpl) Ask() (*ChangelogAnswer, error) {
 	ans, err := q.ask()
 	if err != nil {
 		return nil, err
@@ -76,8 +65,8 @@ func (q *questionerImpl) Ask() (*Answer, error) {
 	return ans, nil
 }
 
-func (q *questionerImpl) ask() (*Answer, error) {
-	ans := &Answer{}
+func (q *questionerImpl) ask() (*ChangelogAnswer, error) {
+	ans := &ChangelogAnswer{}
 	fmts := q.getPreviewableList(formats)
 	tpls := q.getPreviewableList(templates)
 

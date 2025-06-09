@@ -94,7 +94,7 @@ func TestGeneratorNotFoundTags(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				RepositoryURL: "https://github.com/clikd-inc/cli",
@@ -123,7 +123,7 @@ func TestGeneratorNotFoundCommits(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				RepositoryURL: "https://github.com/clikd-inc/cli",
@@ -151,7 +151,7 @@ func TestGeneratorNotFoundCommitsOne(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				RepositoryURL: "https://github.com/clikd-inc/cli",
@@ -229,7 +229,7 @@ change message.`)
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				Title:         "CHANGELOG Example",
@@ -344,7 +344,7 @@ func TestGeneratorWithNextTag(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				Title:         "CHANGELOG Example",
@@ -438,7 +438,7 @@ func TestGeneratorWithTagFiler(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				Title:         "CHANGELOG Example",
@@ -483,7 +483,6 @@ func TestGeneratorWithTagFiler(t *testing.T) {
 
 
 [Unreleased]: https://github.com/clikd-inc/cli/compare/v1.0.0...HEAD`, expected)
-
 }
 
 func TestGeneratorWithTrimmedBody(t *testing.T) {
@@ -510,7 +509,7 @@ Co-authored-by: dependabot-preview[bot] <27856297+dependabot-preview[bot]@users.
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				Title:         "CHANGELOG Example",
@@ -582,7 +581,7 @@ func TestGeneratorWithSprig(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", testName+".md"),
 			Info: &Info{
 				Title:         "CHANGELOG Example",
@@ -674,7 +673,7 @@ indented: >
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   tempFile,
 			Info: &Info{
 				RepositoryURL: "https://github.com/clikd-inc/cli",
@@ -731,7 +730,7 @@ func TestGeneratorWithLargeRepository(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", "type_scope_subject.md"),
 			Info: &Info{
 				RepositoryURL: "https://github.com/clikd-inc/cli",
@@ -787,7 +786,7 @@ func TestGeneratorEmptyRepository(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", "type_scope_subject.md"),
 			Info: &Info{
 				RepositoryURL: "https://github.com/clikd-inc/cli",
@@ -824,7 +823,7 @@ func TestGeneratorSpecialTagQueries(t *testing.T) {
 	gen := NewGenerator(NewTestLogger(os.Stdout, os.Stderr, false, true),
 		&Config{
 			Bin:        "git",
-			WorkingDir: filepath.Join(testRepoRoot, testName),
+			WorkingDir: filepath.Join(cwd, testRepoRoot, testName),
 			Template:   filepath.Join(cwd, "testdata", "type_scope_subject.md"),
 			Info: &Info{
 				RepositoryURL: "https://github.com/clikd-inc/cli",

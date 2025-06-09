@@ -5,12 +5,6 @@ import (
 	"strings"
 )
 
-// Processor hooks the internal processing of `Generator`, it is possible to adjust the contents
-type Processor interface {
-	Bootstrap(*Config)
-	ProcessCommit(*Commit) *Commit
-}
-
 // GitHubProcessor is optimized for CHANGELOG used in GitHub
 //
 // The following processing is performed
@@ -18,13 +12,13 @@ type Processor interface {
 //   - Automatic link to references (#123 -> [#123](https://github.com/owner/repo/issues/123))
 type GitHubProcessor struct {
 	Host      string // Host name used for link destination. Note: You must include the protocol (e.g. "https://github.com")
-	config    *Config
+	config    *ChangelogConfig
 	reMention *regexp.Regexp
 	reIssue   *regexp.Regexp
 }
 
 // Bootstrap ...
-func (p *GitHubProcessor) Bootstrap(config *Config) {
+func (p *GitHubProcessor) Bootstrap(config *ChangelogConfig) {
 	p.config = config
 
 	if p.Host == "" {
@@ -38,7 +32,7 @@ func (p *GitHubProcessor) Bootstrap(config *Config) {
 }
 
 // ProcessCommit ...
-func (p *GitHubProcessor) ProcessCommit(commit *Commit) *Commit {
+func (p *GitHubProcessor) ProcessCommit(commit *ChangelogCommit) *ChangelogCommit {
 	commit.Header = p.addLinks(commit.Header)
 	commit.Subject = p.addLinks(commit.Subject)
 	commit.Body = p.addLinks(commit.Body)
@@ -74,14 +68,14 @@ func (p *GitHubProcessor) addLinks(input string) string {
 //   - Automatic link to references merge request (!123 -> [#123](https://gitlab.com/owner/repo/merge_requests/123))
 type GitLabProcessor struct {
 	Host           string // Host name used for link destination. Note: You must include the protocol (e.g. "https://gitlab.com")
-	config         *Config
+	config         *ChangelogConfig
 	reMention      *regexp.Regexp
 	reIssue        *regexp.Regexp
 	reMergeRequest *regexp.Regexp
 }
 
 // Bootstrap ...
-func (p *GitLabProcessor) Bootstrap(config *Config) {
+func (p *GitLabProcessor) Bootstrap(config *ChangelogConfig) {
 	p.config = config
 
 	if p.Host == "" {
@@ -96,7 +90,7 @@ func (p *GitLabProcessor) Bootstrap(config *Config) {
 }
 
 // ProcessCommit ...
-func (p *GitLabProcessor) ProcessCommit(commit *Commit) *Commit {
+func (p *GitLabProcessor) ProcessCommit(commit *ChangelogCommit) *ChangelogCommit {
 	commit.Header = p.addLinks(commit.Header)
 	commit.Subject = p.addLinks(commit.Subject)
 	commit.Body = p.addLinks(commit.Body)
@@ -134,13 +128,13 @@ func (p *GitLabProcessor) addLinks(input string) string {
 //   - Automatic link to references (#123 -> [#123](https://bitbucket.org/owner/repo/issues/123/))
 type BitbucketProcessor struct {
 	Host      string // Host name used for link destination. Note: You must include the protocol (e.g. "https://bitbucket.org")
-	config    *Config
+	config    *ChangelogConfig
 	reMention *regexp.Regexp
 	reIssue   *regexp.Regexp
 }
 
 // Bootstrap ...
-func (p *BitbucketProcessor) Bootstrap(config *Config) {
+func (p *BitbucketProcessor) Bootstrap(config *ChangelogConfig) {
 	p.config = config
 
 	if p.Host == "" {
@@ -154,7 +148,7 @@ func (p *BitbucketProcessor) Bootstrap(config *Config) {
 }
 
 // ProcessCommit ...
-func (p *BitbucketProcessor) ProcessCommit(commit *Commit) *Commit {
+func (p *BitbucketProcessor) ProcessCommit(commit *ChangelogCommit) *ChangelogCommit {
 	commit.Header = p.addLinks(commit.Header)
 	commit.Subject = p.addLinks(commit.Subject)
 	commit.Body = p.addLinks(commit.Body)

@@ -1,35 +1,36 @@
 package changelog
 
 import (
+	"clikd/internal/services/git"
+
 	agjira "github.com/andygrunwald/go-jira"
 )
 
-// JiraClient is an HTTP client for Jira
-type JiraClient interface {
-	GetJiraIssue(id string) (*agjira.Issue, error)
-}
-
-type jiraClient struct {
+// StandardJiraClient ist ein HTTP-Client für Jira
+type StandardJiraClient struct {
 	username string
 	token    string
 	url      string
 }
 
-// NewJiraClient returns an instance of JiraClient
-func NewJiraClient(config *Config) JiraClient {
-	// Hole Jira-Informationen aus der Konfiguration
-	username := config.Options.Jira.ClintInfo.Username
-	token := config.Options.Jira.ClintInfo.Token
-	url := config.Options.Jira.ClintInfo.URL
+// JiraConfig enthält die Konfiguration für den Jira-Client
+type JiraConfig struct {
+	Username string
+	Token    string
+	URL      string
+}
 
-	return jiraClient{
-		username: username,
-		token:    token,
-		url:      url,
+// NewStandardJiraClient erstellt eine neue Instanz des Jira-Clients
+func NewStandardJiraClient(config *JiraConfig) *StandardJiraClient {
+	return &StandardJiraClient{
+		username: config.Username,
+		token:    config.Token,
+		url:      config.URL,
 	}
 }
 
-func (jira jiraClient) GetJiraIssue(id string) (*agjira.Issue, error) {
+// GetJiraIssue holt ein Jira-Issue anhand seiner ID
+func (jira *StandardJiraClient) GetJiraIssue(id string) (*agjira.Issue, error) {
 	// Wenn keine Jira-URL konfiguriert ist, Abbrechen
 	if jira.url == "" {
 		return nil, nil
@@ -45,4 +46,42 @@ func (jira jiraClient) GetJiraIssue(id string) (*agjira.Issue, error) {
 	}
 	issue, _, err := client.Issue.Get(id, nil)
 	return issue, err
+}
+
+// JiraClientAdapter ist ein Adapter zwischen StandardJiraClient und JiraClientInterface
+type JiraClientAdapter struct {
+	client *StandardJiraClient
+}
+
+// NewJiraClient erstellt einen neuen Jira-Client für die Changelog-Generierung
+func NewJiraClient(config *ChangelogConfig) *JiraClientAdapter {
+	jiraConfig := &JiraConfig{
+		Username: config.Options.Jira.ClintInfo.Username,
+		Token:    config.Options.Jira.ClintInfo.Token,
+		URL:      config.Options.Jira.ClintInfo.URL,
+	}
+
+	return &JiraClientAdapter{
+		client: NewStandardJiraClient(jiraConfig),
+	}
+}
+
+// FetchIssue implementiert die JiraClientInterface für JiraClientAdapter
+func (j *JiraClientAdapter) FetchIssue(issueID string) (*git.JiraIssue, error) {
+	issue, err := j.client.GetJiraIssue(issueID)
+	if err != nil {
+		return nil, err
+	}
+
+	if issue == nil {
+		return nil, nil
+	}
+
+	// Konvertiere agjira.Issue zu git.JiraIssue
+	return &git.JiraIssue{
+		Key:         issue.Key,
+		Summary:     issue.Fields.Summary,
+		Description: issue.Fields.Description,
+		Type:        issue.Fields.Type.Name,
+	}, nil
 }

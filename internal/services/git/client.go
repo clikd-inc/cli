@@ -145,47 +145,24 @@ func (c *ClientImpl) IsGitRepository() (bool, error) {
 func (c *ClientImpl) GetCommits(options CommitOptions) ([]*Commit, error) {
 	c.logger.Debug("Hole Commits für Revision: %s", options.Revision)
 
-	paths := options.Paths
-	if paths == nil {
-		paths = []string{}
+	// Verwende den vollständigen commitParser anstelle der einfachen parseCommit Funktion
+	config := &Config{
+		Options: &Options{
+			HeaderPattern:     "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$",
+			HeaderPatternMaps: []string{"Type", "Scope", "Subject"},
+			MergePattern:      "^Merge branch '(\\w+)'$",
+			MergePatternMaps:  []string{"Source"},
+			RevertPattern:     "^Revert \"([\\s\\S]*)\"$",
+			RevertPatternMaps: []string{"Header"},
+			RefActions:        []string{"close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved"},
+			IssuePrefix:       []string{"#"},
+			NoteKeywords:      []string{"BREAKING CHANGE"},
+			Paths:             options.Paths,
+		},
 	}
 
-	args := []string{
-		options.Revision,
-		"--no-decorate",
-		"--pretty=" + logFormat,
-	}
-
-	if len(paths) > 0 {
-		args = append(args, "--")
-		args = append(args, paths...)
-	}
-
-	out, err := c.Exec("log", args...)
-	if err != nil {
-		c.logger.Error("Fehler beim Ausführen von git log: %v", err)
-		return nil, err
-	}
-
-	lines := strings.Split(out, separator)
-	if len(lines) > 0 {
-		lines = lines[1:]
-	}
-
-	commits := make([]*Commit, 0, len(lines))
-
-	for _, line := range lines {
-		if len(line) == 0 {
-			continue
-		}
-
-		commit := parseCommit(line)
-		if commit != nil {
-			commits = append(commits, commit)
-		}
-	}
-
-	return commits, nil
+	parser := newCommitParser(c.logger, c.client, config)
+	return parser.Parse(options.Revision)
 }
 
 // GetLatestTag implementiert die Client-Schnittstelle
@@ -342,61 +319,4 @@ func (c *ClientImpl) InsideWorkTree() error {
 	return result
 }
 
-// parseCommit parst eine Commit-Zeile im Log-Format
-func parseCommit(input string) *Commit {
-	commit := &Commit{}
-	tokens := strings.Split(input, delimiter)
-
-	for _, token := range tokens {
-		firstSep := strings.Index(token, ":")
-		if firstSep <= 0 || firstSep >= len(token)-1 {
-			continue
-		}
-
-		field := token[0:firstSep]
-		value := strings.TrimSpace(token[firstSep+1:])
-
-		switch field {
-		case hashField:
-			commit.Hash = parseHash(value)
-		case authorField:
-			commit.Author = parseAuthor(value)
-		case committerField:
-			commit.Committer = parseCommitter(value)
-		case subjectField:
-			// Basic parsing - only set subject
-			commit.Subject = value
-		}
-	}
-
-	return commit
-}
-
-// parseHash parst einen Hash-Wert
-func parseHash(input string) *Hash {
-	arr := strings.Split(input, "\t")
-	if len(arr) != 2 {
-		return &Hash{}
-	}
-
-	return &Hash{
-		Long:  arr[0],
-		Short: arr[1],
-	}
-}
-
-// parseAuthor parst einen Autor
-func parseAuthor(input string) *Author {
-	// Einfache Implementation
-	return &Author{
-		Name: input,
-	}
-}
-
-// parseCommitter parst einen Committer
-func parseCommitter(input string) *Committer {
-	// Einfache Implementation
-	return &Committer{
-		Name: input,
-	}
-}
+// Diese Funktionen wurden durch den vollständigen commitParser ersetzt
