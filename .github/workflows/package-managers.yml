@@ -4,7 +4,7 @@ on:
   release:
     types: [published]
 
-# Neue Berechtigungen hinzufügen
+# Add new permissions
 permissions:
   contents: write
   packages: write
@@ -22,16 +22,16 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           
-          # Erstelle dist-Verzeichnis
+          # Create dist directory
           mkdir -p dist
           
-          # Build für macOS (Intel)
+          # Build for macOS (Intel)
           echo "Building for macOS (amd64)..."
           GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
           (cd dist && zip -q clikd_${VERSION}_darwin_amd64.zip clikd)
           rm dist/clikd
           
-          # Build für macOS (Apple Silicon)
+          # Build for macOS (Apple Silicon)
           echo "Building for macOS (arm64)..."
           GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
           (cd dist && zip -q clikd_${VERSION}_darwin_arm64.zip clikd)
@@ -41,7 +41,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           
-          # Build für Windows
+          # Build for Windows
           echo "Building for Windows (amd64)..."
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd.exe ./cmd/clikd
           (cd dist && zip -q clikd_${VERSION}_windows_amd64.zip clikd.exe)
@@ -73,7 +73,7 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           mkdir -p dist
           
-          # Direkt mit curl herunterladen statt gh CLI
+          # Download directly with curl instead of gh CLI
           echo "Downloading macOS ARM64 binary..."
           curl -L -o dist/clikd_${VERSION}_darwin_arm64.zip https://github.com/clikd-inc/cli/releases/download/v${VERSION}/clikd_${VERSION}_darwin_arm64.zip
           
@@ -89,14 +89,14 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           
-          # Erstelle dist-Verzeichnis für Homebrew
+          # Create dist directory for Homebrew
           mkdir -p dist/homebrew
           
-          # Extrahiere SHA256-Werte
+          # Extract SHA256 values
           SHA256_ARM64=$(grep "clikd_${VERSION}_darwin_arm64.zip" dist/clikd_${VERSION}_checksums.txt | cut -d ' ' -f 1)
           SHA256_AMD64=$(grep "clikd_${VERSION}_darwin_amd64.zip" dist/clikd_${VERSION}_checksums.txt | cut -d ' ' -f 1)
           
-          # Generiere Homebrew-Formel
+          # Generate Homebrew formula
           cat > dist/homebrew/clikd.rb << EOF
           class Clikd < Formula
             desc "Modern CLI utility for conventional commit changelog generation"
@@ -145,7 +145,7 @@ jobs:
         run: |
           cd homebrew-tap
           
-          # Überprüfen, ob das Repository leer ist
+          # Check if the repository is empty
           if [ -z "$(ls -A)" ]; then
             echo "Repository is empty, initializing..."
             mkdir -p Formula
@@ -184,18 +184,78 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
+      - name: List Release Assets
+        shell: pwsh
+        run: |
+          $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          Write-Host "Version: $VERSION"
+          Write-Host "Attempting to list release assets..."
+          
+          # Use curl to list the release assets
+          $headers = @{
+            "Authorization" = "token $env:GITHUB_TOKEN"
+            "Accept" = "application/vnd.github.v3+json"
+          }
+          
+          $releaseUrl = "https://api.github.com/repos/clikd-inc/cli/releases/tags/v$VERSION"
+          Write-Host "Checking release URL: $releaseUrl"
+          
+          try {
+            $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers -ErrorAction Stop
+            Write-Host "Found release with ID: $($release.id)"
+            Write-Host "Release assets:"
+            foreach ($asset in $release.assets) {
+              Write-Host " - $($asset.name) (URL: $($asset.browser_download_url))"
+            }
+          } catch {
+            Write-Host "Error retrieving release: $_"
+            Write-Host "Status code: $($_.Exception.Response.StatusCode.value__)"
+            if ($_.Exception.Response) {
+              $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+              $reader.BaseStream.Position = 0
+              $reader.DiscardBufferedData()
+              $responseBody = $reader.ReadToEnd()
+              Write-Host "Response body: $responseBody"
+            }
+          }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+      
       - name: Download Release Assets
         shell: pwsh
         run: |
           $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
           mkdir -p dist
           
-          # PowerShell Invoke-WebRequest statt gh CLI
-          Write-Host "Downloading Windows binary..."
-          Invoke-WebRequest -Uri "https://github.com/clikd-inc/cli/releases/download/v$VERSION/clikd_$($VERSION)_windows_amd64.zip" -OutFile "dist/clikd_$($VERSION)_windows_amd64.zip"
+          # Alternative download method with curl
+          Write-Host "Downloading Windows binary using curl..."
+          $windowsUrl = "https://github.com/clikd-inc/cli/releases/download/v$VERSION/clikd_$($VERSION)_windows_amd64.zip"
+          Write-Host "URL: $windowsUrl"
           
-          Write-Host "Downloading checksums file..."
-          Invoke-WebRequest -Uri "https://github.com/clikd-inc/cli/releases/download/v$VERSION/clikd_$($VERSION)_checksums.txt" -OutFile "dist/clikd_$($VERSION)_checksums.txt"
+          curl.exe -L -o "dist/clikd_$($VERSION)_windows_amd64.zip" "$windowsUrl"
+          
+          Write-Host "Downloading checksums file using curl..."
+          $checksumsUrl = "https://github.com/clikd-inc/cli/releases/download/v$VERSION/clikd_$($VERSION)_checksums.txt"
+          Write-Host "URL: $checksumsUrl"
+          
+          curl.exe -L -o "dist/clikd_$($VERSION)_checksums.txt" "$checksumsUrl"
+          
+          # Check if the files were successfully downloaded
+          if (Test-Path "dist/clikd_$($VERSION)_windows_amd64.zip") {
+            Write-Host "Windows binary downloaded successfully!"
+            Get-Item "dist/clikd_$($VERSION)_windows_amd64.zip" | Format-List
+          } else {
+            Write-Host "Failed to download Windows binary!"
+            throw "Windows binary download failed!"
+          }
+          
+          if (Test-Path "dist/clikd_$($VERSION)_checksums.txt") {
+            Write-Host "Checksums file downloaded successfully!"
+            Get-Content "dist/clikd_$($VERSION)_checksums.txt"
+          } else {
+            Write-Host "Failed to download checksums file!"
+            throw "Checksums file download failed!"
+          }
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
@@ -204,14 +264,27 @@ jobs:
         run: |
           $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
           
-          # Hole SHA256 für Windows
-          $checksumsContent = Get-Content dist/clikd_${VERSION}_checksums.txt
-          $winSHA256 = ($checksumsContent | Select-String "clikd_${VERSION}_windows_amd64.zip").ToString().Split(' ')[0]
+          # Get SHA256 for Windows
+          $checksumsFile = "dist/clikd_${VERSION}_checksums.txt"
+          if (Test-Path $checksumsFile) {
+            $checksumsContent = Get-Content $checksumsFile
+            $winSHA256Line = ($checksumsContent | Select-String "clikd_${VERSION}_windows_amd64.zip")
+            if ($winSHA256Line) {
+              $winSHA256 = $winSHA256Line.ToString().Split(' ')[0]
+              Write-Host "Found Windows SHA256: $winSHA256"
+            } else {
+              Write-Host "Windows binary checksum not found in file. Using empty SHA256."
+              $winSHA256 = ""
+            }
+          } else {
+            Write-Host "Checksums file not found. Using empty SHA256."
+            $winSHA256 = ""
+          }
           
-          # Erstelle Verzeichnis für Scoop-Manifest
+          # Create directory for Scoop manifest
           New-Item -ItemType Directory -Path dist/scoop -Force
           
-          # Generiere Scoop-Manifest
+          # Generate Scoop manifest
           $scoopManifest = @{
             version = $VERSION
             description = "Modern CLI utility for conventional commit changelog generation"
@@ -227,6 +300,10 @@ jobs:
           } | ConvertTo-Json -Depth 10
           
           Set-Content -Path dist/scoop/clikd.json -Value $scoopManifest
+          
+          # Output the manifest
+          Write-Host "Generated Scoop manifest:"
+          Get-Content dist/scoop/clikd.json
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           
@@ -242,7 +319,7 @@ jobs:
         run: |
           cd scoop-bucket
           
-          # Überprüfen, ob das Repository leer ist
+          # Check if the repository is empty
           if (-not (Test-Path -Path "bucket")) {
             Write-Host "Repository is empty, initializing..."
             New-Item -ItemType Directory -Path "bucket" -Force

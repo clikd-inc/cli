@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"clikd/internal/cli/commands/changelog"
 	"clikd/internal/cli/commands/initialize"
 	"clikd/internal/cli/commands/version"
 	"clikd/internal/config"
 	"clikd/internal/services/ai"
+	"clikd/internal/services/update"
+	"clikd/internal/ui/bubble"
 	"clikd/internal/utils"
 
 	"github.com/spf13/cobra"
@@ -94,6 +97,38 @@ Use it to automate workflows and enhance productivity.`,
 				logger.Debug("Configuration loaded from: %s", configPath)
 			} else {
 				logger.Debug("Using default configuration")
+			}
+
+			return nil
+		},
+		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			// Skip update check for version and completion commands
+			if cmd.Name() == "version" || cmd.Name() == "completion" {
+				return nil
+			}
+
+			// Create a context with timeout for update check
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			// Check for updates
+			hasUpdate, latestVersion, releaseURL, err := update.CheckForUpdates(ctx, Version)
+			if err != nil {
+				logger.Debug("Failed to check for updates: %v", err)
+				return nil // Silently ignore update check errors
+			}
+
+			// If there's an update, print a message
+			if hasUpdate {
+				// Get terminal width (default to 80 if can't determine)
+				width := 80
+
+				// Render update notification
+				notification := bubble.RenderUpdateNotification(Version, latestVersion, releaseURL, width)
+
+				// Print a blank line for spacing and then the notification
+				fmt.Println()
+				fmt.Println(notification)
 			}
 
 			return nil
@@ -252,8 +287,8 @@ PowerShell:
 		},
 	}
 
-	// Add model flag for AI test command
-	aiTestCmd.Flags().String("model", "", "Use model for the request")
+	// Add flags to AI test command
+	aiTestCmd.Flags().String("model", "", "Model to use (defaults to configured model)")
 
 	// Add AI test command to root command
 	rootCmd.AddCommand(aiTestCmd)
