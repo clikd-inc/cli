@@ -4,6 +4,7 @@ go 1.24.3
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/BurntSushi/toml v1.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/charmbracelet/bubbles v0.21.0
@@ -25,7 +26,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect

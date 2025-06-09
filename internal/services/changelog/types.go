@@ -2,7 +2,6 @@ package changelog
 
 import (
 	"clikd/internal/services/git"
-	"time"
 )
 
 // ChangelogCommit ist ein Wrapper um git.Commit für Changelog-spezifische Funktionalität
@@ -10,38 +9,7 @@ type ChangelogCommit struct {
 	*git.Commit
 }
 
-// Note für Commits
-type Note struct {
-	Title string
-	Body  string
-}
-
-// NoteGroup ist eine Sammlung von Notes, gruppiert nach Titeln
-type NoteGroup struct {
-	Title string
-	Notes []*Note
-}
-
-// Revert-Informationen für einen Commit
-type Revert struct {
-	Header string
-}
-
-// Tag enthält Daten eines Git-Tags
-type Tag struct {
-	Name     string
-	Subject  string
-	Date     time.Time
-	Next     *RelateTag
-	Previous *RelateTag
-}
-
-// RelateTag enthält Beziehungsinformationen zu einem Tag
-type RelateTag struct {
-	Name    string
-	Subject string
-	Date    time.Time
-}
+// Diese Typen sind jetzt in git/fields.go definiert und werden von dort importiert
 
 // ChangelogVersion ist ein Tag-separierter Datensatz für das CHANGELOG
 type ChangelogVersion struct {
