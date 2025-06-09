@@ -4,6 +4,7 @@ import (
 	"clikd/internal/config"
 	"clikd/internal/ui/bubble"
 	"fmt"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -46,6 +47,43 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case bubble.InputResultMsg:
+		m.inputModel = nil
+		switch m.CurrentStep {
+		case StepChangelogURL:
+			// Repository URL was entered
+			m.ChangelogRepositoryURL = msg.Value
+			// Continue to style selection
+			m.CurrentStep = StepChangelogStyle
+			styleItems := []bubble.SelectItem{
+				{
+					Title:       "github",
+					Description: "RECOMMENDED - GitHub-style with Markdown (most widely used)",
+					Value:       "github",
+				},
+				{
+					Title:       "gitlab",
+					Description: "GitLab-style with Markdown",
+					Value:       "gitlab",
+				},
+				{
+					Title:       "bitbucket",
+					Description: "Bitbucket-style with Markdown",
+					Value:       "bitbucket",
+				},
+				{
+					Title:       "none",
+					Description: "Simple format without special links",
+					Value:       "none",
+				},
+			}
+			selectModel := bubble.NewSelectModel("Select Changelog Style", styleItems)
+			m.selectModel = &selectModel
+			return m, nil
+
+			// StepChangelogConfigDir removed - we use fixed directory structure: clikd/changelog/
+		}
+
 	// Handle results from components
 	case bubble.ConfirmResultMsg:
 		m.confirmModel = nil
@@ -64,19 +102,6 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.Force = true
 			return m, initConfigManager(m.ConfigPath, m.ConfigExists && !m.Force)
-
-		case StepColorConfig:
-			// Save color configuration
-			m.Manager.SetConfigValue("general.color", BoolToString(msg.Result))
-			// Move to AI configuration
-			m.CurrentStep = StepAIConfig
-			// Directly initialize the AI confirmation dialog
-			confirmModel := bubble.NewConfirmModel(
-				"AI Configuration",
-				"Do you want to enable AI features?",
-			)
-			m.confirmModel = &confirmModel
-			return m, nil
 
 		case StepAIConfig:
 			m.AIEnabled = msg.Result
@@ -105,7 +130,106 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				// Skip AI config, go to changelog
 				m.CurrentStep = StepChangelogConfig
-				return m, setupChangelogConfig(m)
+				confirmModel := bubble.NewConfirmModel(
+					"Changelog Configuration",
+					"Do you want to configure changelog features?",
+				)
+				m.confirmModel = &confirmModel
+				return m, nil
+			}
+
+		case StepChangelogConfig:
+			m.ChangelogEnabled = msg.Result
+			if msg.Result {
+				// Ask for repository URL first
+				m.CurrentStep = StepChangelogURL
+				defaultURL := m.RepoURL
+				if defaultURL == "" {
+					defaultURL = ""
+				}
+				inputModel := bubble.NewInputModel(
+					"Repository URL",
+					"What is the URL of your repository?",
+					defaultURL,
+				)
+				m.inputModel = &inputModel
+				return m, nil
+			} else {
+				// Skip changelog config, go to project structure
+				m.CurrentStep = StepProjectStructure
+				return m, createProjectStructure(m)
+			}
+
+		case StepChangelogMerges:
+			m.ChangelogIncludeMerges = msg.Result
+			// Ask about revert commits
+			m.CurrentStep = StepChangelogReverts
+			confirmModel := bubble.NewConfirmModel(
+				"Revert Commits",
+				"Do you include Revert Commit in CHANGELOG?",
+			)
+			m.confirmModel = &confirmModel
+			return m, nil
+
+		case StepChangelogReverts:
+			m.ChangelogIncludeReverts = msg.Result
+			// Go directly to project structure (fixed config dir: clikd/changelog/)
+			m.CurrentStep = StepProjectStructure
+			return m, createProjectStructure(m)
+
+		case StepChangelogColor:
+			m.ChangelogColorEnabled = msg.Result
+			// Ask about merge commits
+			m.CurrentStep = StepChangelogMerges
+			confirmModel := bubble.NewConfirmModel(
+				"Merge Commits",
+				"Do you include Merge Commit in CHANGELOG?",
+			)
+			m.confirmModel = &confirmModel
+			return m, nil
+
+		case StepAPIKeyConfig:
+			if msg.Result {
+				// Configure API key
+				apiKey := configureAPIKey(m.AIProvider, m.Global)
+				if apiKey != "" {
+					if m.Global {
+						// For global config, save API key in config.toml
+						m.Manager.SetConfigValue("ai.api_key", apiKey)
+						m.ApiKeyStatus = "done"
+					} else {
+						// For local config, create/update .env file
+						if err := createOrUpdateEnvFile(apiKey); err != nil {
+							m.Error = err
+							m.Message = fmt.Sprintf("Error creating .env file: %s", err)
+							m.MessageType = "error"
+							return m, tea.Quit
+						}
+						m.ApiKeyStatus = "done"
+					}
+				}
+			} else {
+				// User chose not to configure API key
+				if m.Global {
+					m.ApiKeyStatus = "pending"
+				} else {
+					m.ApiKeyStatus = "check"
+				}
+			}
+
+			// Continue to changelog config (only for local configurations)
+			if !m.Global {
+				m.CurrentStep = StepChangelogConfig
+				confirmModel := bubble.NewConfirmModel(
+					"Changelog Configuration",
+					"Do you want to configure changelog features?",
+				)
+				m.confirmModel = &confirmModel
+				return m, nil
+			} else {
+				// For global config, skip changelog and go to project structure
+				m.CurrentStep = StepProjectStructure
+				return m, createProjectStructure(m)
 			}
 		}
 
@@ -115,14 +239,13 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case StepGeneralConfig:
 			if value, ok := msg.Value.(string); ok {
 				m.Manager.SetConfigValue("general.log_level", value)
-				// Initialize color confirmation model directly and set the step
-				m.CurrentStep = StepColorConfig
+				// Go directly to AI configuration (color config removed)
+				m.CurrentStep = StepAIConfig
 				confirmModel := bubble.NewConfirmModel(
-					"Terminal Color",
-					"Enable colored terminal output?",
+					"AI Configuration",
+					"Do you want to enable AI features?",
 				)
 				m.confirmModel = &confirmModel
-				// Return empty command to trigger re-rendering
 				return m, nil
 			}
 
@@ -173,9 +296,97 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.AIModel = value
 				m.Manager.SetConfigValue("ai.model", value)
 
-				// Skip advanced options and API key config, go directly to project structure
-				m.CurrentStep = StepChangelogConfig
-				return m, createProjectStructure(m)
+				// Go to API key configuration
+				m.CurrentStep = StepAPIKeyConfig
+				confirmModel := bubble.NewConfirmModel(
+					"API Key Configuration",
+					fmt.Sprintf("Do you want to configure your %s API key now?", m.AIProvider),
+				)
+				m.confirmModel = &confirmModel
+				return m, nil
+			}
+
+		case StepChangelogStyle:
+			if value, ok := msg.Value.(string); ok {
+				m.ChangelogStyle = value
+
+				// Ask about commit message format
+				m.CurrentStep = StepChangelogFormat
+				formatItems := []bubble.SelectItem{
+					{
+						Title:       "<type>(<scope>): <subject>",
+						Description: "feat(core): Add new feature",
+						Value:       "<type>(<scope>): <subject>",
+					},
+					{
+						Title:       "<type>: <subject>",
+						Description: "feat: Add new feature",
+						Value:       "<type>: <subject>",
+					},
+					{
+						Title:       "<<type> subject>",
+						Description: "Add new feature",
+						Value:       "<<type> subject>",
+					},
+					{
+						Title:       "<subject>",
+						Description: "Add new feature (Not detect `type` field)",
+						Value:       "<subject>",
+					},
+					{
+						Title:       ":<type>: <subject>",
+						Description: ":sparkles: Add new feature (Commit message with emoji format)",
+						Value:       ":<type>: <subject>",
+					},
+				}
+				selectModel := bubble.NewSelectModel("Choose Commit Message Format", formatItems)
+				m.selectModel = &selectModel
+				return m, nil
+			}
+
+		case StepChangelogFormat:
+			if value, ok := msg.Value.(string); ok {
+				m.ChangelogFormat = value
+
+				// Ask for template style
+				m.CurrentStep = StepChangelogTemplate
+				templateItems := []bubble.SelectItem{
+					{
+						Title:       "standard",
+						Description: "Standard changelog template",
+						Value:       "standard",
+						Preview:     GetTemplatePreview("standard"),
+					},
+					{
+						Title:       "keep-a-changelog",
+						Description: "Keep a Changelog format",
+						Value:       "keep-a-changelog",
+						Preview:     GetTemplatePreview("keep-a-changelog"),
+					},
+					{
+						Title:       "cool",
+						Description: "Cool template with emojis",
+						Value:       "cool",
+						Preview:     GetTemplatePreview("cool"),
+					},
+				}
+				selectModel := bubble.NewSelectModel("Select Template Style", templateItems)
+				m.selectModel = &selectModel
+				return m, nil
+			}
+
+		case StepChangelogTemplate:
+			if value, ok := msg.Value.(string); ok {
+				m.ChangelogTemplate = value
+
+				// Ask about terminal color for changelog
+				m.CurrentStep = StepChangelogColor
+				confirmModel := bubble.NewConfirmModel(
+					"Terminal Color",
+					"Enable colored terminal output for changelog?",
+				)
+				m.confirmModel = &confirmModel
+				return m, nil
 			}
 		}
 
@@ -228,15 +439,30 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// In non-interactive mode use default settings
 		if m.Yes {
 			m.Manager.SetConfigValue("general.log_level", "info")
-			m.Manager.SetConfigValue("general.color", "true")
-			m.CurrentStep = StepAIConfig
-			// Initialize AI confirmation dialog directly for non-interactive mode
-			confirmModel := bubble.NewConfirmModel(
-				"AI Configuration",
-				"Do you want to enable AI features?",
-			)
-			m.confirmModel = &confirmModel
-			return m, nil
+
+			// Configure AI with defaults in non-interactive mode
+			m.AIEnabled = true
+			m.AIProvider = "mistral"
+			m.AIModel = "mistral-medium"
+			m.Manager.SetConfigValue("ai.enable", "true")
+			m.Manager.SetConfigValue("ai.provider", "mistral")
+			m.Manager.SetConfigValue("ai.model", "mistral-medium")
+
+			// Configure changelog with defaults (only for local configuration)
+			if !m.Global {
+				m.ChangelogEnabled = true
+				m.ChangelogRepositoryURL = m.RepoURL
+				m.ChangelogStyle = "github"
+				m.ChangelogFormat = "<type>(<scope>): <subject>"
+				m.ChangelogTemplate = "standard"
+				m.ChangelogColorEnabled = true
+				m.ChangelogIncludeMerges = true
+				m.ChangelogIncludeReverts = true
+			}
+
+			// Skip to project structure creation
+			m.CurrentStep = StepProjectStructure
+			return m, createProjectStructure(m)
 		}
 
 		// Setup log level selection
@@ -271,12 +497,8 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Initialize appropriate component based on new step
 		switch msg.NewStep {
-		case StepColorConfig:
-			confirmModel := bubble.NewConfirmModel(
-				"Terminal Color",
-				"Enable colored terminal output?",
-			)
-			m.confirmModel = &confirmModel
+		default:
+			// No special initialization needed for other steps
 		}
 
 		return m, nil
@@ -290,6 +512,35 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // setupChangelogConfig prepares the changelog configuration UI
 func setupChangelogConfig(m InitModel) tea.Cmd {
 	m.CurrentStep = StepChangelogConfig
-	// For simplicity, we'll go directly to project structure
-	return createProjectStructure(m)
+	confirmModel := bubble.NewConfirmModel(
+		"Changelog Configuration",
+		"Do you want to configure changelog features?",
+	)
+	m.confirmModel = &confirmModel
+	return nil
+}
+
+// createOrUpdateEnvFile creates or updates the .env file with the API key
+func createOrUpdateEnvFile(apiKey string) error {
+	envPath := ".env"
+
+	// Check if .env file exists
+	var content string
+	if data, err := os.ReadFile(envPath); err == nil {
+		content = string(data)
+	}
+
+	// Add or update CLIKD_API_KEY
+	envLine := fmt.Sprintf("CLIKD_API_KEY=%s\n", apiKey)
+
+	// If file doesn't exist or is empty, just write the API key
+	if content == "" {
+		return os.WriteFile(envPath, []byte(envLine), 0644)
+	}
+
+	// For simplicity, just append the API key (in a real implementation,
+	// you might want to check if CLIKD_API_KEY already exists and replace it)
+	content += envLine
+
+	return os.WriteFile(envPath, []byte(content), 0644)
 }

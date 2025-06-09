@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"clikd/internal/services/changelog"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -16,33 +18,69 @@ func createProjectStructure(m InitModel) tea.Cmd {
 			return ProjectStructureErrorMsg{Error: fmt.Errorf("failed to create config directory: %w", err)}
 		}
 
-		// Create template directories if not using global config
-		if !m.Global {
-			// Create necessary directories
-			dirs := []string{
-				"templates",
-				"templates/changelog",
-			}
+		// Configure changelog if enabled - KEINE Changelog-Konfiguration in config.toml!
+		// Die config.toml enthält nur AI und General-Konfiguration
 
-			for _, dir := range dirs {
-				dirPath := filepath.Join("clikd", dir)
-				if err := os.MkdirAll(dirPath, 0755); err != nil {
-					return ProjectStructureErrorMsg{
-						Error: fmt.Errorf("failed to create directory %s: %w", dir, err),
-					}
+		// Create changelog directories and files if enabled (only for local configuration)
+		if !m.Global && m.ChangelogEnabled {
+			// Create changelog directory structure
+			changelogDir := filepath.Join(m.ConfigDir, "changelog")
+			if err := os.MkdirAll(changelogDir, 0755); err != nil {
+				return ProjectStructureErrorMsg{
+					Error: fmt.Errorf("failed to create changelog directory: %w", err),
 				}
 			}
 
-			// Create template files
-			templateFiles := map[string]string{
-				filepath.Join("clikd", "templates", "changelog", "github.md"): defaultGithubTemplate,
+			// Create Answer object for the changelog service
+			answer := &changelog.ChangelogAnswer{
+				RepositoryURL:       m.ChangelogRepositoryURL,
+				Style:               m.ChangelogStyle,
+				CommitMessageFormat: m.ChangelogFormat,
+				Template:            m.ChangelogTemplate,
+				ColorEnabled:        m.ChangelogColorEnabled,
+				IncludeMerges:       m.ChangelogIncludeMerges,
+				IncludeReverts:      m.ChangelogIncludeReverts,
+				ConfigDir:           "clikd/changelog",
 			}
 
-			for path, content := range templateFiles {
-				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-					return ProjectStructureErrorMsg{
-						Error: fmt.Errorf("failed to create template file %s: %w", path, err),
-					}
+			// Generate config using the config builder
+			configBuilder := changelog.NewConfigBuilder()
+			configContent, err := configBuilder.Build(answer)
+			if err != nil {
+				return ProjectStructureErrorMsg{
+					Error: fmt.Errorf("failed to generate changelog config: %w", err),
+				}
+			}
+
+			// Generate template using the appropriate template builder
+			var templateBuilder changelog.TemplateBuilder
+			switch m.ChangelogTemplate {
+			case "keep-a-changelog":
+				templateBuilder = changelog.NewKACTemplateBuilder()
+			default:
+				templateBuilder = changelog.NewCustomTemplateBuilder()
+			}
+
+			templateContent, err := templateBuilder.Build(answer)
+			if err != nil {
+				return ProjectStructureErrorMsg{
+					Error: fmt.Errorf("failed to generate changelog template: %w", err),
+				}
+			}
+
+			// Write config file: changelog/config.yml
+			configPath := filepath.Join(changelogDir, "config.yml")
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				return ProjectStructureErrorMsg{
+					Error: fmt.Errorf("failed to create changelog config file: %w", err),
+				}
+			}
+
+			// Write template file: changelog/CHANGELOG.tpl.md
+			templatePath := filepath.Join(changelogDir, "CHANGELOG.tpl.md")
+			if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+				return ProjectStructureErrorMsg{
+					Error: fmt.Errorf("failed to create changelog template file: %w", err),
 				}
 			}
 		}
@@ -57,27 +95,3 @@ func createProjectStructure(m InitModel) tea.Cmd {
 		return ProjectStructureCompleteMsg{}
 	}
 }
-
-// defaultGithubTemplate is the default GitHub changelog template
-const defaultGithubTemplate = `# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-{{#each releases}}
-## {{title}} {{#if date}}({{date}}){{/if}}
-{{#if summary}}
-{{summary}}
-{{/if}}
-
-{{#each groups}}
-### {{title}}
-
-{{#each commits}}
-- {{#if id}}{{id}} {{/if}}{{message}}
-{{/each}}
-{{/each}}
-{{/each}}
-`

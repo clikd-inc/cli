@@ -13,9 +13,12 @@ type Previewable interface {
 
 // Defaults
 var (
-	defaultConfigDir        = ".chglog"
+	defaultConfigDir        = "clikd/changelog"
 	defaultConfigFilename   = "config.yml"
 	defaultTemplateFilename = "CHANGELOG.tpl.md"
+	defaultStyle            = "github"
+	defaultTemplate         = "CHANGELOG.tpl.md"
+	defaultRepositoryURL    = ""
 )
 
 // Styles

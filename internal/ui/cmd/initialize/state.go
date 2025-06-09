@@ -17,18 +17,19 @@ const (
 	StepCreateDirs        = "create_dirs"
 	StepConfirmOverwrite  = "confirm_overwrite"
 	StepGeneralConfig     = "general_config"
-	StepColorConfig       = "color_config"
 	StepAIConfig          = "ai_config"
 	StepProviderSelection = "provider_selection"
 	StepModelSelection    = "model_selection"
 	StepAdvancedAIOptions = "advanced_ai_options"
 	StepAPIKeyConfig      = "api_key_config"
 	StepChangelogConfig   = "changelog_config"
+	StepChangelogURL      = "changelog_url"
 	StepChangelogStyle    = "changelog_style"
-	StepChangelogJIRA     = "changelog_jira"
-	StepChangelogSort     = "changelog_sort"
-	StepChangelogAdvanced = "changelog_advanced"
-	StepChangelogCase     = "changelog_case"
+	StepChangelogFormat   = "changelog_format"
+	StepChangelogTemplate = "changelog_template"
+	StepChangelogColor    = "changelog_color"
+	StepChangelogMerges   = "changelog_merges"
+	StepChangelogReverts  = "changelog_reverts"
 	StepProjectStructure  = "project_structure"
 	StepSummary           = "summary"
 	StepComplete          = "complete"
@@ -77,10 +78,7 @@ type LogLevelSelectedMsg struct {
 	LogLevel string
 }
 
-// ColorConfigSelectedMsg indicates that the color configuration was selected
-type ColorConfigSelectedMsg struct {
-	Enabled bool
-}
+// ColorConfigSelectedMsg removed - color settings moved to changelog-specific configuration
 
 // AIConfigSelectedMsg indicates that the AI configuration was selected
 type AIConfigSelectedMsg struct {
@@ -147,6 +145,16 @@ type InitModel struct {
 	AIProvider       string
 	AIModel          string
 	AICustomSettings bool
+
+	// Changelog configuration
+	ChangelogEnabled        bool
+	ChangelogRepositoryURL  string
+	ChangelogStyle          string
+	ChangelogFormat         string
+	ChangelogTemplate       string
+	ChangelogColorEnabled   bool
+	ChangelogIncludeMerges  bool
+	ChangelogIncludeReverts bool
 
 	// UI components (real Bubble Tea models)
 	confirmModel  *bubble.ConfirmModel

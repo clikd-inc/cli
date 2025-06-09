@@ -49,14 +49,13 @@ Use it to automate workflows and enhance productivity.`,
 
 			// Override color output flag if provided
 			if cmd.Flags().Changed("color") {
-				if err := config.Set("general.color", colorOutput); err != nil {
-					return fmt.Errorf("error setting color output flag: %w", err)
-				}
-				appConfig.General.Color = colorOutput
+				// Note: Global color config removed - each service manages its own colors
+				// This flag is kept for backward compatibility but not stored in config
+				colorOutput = cmd.Flag("color").Value.String() == "true"
 			}
 
-			// Initialize logger
-			logger = utils.NewLogger(appConfig.General.LogLevel, appConfig.General.Color)
+			// Initialize logger with hardcoded color support
+			logger = utils.NewLogger(appConfig.General.LogLevel, true)
 
 			configPath, err := config.GetConfigFilePath()
 			if err != nil {

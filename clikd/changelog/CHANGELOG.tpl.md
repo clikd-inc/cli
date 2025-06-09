@@ -1,11 +1,8 @@
-# {{ .Info.Title }}
-
-Please refer to [.config/standard.tpl.md](./.chglog/standard.tpl.md) for the CHANGELOG template.
-
-
 {{ range .Versions }}
 <a name="{{ .Tag.Name }}"></a>
-## {{ if .Tag.Previous }}[{{ .Tag.Name }}]({{ $.Info.RepositoryURL }}/compare/{{ .Tag.Previous.Name }}...{{ .Tag.Name }}){{ else }}{{ .Tag.Name }}{{ end }} ({{ datetime "2006-01-02" .Tag.Date }})
+## {{ if .Tag.Previous }}[{{ .Tag.Name }}]({{ $.Info.RepositoryURL }}/compare/{{ .Tag.Previous.Name }}...{{ .Tag.Name }}){{ else }}{{ .Tag.Name }}{{ end }}
+
+> {{ datetime "2006-01-02" .Tag.Date }}
 
 {{ range .CommitGroups -}}
 ### {{ .Title }}

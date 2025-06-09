@@ -29,7 +29,6 @@ type Config struct {
 	Version string `toml:"version"`
 	General struct {
 		LogLevel string `toml:"log_level"`
-		Color    bool   `toml:"color"`
 	} `toml:"general"`
 	AI struct {
 		// Enable aktiviert oder deaktiviert alle KI-Funktionen global.
@@ -73,7 +72,6 @@ func createDefaultConfig() Config {
 
 	// General
 	c.General.LogLevel = "info"
-	c.General.Color = true
 
 	// AI
 	c.AI.Enable = true

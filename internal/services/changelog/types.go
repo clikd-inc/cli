@@ -49,6 +49,7 @@ type ChangelogAnswer struct {
 	Style               string `survey:"style"`
 	CommitMessageFormat string `survey:"commit_message_format"`
 	Template            string `survey:"template"`
+	ColorEnabled        bool   `survey:"color_enabled"`
 	IncludeMerges       bool   `survey:"include_merges"`
 	IncludeReverts      bool   `survey:"include_reverts"`
 	ConfigDir           string `survey:"config_dir"`

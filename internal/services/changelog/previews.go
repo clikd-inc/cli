@@ -4,7 +4,7 @@ import (
 	"github.com/charmbracelet/glamour"
 )
 
-// StandardPreview enthält ein Beispiel des Standard-Stils
+// StandardPreview contains an example of the standard style
 const StandardPreview = `# Changelog
 
 ## v1.0.0 (2023-01-15)
@@ -24,7 +24,7 @@ const StandardPreview = `# Changelog
 * Optimize database queries
 `
 
-// CoolPreview enthält ein Beispiel des Cool-Stils
+// CoolPreview contains an example of the cool style
 const CoolPreview = `# Changelog
 
 ## v1.0.0
@@ -46,7 +46,7 @@ const CoolPreview = `# Changelog
 * Optimize database queries
 `
 
-// KACPreview enthält ein Beispiel des Keep-a-Changelog-Stils
+// KACPreview contains an example of the Keep-a-Changelog style
 const KACPreview = `# Changelog
 
 ## [Unreleased]
@@ -71,12 +71,12 @@ const KACPreview = `# Changelog
 [1.0.0]: https://github.com/username/repo/releases/tag/v1.0.0
 `
 
-// RenderPreview rendert das angegebene Markdown mit Glamour
+// RenderPreview renders the provided markdown with Glamour using Tokyo Night style
 func RenderPreview(markdown string) (string, error) {
-	return glamour.Render(markdown, "dark")
+	return glamour.Render(markdown, "tokyo-night")
 }
 
-// GetPreview gibt die Vorschau für den angegebenen Stil zurück
+// GetPreview returns the preview for the specified style
 func GetPreview(style string) string {
 	switch style {
 	case "cool":

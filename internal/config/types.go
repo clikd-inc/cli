@@ -16,7 +16,7 @@ type ConfigData struct {
 // GeneralConfig enthält allgemeine Einstellungen
 type GeneralConfig struct {
 	LogLevel string `mapstructure:"log_level"`
-	Color    bool   `mapstructure:"color"`
+	// Color field removed - each service manages its own color settings
 }
 
 // AIConfig enthält die Konfiguration für KI-bezogene Funktionen

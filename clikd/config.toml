@@ -1,12 +1,14 @@
-# Changelog-Konfiguration
 version = '1.0.0'
 
 [general]
 log_level = 'info'
-color = true
 
 [ai]
-enable = true
+enable = false
 provider = 'mistral'
 model = 'mistral-medium'
 api_key = ''
+api_url = ''
+api_custom_headers = ''
+tokens_max_input = 4096
+tokens_max_output = 500

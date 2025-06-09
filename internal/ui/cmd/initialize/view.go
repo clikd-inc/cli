@@ -62,11 +62,6 @@ func View(m InitModel) string {
 		content += styles.H2.Render("Select Log Level") + "\n\n"
 		content += styles.InfoText("Loading options...")
 
-	case StepColorConfig:
-		content += styles.SectionTitle("General Configuration") + "\n\n"
-		content += styles.H2.Render("Terminal Color") + "\n\n"
-		content += styles.NormalText.Render("Enable colored terminal output?") + "\n\n"
-
 	case StepAIConfig:
 		content += styles.SectionTitle("AI Configuration") + "\n\n"
 		content += styles.NormalText.Render("Do you want to enable AI features?") + "\n\n"
@@ -103,25 +98,33 @@ func View(m InitModel) string {
 		content += styles.SectionTitle("Changelog Configuration") + "\n\n"
 		content += styles.NormalText.Render("Do you want to configure changelog features?") + "\n\n"
 
+	case StepChangelogURL:
+		content += styles.SectionTitle("Repository URL") + "\n\n"
+		content += styles.NormalText.Render("What is the URL of your repository?") + "\n\n"
+
 	case StepChangelogStyle:
 		content += styles.SectionTitle("Changelog Style") + "\n\n"
 		content += styles.NormalText.Render("Select the style for your changelog:") + "\n\n"
 
-	case StepChangelogJIRA:
-		content += styles.SectionTitle("JIRA Integration") + "\n\n"
-		content += styles.NormalText.Render("Do you want to enable JIRA integration for your changelog?") + "\n\n"
+	case StepChangelogFormat:
+		content += styles.SectionTitle("Commit Message Format") + "\n\n"
+		content += styles.NormalText.Render("Choose the format of your favorite commit message:") + "\n\n"
 
-	case StepChangelogSort:
-		content += styles.SectionTitle("Changelog Sort Order") + "\n\n"
-		content += styles.NormalText.Render("How do you want to sort entries in your changelog?") + "\n\n"
+	case StepChangelogTemplate:
+		content += styles.SectionTitle("Template Style") + "\n\n"
+		content += styles.NormalText.Render("What is your favorite template style?") + "\n\n"
 
-	case StepChangelogAdvanced:
-		content += styles.SectionTitle("Advanced Changelog Options") + "\n\n"
-		content += styles.NormalText.Render("Do you want to configure advanced changelog options?") + "\n\n"
+	case StepChangelogColor:
+		content += styles.SectionTitle("Terminal Color") + "\n\n"
+		content += styles.NormalText.Render("Enable colored terminal output for changelog?") + "\n\n"
 
-	case StepChangelogCase:
-		content += styles.SectionTitle("Changelog Case Sensitivity") + "\n\n"
-		content += styles.NormalText.Render("Make changelog generation case-insensitive?") + "\n\n"
+	case StepChangelogMerges:
+		content += styles.SectionTitle("Merge Commits") + "\n\n"
+		content += styles.NormalText.Render("Do you include Merge Commit in CHANGELOG?") + "\n\n"
+
+	case StepChangelogReverts:
+		content += styles.SectionTitle("Revert Commits") + "\n\n"
+		content += styles.NormalText.Render("Do you include Revert Commit in CHANGELOG?") + "\n\n"
 
 	case StepProjectStructure:
 		content += styles.SectionTitle("Creating Project Structure") + "\n\n"
@@ -140,7 +143,7 @@ func View(m InitModel) string {
 		// General configuration
 		content += styles.SuccessIcon + " " + styles.BoldText.Render("General:") + "\n"
 		content += "   - Log Level: " + styles.NormalText.Render(m.Manager.GetConfig().General.LogLevel) + "\n"
-		content += "   - Color: " + styles.NormalText.Render(BoolToString(m.Manager.GetConfig().General.Color)) + "\n\n"
+		content += "\n"
 
 		// AI Configuration
 		if m.AIEnabled {
@@ -157,6 +160,20 @@ func View(m InitModel) string {
 			}
 		} else {
 			content += styles.WarningIcon + " " + styles.BoldText.Render("AI Features: Disabled") + "\n\n"
+		}
+
+		// Changelog Configuration
+		if m.ChangelogEnabled {
+			content += styles.SuccessIcon + " " + styles.BoldText.Render("Changelog:") + "\n"
+			content += "   - Style: " + styles.NormalText.Render(m.ChangelogStyle) + "\n"
+			content += "   - Format: " + styles.NormalText.Render(m.ChangelogFormat) + "\n"
+			content += "   - Template: " + styles.NormalText.Render(m.ChangelogTemplate) + "\n"
+			content += "   - Color Output: " + styles.NormalText.Render(BoolToString(m.ChangelogColorEnabled)) + "\n"
+			content += "   - Include Merges: " + styles.NormalText.Render(BoolToString(m.ChangelogIncludeMerges)) + "\n"
+			content += "   - Include Reverts: " + styles.NormalText.Render(BoolToString(m.ChangelogIncludeReverts)) + "\n"
+			content += "   - Config Dir: " + styles.NormalText.Render("clikd/changelog/") + "\n\n"
+		} else {
+			content += styles.WarningIcon + " " + styles.BoldText.Render("Changelog: Disabled") + "\n\n"
 		}
 
 		// Next steps
@@ -177,12 +194,14 @@ func View(m InitModel) string {
 		}
 
 		// Changelog generation
-		if m.AIEnabled {
-			content += styles.ArrowIcon + " " + styles.BoldText.Render("2. Generate a changelog:") + "\n"
-		} else {
-			content += styles.ArrowIcon + " " + styles.BoldText.Render("1. Generate a changelog:") + "\n"
+		if m.ChangelogEnabled {
+			stepNum := "1"
+			if m.AIEnabled && m.ApiKeyStatus != "done" {
+				stepNum = "2"
+			}
+			content += styles.ArrowIcon + " " + styles.BoldText.Render(stepNum+". Generate a changelog:") + "\n"
+			content += "   " + styles.HighlightStyle.Render("clikd changelog -o CHANGELOG.md") + "\n\n"
 		}
-		content += "   " + styles.HighlightStyle.Render("clikd changelog -o CHANGELOG.md") + "\n\n"
 
 	case StepComplete:
 		content += styles.SuccessText("clikd is now ready to use! Enjoy!")

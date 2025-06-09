@@ -196,7 +196,6 @@ func convertToConfigData(config Config) *ConfigData {
 		Version: config.Version,
 		General: GeneralConfig{
 			LogLevel: config.General.LogLevel,
-			Color:    config.General.Color,
 		},
 		AI: AIConfig{
 			Enable:           config.AI.Enable,
