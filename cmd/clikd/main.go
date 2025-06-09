@@ -115,7 +115,60 @@ Use it to automate workflows and enhance productivity.`,
 	// Add version flag
 	rootCmd.Flags().BoolP("version", "v", false, "Print the version number")
 
+	// Add completion command
+	completionCmd := &cobra.Command{
+		Use:   "completion [bash|zsh|fish|powershell]",
+		Short: "Generate completion script for your shell",
+		Long: `To load completions:
+
+Bash:
+  $ source <(clikd completion bash)
+
+  # To load completions for each session, execute once:
+  # Linux:
+  $ clikd completion bash > /etc/bash_completion.d/clikd
+  # macOS:
+  $ clikd completion bash > $(brew --prefix)/etc/bash_completion.d/clikd
+
+Zsh:
+  # If shell completion is not already enabled in your environment,
+  # you will need to enable it. You can execute the following once:
+  $ echo "autoload -U compinit; compinit" >> ~/.zshrc
+
+  # To load completions for each session, execute once:
+  $ clikd completion zsh > "${fpath[1]}/_clikd"
+
+  # You will need to start a new shell for this setup to take effect.
+
+Fish:
+  $ clikd completion fish > ~/.config/fish/completions/clikd.fish
+
+PowerShell:
+  PS> clikd completion powershell | Out-String | Invoke-Expression
+
+  # To load completions for every new session, run:
+  PS> clikd completion powershell > clikd.ps1
+  # and source this file from your PowerShell profile.
+`,
+		DisableFlagsInUseLine: true,
+		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
+		Args:                  cobra.ExactValidArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			switch args[0] {
+			case "bash":
+				rootCmd.GenBashCompletion(os.Stdout)
+			case "zsh":
+				rootCmd.GenZshCompletion(os.Stdout)
+			case "fish":
+				rootCmd.GenFishCompletion(os.Stdout, true)
+			case "powershell":
+				rootCmd.GenPowerShellCompletionWithDesc(os.Stdout)
+			}
+		},
+	}
+
 	// Add commands
+	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(version.NewVersionCmd(Version))
 	rootCmd.AddCommand(changelog.NewChangelogCmd())
 	rootCmd.AddCommand(initialize.NewInitCmd())

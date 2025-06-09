@@ -1,0 +1,206 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          
+      - name: Build macOS Binaries
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          
+          # Erstelle dist-Verzeichnis
+          mkdir -p dist
+          
+          # Build für macOS (Intel)
+          echo "Building for macOS (amd64)..."
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
+          (cd dist && zip -q clikd_${VERSION}_darwin_amd64.zip clikd)
+          rm dist/clikd
+          
+          # Build für macOS (Apple Silicon)
+          echo "Building for macOS (arm64)..."
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
+          (cd dist && zip -q clikd_${VERSION}_darwin_arm64.zip clikd)
+          rm dist/clikd
+          
+      - name: Build Windows Binary
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          
+          # Build für Windows
+          echo "Building for Windows (amd64)..."
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd.exe ./cmd/clikd
+          (cd dist && zip -q clikd_${VERSION}_windows_amd64.zip clikd.exe)
+          rm dist/clikd.exe
+          
+      - name: Generate Checksums
+        run: |
+          cd dist
+          shasum -a 256 clikd_*.zip > clikd_${GITHUB_REF#refs/tags/v}_checksums.txt
+          
+      - name: Upload Artifacts to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/clikd_*.zip
+            dist/clikd_*_checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+  homebrew:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - name: Download Release Assets
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          mkdir -p dist
+          gh release download v$VERSION --dir dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Generate Homebrew Formula
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          
+          # Erstelle dist-Verzeichnis für Homebrew
+          mkdir -p dist/homebrew
+          
+          # Extrahiere SHA256-Werte
+          SHA256_ARM64=$(grep "clikd_${VERSION}_darwin_arm64.zip" dist/clikd_${VERSION}_checksums.txt | cut -d ' ' -f 1)
+          SHA256_AMD64=$(grep "clikd_${VERSION}_darwin_amd64.zip" dist/clikd_${VERSION}_checksums.txt | cut -d ' ' -f 1)
+          
+          # Generiere Homebrew-Formel
+          cat > dist/homebrew/clikd.rb << EOF
+          class Clikd < Formula
+            desc "Modern CLI utility for conventional commit changelog generation"
+            homepage "https://github.com/clikd-inc/cli"
+            version "${VERSION}"
+            license "MIT"
+          
+            if Hardware::CPU.arm?
+              url "https://github.com/clikd-inc/cli/releases/download/v${VERSION}/clikd_${VERSION}_darwin_arm64.zip"
+              sha256 "${SHA256_ARM64}"
+            else
+              url "https://github.com/clikd-inc/cli/releases/download/v${VERSION}/clikd_${VERSION}_darwin_amd64.zip"
+              sha256 "${SHA256_AMD64}"
+            end
+          
+            def install
+              bin.install "clikd" => "clikd"
+              
+              # Shell completions
+              output = Utils.safe_popen_read("#{bin}/clikd", "completion", "bash")
+              (bash_completion/"clikd").write output
+              
+              output = Utils.safe_popen_read("#{bin}/clikd", "completion", "zsh")
+              (zsh_completion/"_clikd").write output
+              
+              output = Utils.safe_popen_read("#{bin}/clikd", "completion", "fish")
+              (fish_completion/"clikd.fish").write output
+            end
+          
+            test do
+              assert_match "${VERSION}", shell_output("#{bin}/clikd --version")
+            end
+          end
+          EOF
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Commit to Homebrew Tap
+        uses: actions/checkout@v4
+        with:
+          repository: clikd-inc/homebrew-tap
+          token: ${{ secrets.GH_PAT }}
+          path: homebrew-tap
+          
+      - name: Update Homebrew Tap
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          mkdir -p homebrew-tap/Formula
+          cp dist/homebrew/clikd.rb homebrew-tap/Formula/
+          cd homebrew-tap
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/clikd.rb
+          git commit -m "clikd v${VERSION}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+  scoop:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Download Release Assets
+        shell: pwsh
+        run: |
+          $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          mkdir -p dist
+          gh release download v$VERSION --dir dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Generate Scoop Manifest
+        shell: pwsh
+        run: |
+          $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          
+          # Hole SHA256 für Windows
+          $checksumsContent = Get-Content dist/clikd_${VERSION}_checksums.txt
+          $winSHA256 = ($checksumsContent | Select-String "clikd_${VERSION}_windows_amd64.zip").ToString().Split(' ')[0]
+          
+          # Erstelle Verzeichnis für Scoop-Manifest
+          New-Item -ItemType Directory -Path dist/scoop -Force
+          
+          # Generiere Scoop-Manifest
+          $scoopManifest = @{
+            version = $VERSION
+            description = "Modern CLI utility for conventional commit changelog generation"
+            homepage = "https://github.com/clikd-inc/cli"
+            license = "MIT"
+            architecture = @{
+              "64bit" = @{
+                url = "https://github.com/clikd-inc/cli/releases/download/v$VERSION/clikd_$($VERSION)_windows_amd64.zip"
+                hash = $winSHA256
+                bin = "clikd.exe"
+              }
+            }
+          } | ConvertTo-Json -Depth 10
+          
+          Set-Content -Path dist/scoop/clikd.json -Value $scoopManifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Commit to Scoop Bucket
+        uses: actions/checkout@v4
+        with:
+          repository: clikd-inc/scoop-bucket
+          token: ${{ secrets.GH_PAT }}
+          path: scoop-bucket
+          
+      - name: Update Scoop Bucket
+        shell: pwsh
+        run: |
+          $VERSION = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          New-Item -ItemType Directory -Path scoop-bucket/bucket -Force
+          Copy-Item dist/scoop/clikd.json scoop-bucket/bucket/
+          
+          cd scoop-bucket
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add bucket/clikd.json
+          git commit -m "clikd v$VERSION"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
