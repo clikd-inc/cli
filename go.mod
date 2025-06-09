@@ -4,7 +4,6 @@ go 1.24.3
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/BurntSushi/toml v1.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/charmbracelet/bubbles v0.21.0
