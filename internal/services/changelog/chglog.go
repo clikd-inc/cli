@@ -172,6 +172,9 @@ func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*ChangelogV
 				if first != "" {
 					rev = first + ".." + tag.Name
 				} else {
+					// For the oldest/only tag, get all commits up to that tag
+					// This ensures that when there's only one tag, all commits
+					// are included in the version, not in unreleased
 					rev = tag.Name
 				}
 			}

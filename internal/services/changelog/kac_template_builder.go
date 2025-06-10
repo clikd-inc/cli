@@ -57,7 +57,7 @@ func (t *kacTemplateBuilderImpl) unreleased(style, format string) string {
 		title = fmt.Sprintf("[%s]", title)
 	}
 
-	return fmt.Sprintf(`{{ if .Versions -}}
+	return fmt.Sprintf(`{{ if and .Versions (or .Unreleased.CommitGroups .Unreleased.Commits) -}}
 %s## %s
 
 {{ if .Unreleased.CommitGroups -}}
@@ -157,7 +157,9 @@ func (*kacTemplateBuilderImpl) footer(style string) string {
 		return `
 
 {{- if .Versions }}
+{{ if and (or .Unreleased.CommitGroups .Unreleased.Commits) (index .Versions 0) -}}
 [Unreleased]: {{ .Info.RepositoryURL }}/compare/{{ $latest := index .Versions 0 }}{{ $latest.Tag.Name }}...HEAD
+{{ end -}}
 {{ range .Versions -}}
 {{ if .Tag.Previous -}}
 [{{ .Tag.Name }}]: {{ $.Info.RepositoryURL }}/compare/{{ .Tag.Previous.Name }}...{{ .Tag.Name }}
@@ -168,7 +170,9 @@ func (*kacTemplateBuilderImpl) footer(style string) string {
 		return `
 
 {{- if .Versions }}
+{{ if and (or .Unreleased.CommitGroups .Unreleased.Commits) (index .Versions 0) -}}
 [Unreleased]: {{ .Info.RepositoryURL }}/compare/HEAD..{{ $latest := index .Versions 0 }}{{ $latest.Tag.Name }}
+{{ end -}}
 {{ range .Versions -}}
 {{ if .Tag.Previous -}}
 [{{ .Tag.Name }}]: {{ $.Info.RepositoryURL }}/compare/{{ .Tag.Name }}..{{ .Tag.Previous.Name }}

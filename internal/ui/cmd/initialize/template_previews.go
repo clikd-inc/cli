@@ -129,10 +129,6 @@ const KACTemplatePreview = `# CHANGELOG
 This CHANGELOG is a format conforming to [keep-a-changelog](https://github.com/olivierlacan/keep-a-changelog).  
 
 
-<a name="unreleased"></a>
-## [Unreleased]
-
-
 <a name="1.0.0"></a>
 ## [1.0.0] - 2018-05-06
 ### Bug Fixes
@@ -176,7 +172,6 @@ You can describe the contents over several lines, Thanks.
 - **lang:** Fixes language in error message.
 
 
-[Unreleased]: https://github.com/clikd-inc/cli/compare/1.0.0...HEAD
 [1.0.0]: https://github.com/clikd-inc/cli/compare/0.1.1...1.0.0
 [0.1.1]: https://github.com/clikd-inc/cli/compare/0.1.0...0.1.1
 `
