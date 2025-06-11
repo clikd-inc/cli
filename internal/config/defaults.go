@@ -2,14 +2,24 @@ package config
 
 import "clikd/internal/cli/version"
 
-// DefaultConfig gibt eine Konfiguration mit Standardwerten zurück
-func DefaultConfig() *ConfigData {
-	return &ConfigData{
+// DefaultConfig returns the default configuration
+func DefaultConfig() *Config {
+	return &Config{
 		Version: version.GetVersion(),
-		General: GeneralConfig{
+		General: struct {
+			LogLevel string `toml:"log_level"`
+		}{
 			LogLevel: "info",
 		},
-		AI: AIConfig{
+		AI: struct {
+			Provider         string `toml:"provider"`
+			Model            string `toml:"model"`
+			APIKey           string `toml:"api_key"`
+			APIURL           string `toml:"api_url"`
+			APICustomHeaders string `toml:"api_custom_headers"`
+			TokensMaxInput   int    `toml:"tokens_max_input"`
+			TokensMaxOutput  int    `toml:"tokens_max_output"`
+		}{
 			Provider:         "mistral",
 			Model:            "mistral-medium",
 			APIKey:           "",
@@ -18,13 +28,5 @@ func DefaultConfig() *ConfigData {
 			TokensMaxInput:   4096,
 			TokensMaxOutput:  500,
 		},
-	}
-}
-
-// DefaultGeneralConfig returns the default general configuration
-func DefaultGeneralConfig() GeneralConfig {
-	return GeneralConfig{
-		LogLevel: "info",
-		// Color default removed - each service manages its own color settings
 	}
 }

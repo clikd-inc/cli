@@ -15,7 +15,7 @@ var (
 	cfgFile     string
 	logLevel    string
 	colorOutput bool
-	appConfig   *config.ConfigData
+	appConfig   *config.Config
 	logger      utils.Logger
 )
 

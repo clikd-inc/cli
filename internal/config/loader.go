@@ -15,31 +15,31 @@ import (
 )
 
 const (
-	// EnvPrefix ist das Präfix für Umgebungsvariablen
+	// EnvPrefix is the prefix for environment variables
 	EnvPrefix = "CLIKD"
 
-	// DefaultConfigFileName ist der Standardname für die Konfigurationsdatei
+	// DefaultConfigFileName is the standard name for the configuration file
 	DefaultConfigFileName = "config"
 
-	// DefaultConfigFileExt ist die Standarderweiterung für die Konfigurationsdatei
+	// DefaultConfigFileExt is the standard extension for the configuration file
 	DefaultConfigFileExt = "toml"
 )
 
-// Config repräsentiert die Konfiguration der Anwendung
+// Config represents the application configuration
 type Config struct {
 	Version string `toml:"version"`
 	General struct {
 		LogLevel string `toml:"log_level"`
 	} `toml:"general"`
 	AI struct {
-		// Alle weiteren KI-Einstellungen werden über Umgebungsvariablen gesteuert.
-		// CLIKD_API_KEY         - API-Schlüssel für den gewählten Provider
-		// CLIKD_AI_PROVIDER     - KI-Provider ('mistral', 'openai', 'anthropic', etc.)
-		// CLIKD_MODEL           - Modell (z.B. 'mistral-medium', 'gpt-4o')
-		// CLIKD_API_URL         - URL für Proxy oder alternative API-Endpunkte
-		// CLIKD_API_CUSTOM_HEADERS - Benutzerdefinierte HTTP-Header für API-Anfragen
-		// CLIKD_TOKENS_MAX_INPUT  - Maximales Token-Limit für Eingaben (Standard: 4096)
-		// CLIKD_TOKENS_MAX_OUTPUT - Maximales Token-Limit für Ausgaben (Standard: 500)
+		// All further AI settings are controlled via environment variables.
+		// CLIKD_API_KEY         - API key for the chosen provider
+		// CLIKD_AI_PROVIDER     - AI provider ('mistral', 'openai', 'anthropic', etc.)
+		// CLIKD_MODEL           - Model (e.g. 'mistral-medium', 'gpt-4o')
+		// CLIKD_API_URL         - URL for proxy or alternative API endpoints
+		// CLIKD_API_CUSTOM_HEADERS - Custom HTTP headers for API requests
+		// CLIKD_TOKENS_MAX_INPUT  - Maximum token limit for inputs (default: 4096)
+		// CLIKD_TOKENS_MAX_OUTPUT - Maximum token limit for outputs (default: 500)
 		Provider         string `toml:"provider"`
 		Model            string `toml:"model"`
 		APIKey           string `toml:"api_key"`
@@ -50,20 +50,20 @@ type Config struct {
 	} `toml:"ai"`
 }
 
-// Manager verwaltet die Konfiguration
+// Manager manages the configuration
 type Manager struct {
 	config     Config
 	configPath string
 }
 
-// NewManager erstellt einen neuen Manager
+// NewManager creates a new Manager
 func NewManager() *Manager {
 	return &Manager{
 		config: createDefaultConfig(),
 	}
 }
 
-// createDefaultConfig erstellt eine Standardkonfiguration
+// createDefaultConfig creates a default configuration
 func createDefaultConfig() Config {
 	c := Config{
 		Version: version.GetVersion(),
@@ -84,77 +84,77 @@ func createDefaultConfig() Config {
 	return c
 }
 
-// InitConfig initialisiert die Konfiguration aus einer Datei
+// InitConfig initializes the configuration from a file
 func (m *Manager) InitConfig(configPath string) error {
-	// Wenn ein expliziter Konfigurationspfad angegeben wurde, verwenden wir nur diese Datei
+	// If an explicit configuration path is specified, we use only this file
 	if configPath != "" {
 		m.configPath = configPath
 
-		// Datei lesen
+		// Read file
 		data, err := os.ReadFile(configPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				// Wenn die Datei nicht existiert, verwende die Standardkonfiguration
+				// If the file doesn't exist, use the default configuration
 				m.config = createDefaultConfig()
 				return nil
 			}
 			return fmt.Errorf("error reading config file: %w", err)
 		}
 
-		// TOML parsen
+		// Parse TOML
 		if err := toml.Unmarshal(data, &m.config); err != nil {
 			return fmt.Errorf("error parsing config file: %w", err)
 		}
 
-		// Sensible Daten aus Umgebungsvariablen laden
+		// Load sensitive data from environment variables
 		m.loadSensitiveEnvVars()
 
-		// Repository-spezifische .env-Datei laden, falls vorhanden
+		// Load repository-specific .env file if available
 		m.loadEnvFile()
 
 		return nil
 	}
 
-	// Wenn kein expliziter Pfad angegeben wurde, verwenden wir die Prioritätsreihenfolge
-	// 1. Standardkonfiguration laden
+	// If no explicit path is specified, we use the priority order
+	// 1. Load default configuration
 	m.config = createDefaultConfig()
 
-	// 2. Globale Konfiguration laden, falls vorhanden
+	// 2. Load global configuration if available
 	homedir, err := os.UserHomeDir()
 	if err == nil {
 		globalConfigPath := filepath.Join(homedir, ".clikd", "config.toml")
 		if _, err := os.Stat(globalConfigPath); err == nil {
-			// Globale Konfiguration laden
+			// Load global configuration
 			data, err := os.ReadFile(globalConfigPath)
 			if err == nil {
-				// TOML parsen
+				// Parse TOML
 				if err := toml.Unmarshal(data, &m.config); err == nil {
-					// Globale Konfiguration geladen
+					// Global configuration loaded
 					m.configPath = globalConfigPath
 				}
 			}
 		}
 	}
 
-	// 3. Projektspezifische Konfiguration laden, falls vorhanden
-	// Die aktuelle Projektspezifische Konfiguration überschreibt die globale
+	// 3. Load project-specific configuration if available
+	// The current project-specific configuration overrides the global one
 	wd, err := os.Getwd()
 	if err == nil {
 		localConfigPath := filepath.Join(wd, "clikd", "config.toml")
 		if _, err := os.Stat(localConfigPath); err == nil {
-			// Lokale Konfiguration laden
+			// Load local configuration
 			data, err := os.ReadFile(localConfigPath)
 			if err == nil {
-				// Temporäre Konfiguration erstellen, um keine nicht-spezifizierten Werte zu überschreiben
+				// Create temporary configuration to avoid overwriting unspecified values
 				tempConfig := Config{}
 				if err := toml.Unmarshal(data, &tempConfig); err == nil {
-					// Nur die in der lokalen Konfiguration spezifizierten Werte übernehmen
-					// Allgemeine Einstellungen
+					// Only adopt values specified in the local configuration
+					// General settings
 					if tempConfig.General.LogLevel != "" {
 						m.config.General.LogLevel = tempConfig.General.LogLevel
 					}
 
-					// KI-Einstellungen explizit übernehmen
+					// Explicitly adopt AI settings
 
 					if tempConfig.AI.Provider != "" {
 						m.config.AI.Provider = tempConfig.AI.Provider
@@ -175,26 +175,26 @@ func (m *Manager) InitConfig(configPath string) error {
 						m.config.AI.TokensMaxOutput = tempConfig.AI.TokensMaxOutput
 					}
 
-					// Pfad aktualisieren, da die lokale Konfiguration Vorrang hat
+					// Update path as the local configuration takes precedence
 					m.configPath = localConfigPath
 				}
 			}
 		}
 	}
 
-	// 4. Umgebungsvariablen laden (haben höchste Priorität)
+	// 4. Load environment variables (highest priority)
 	m.loadSensitiveEnvVars()
 
-	// 5. Repository-spezifische .env-Datei laden, falls vorhanden
+	// 5. Load repository-specific .env file if available
 	m.loadEnvFile()
 
 	return nil
 }
 
-// SaveConfig speichert die Konfiguration in einer Datei
+// SaveConfig saves the configuration to a file
 func (m *Manager) SaveConfig(configPath string) error {
-	// API-Schlüssel für TOML-Serialisierung behandeln
-	// Nur in globaler Konfiguration speichern wir API-Schlüssel
+	// Handle API key for TOML serialization
+	// Only save API keys in global configuration
 	isGlobalConfig := false
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
@@ -202,45 +202,45 @@ func (m *Manager) SaveConfig(configPath string) error {
 		isGlobalConfig = strings.HasPrefix(configPath, globalConfigDir)
 	}
 
-	// Sichere vorhandene API-Schlüssel
+	// Secure existing API keys
 	apiKey := m.config.AI.APIKey
 
-	// API-Schlüssel nur in globaler Konfiguration speichern
+	// Only save API key in global configuration
 	if !isGlobalConfig {
 		m.config.AI.APIKey = ""
 	}
 
-	// TOML serialisieren
+	// Serialize TOML
 	data, err := toml.Marshal(m.config)
 	if err != nil {
 		return fmt.Errorf("error serializing config: %w", err)
 	}
 
-	// Stelle sicher, dass das Verzeichnis existiert
+	// Ensure the directory exists
 	configDir := filepath.Dir(configPath)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("error creating config directory: %w", err)
 	}
 
-	// Datei schreiben
+	// Write file
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 
-	// API-Schlüssel wiederherstellen (falls lokal entfernt)
+	// Restore API key (if locally removed)
 	m.config.AI.APIKey = apiKey
 
 	return nil
 }
 
-// SetConfigValue setzt einen Konfigurationswert anhand eines Pfades (z.B. "general.log_level")
+// SetConfigValue sets a configuration value based on a path (e.g., "general.log_level")
 func (m *Manager) SetConfigValue(path, value string) error {
 	// AI is now always enabled, no special handling needed for ai.enable
 
 	v := viper.New()
 	v.SetConfigType("toml")
 
-	// Aktuelle Konfiguration in Viper laden
+	// Load current configuration into Viper
 	data, err := toml.Marshal(m.config)
 	if err != nil {
 		return fmt.Errorf("error serializing config: %w", err)
@@ -250,10 +250,10 @@ func (m *Manager) SetConfigValue(path, value string) error {
 		return fmt.Errorf("error loading config into viper: %w", err)
 	}
 
-	// Wert setzen
+	// Set value
 	v.Set(path, value)
 
-	// Zurück in unsere Konfigurationsstruktur laden
+	// Load back into our configuration structure
 	if err := v.Unmarshal(&m.config); err != nil {
 		return fmt.Errorf("error updating config: %w", err)
 	}
@@ -261,19 +261,19 @@ func (m *Manager) SetConfigValue(path, value string) error {
 	return nil
 }
 
-// GetConfig gibt die aktuelle Konfiguration zurück
+// GetConfig returns the current configuration
 func (m *Manager) GetConfig() Config {
 	return m.config
 }
 
-// loadSensitiveEnvVars lädt sensible Daten aus Umgebungsvariablen
+// loadSensitiveEnvVars loads sensitive data from environment variables
 func (m *Manager) loadSensitiveEnvVars() {
-	// General-Konfigurationswerte aus Umgebungsvariablen
+	// General configuration values from environment variables
 	if logLevel := os.Getenv("CLIKD_GENERAL_LOG_LEVEL"); logLevel != "" {
 		m.config.General.LogLevel = logLevel
 	}
 
-	// AI-Konfigurationswerte aus Umgebungsvariablen
+	// AI configuration values from environment variables
 	// AI is now always enabled, no need to check CLIKD_AI_ENABLE
 
 	if provider := os.Getenv("CLIKD_AI_PROVIDER"); provider != "" {
@@ -305,28 +305,19 @@ func (m *Manager) loadSensitiveEnvVars() {
 	}
 }
 
-// loadEnvFile lädt API-Schlüssel aus einer .env-Datei im Projektverzeichnis
-// Diese Methode ist speziell für API-Schlüssel und andere sensible Daten vorgesehen
+// loadEnvFile loads API keys from a .env file in the project directory
+// This method is specifically intended for API keys and other sensitive data
 func (m *Manager) loadEnvFile() {
 	// AI is now always enabled, always try to load API key
-	// Schlüssel laden mit der vereinfachten GetAPIKey Funktion
+	// Load key with the simplified GetAPIKey function
 	apiKey, err := utils.GetAPIKey()
 	if err == nil && apiKey != "" {
-		// Wenn ein Schlüssel gefunden wurde, in der Konfiguration speichern
+		// If a key was found, save it in the configuration
 		m.config.AI.APIKey = apiKey
 	}
 }
 
-// Validiere Provider-Modell-Kombination
-// Diese Methode bleibt für Kompatibilität bestehen, aber ohne die Konfiguration zu überprüfen
-func (m *Manager) validateProviderModel() error {
-	// Da wir keine Provider/Modell-Felder mehr in der Konfiguration haben,
-	// macht diese Validierung keinen Sinn mehr. Die Validierung erfolgt
-	// stattdessen zur Laufzeit, wenn die API aufgerufen wird.
-	return nil
-}
-
-// MaskAPIKey maskiert einen API-Schlüssel aus Sicherheitsgründen
+// MaskAPIKey masks an API key for security reasons
 func MaskAPIKey(apiKey string) string {
 	if len(apiKey) <= 8 {
 		return "****"

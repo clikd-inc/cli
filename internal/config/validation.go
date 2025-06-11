@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	// SupportedProviders enthält alle unterstützten AI-Provider
+	// SupportedProviders contains all supported AI providers
 	SupportedProviders = []string{
 		"openai",
 		"mistral",
@@ -18,7 +18,7 @@ var (
 		"google",
 	}
 
-	// ProviderModels enthält für jeden Provider die unterstützten Modelle
+	// ProviderModels contains the supported models for each provider
 	ProviderModels = map[string][]string{
 		"openai": {
 			"gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo",
@@ -45,19 +45,19 @@ var (
 		"google": {
 			"gemini-pro", "gemini-ultra", "gemini-flash",
 		},
-		// Für OpenRouter und Ollama erlauben wir alle Modelle
-		"openrouter": {"*"}, // OpenRouter unterstützt verschiedene Modelle
-		"ollama":     {"*"}, // Ollama unterstützt benutzerdefinierte Modelle
+		// For OpenRouter and Ollama we allow all models
+		"openrouter": {"*"}, // OpenRouter supports various models
+		"ollama":     {"*"}, // Ollama supports custom models
 	}
 
-	// ProviderAliases enthält alternative Namen für Provider
+	// ProviderAliases contains alternative names for providers
 	ProviderAliases = map[string]string{
 		"azure":  "azure-openai",
 		"claude": "anthropic",
 		"gemini": "google",
 	}
 
-	// ModelAliases enthält alternative Namen für Modelle
+	// ModelAliases contains alternative names for models
 	ModelAliases = map[string]map[string]string{
 		"openai": {
 			"gpt4":  "gpt-4",
@@ -78,18 +78,18 @@ var (
 	}
 )
 
-// ValidateProviderModel prüft, ob ein Modell mit einem Provider kompatibel ist
+// ValidateProviderModel checks if a model is compatible with a provider
 func ValidateProviderModel(provider, model string) error {
 	if provider == "" || model == "" {
-		return fmt.Errorf("provider und model dürfen nicht leer sein")
+		return fmt.Errorf("provider and model must not be empty")
 	}
 
-	// Provider-Alias auflösen, falls vorhanden
+	// Resolve provider alias if present
 	if alias, exists := ProviderAliases[provider]; exists {
 		provider = alias
 	}
 
-	// Prüfen, ob der Provider unterstützt wird
+	// Check if the provider is supported
 	providerSupported := false
 	for _, p := range SupportedProviders {
 		if p == provider {
@@ -99,26 +99,26 @@ func ValidateProviderModel(provider, model string) error {
 	}
 
 	if !providerSupported {
-		return fmt.Errorf("provider '%s' wird nicht unterstützt. Unterstützte Provider: %s",
+		return fmt.Errorf("provider '%s' is not supported. Supported providers: %s",
 			provider, strings.Join(SupportedProviders, ", "))
 	}
 
-	// Modell-Alias auflösen, falls vorhanden
+	// Resolve model alias if present
 	if aliases, exists := ModelAliases[provider]; exists {
 		if alias, exists := aliases[model]; exists {
 			model = alias
 		}
 	}
 
-	// Für Openrouter und Ollama erlauben wir alle Modelle
+	// For OpenRouter and Ollama we allow all models
 	if provider == "openrouter" || provider == "ollama" {
 		return nil
 	}
 
-	// Prüfen, ob das Modell vom Provider unterstützt wird
+	// Check if the model is supported by the provider
 	modelsForProvider, exists := ProviderModels[provider]
 	if !exists {
-		return fmt.Errorf("keine Modelle für Provider '%s' definiert", provider)
+		return fmt.Errorf("no models defined for provider '%s'", provider)
 	}
 
 	for _, m := range modelsForProvider {
@@ -127,18 +127,18 @@ func ValidateProviderModel(provider, model string) error {
 		}
 	}
 
-	return fmt.Errorf("modell '%s' wird nicht vom Provider '%s' unterstützt.\nUnterstützte Modelle: %s",
+	return fmt.Errorf("model '%s' is not supported by provider '%s'.\nSupported models: %s",
 		model, provider, strings.Join(modelsForProvider, ", "))
 }
 
-// GetSupportedModelsForProvider gibt alle unterstützten Modelle für einen Provider zurück
+// GetSupportedModelsForProvider returns all supported models for a provider
 func GetSupportedModelsForProvider(provider string) ([]string, error) {
-	// Provider-Alias auflösen, falls vorhanden
+	// Resolve provider alias if present
 	if alias, exists := ProviderAliases[provider]; exists {
 		provider = alias
 	}
 
-	// Prüfen, ob der Provider unterstützt wird
+	// Check if the provider is supported
 	providerSupported := false
 	for _, p := range SupportedProviders {
 		if p == provider {
@@ -148,31 +148,31 @@ func GetSupportedModelsForProvider(provider string) ([]string, error) {
 	}
 
 	if !providerSupported {
-		return nil, fmt.Errorf("provider '%s' wird nicht unterstützt", provider)
+		return nil, fmt.Errorf("provider '%s' is not supported", provider)
 	}
 
-	// Für Openrouter und Ollama können wir keine spezifische Liste zurückgeben
+	// For OpenRouter and Ollama we cannot return a specific list
 	if provider == "openrouter" || provider == "ollama" {
-		return []string{"[Alle Modelle werden unterstützt]"}, nil
+		return []string{"[All models are supported]"}, nil
 	}
 
-	// Modelle für den Provider zurückgeben
+	// Return models for the provider
 	modelsForProvider, exists := ProviderModels[provider]
 	if !exists {
-		return nil, fmt.Errorf("keine Modelle für Provider '%s' definiert", provider)
+		return nil, fmt.Errorf("no models defined for provider '%s'", provider)
 	}
 
 	return modelsForProvider, nil
 }
 
-// GetDefaultModelForProvider gibt das empfohlene Standardmodell für einen Provider zurück
+// GetDefaultModelForProvider returns the recommended default model for a provider
 func GetDefaultModelForProvider(provider string) (string, error) {
-	// Provider-Alias auflösen, falls vorhanden
+	// Resolve provider alias if present
 	if alias, exists := ProviderAliases[provider]; exists {
 		provider = alias
 	}
 
-	// Prüfen, ob der Provider unterstützt wird
+	// Check if the provider is supported
 	providerSupported := false
 	for _, p := range SupportedProviders {
 		if p == provider {
@@ -182,10 +182,10 @@ func GetDefaultModelForProvider(provider string) (string, error) {
 	}
 
 	if !providerSupported {
-		return "", fmt.Errorf("provider '%s' wird nicht unterstützt", provider)
+		return "", fmt.Errorf("provider '%s' is not supported", provider)
 	}
 
-	// Standardmodell je nach Provider zurückgeben
+	// Return default model according to provider
 	switch provider {
 	case "openai":
 		return "gpt-4o", nil
@@ -204,6 +204,6 @@ func GetDefaultModelForProvider(provider string) (string, error) {
 	case "ollama":
 		return "llama3", nil
 	default:
-		return "", fmt.Errorf("kein Standardmodell für Provider '%s' definiert", provider)
+		return "", fmt.Errorf("no default model defined for provider '%s'", provider)
 	}
 }

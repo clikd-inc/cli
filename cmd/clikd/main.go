@@ -30,7 +30,7 @@ var (
 	logLevel    string
 	aiEnabled   bool
 	colorOutput bool
-	appConfig   *config.ConfigData
+	appConfig   *config.Config
 	logger      utils.Logger
 	configFile  string
 	verboseFlag bool

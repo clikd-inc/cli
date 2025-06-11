@@ -4,53 +4,20 @@ import (
 	"os"
 )
 
-// ConfigData repräsentiert die Hauptkonfigurationsstruktur
-type ConfigData struct {
-	Version string        `mapstructure:"version"`
-	General GeneralConfig `mapstructure:"general"`
-	AI      AIConfig      `mapstructure:"ai"`
-	// Changelog-Konfiguration wird direkt aus YAML geladen, nicht aus TOML
-	// Weitere Funktionen hier hinzufügen
-}
-
-// GeneralConfig enthält allgemeine Einstellungen
-type GeneralConfig struct {
-	LogLevel string `mapstructure:"log_level"`
-	// Color field removed - each service manages its own color settings
-}
-
-// AIConfig enthält die Konfiguration für KI-bezogene Funktionen
-type AIConfig struct {
-	// Provider ist der KI-Anbieter (z.B. "mistral", "openai", "anthropic")
-	Provider string `json:"provider" mapstructure:"provider" toml:"provider"`
-	// Model ist das zu verwendende Modell (z.B. "mistral-medium", "gpt-4o")
-	Model string `json:"model" mapstructure:"model" toml:"model"`
-	// APIKey ist der API-Schlüssel für den Provider (nur in globaler Konfiguration gespeichert)
-	APIKey string `json:"api_key,omitempty" mapstructure:"api_key,omitempty" toml:"api_key,omitempty"`
-	// APIURL ist ein optionaler, benutzerdefinierter API-Endpunkt oder Proxy
-	APIURL string `json:"api_url,omitempty" mapstructure:"api_url,omitempty" toml:"api_url,omitempty"`
-	// APICustomHeaders sind benutzerdefinierte HTTP-Header für API-Anfragen (als JSON-String)
-	APICustomHeaders string `json:"api_custom_headers,omitempty" mapstructure:"api_custom_headers,omitempty" toml:"api_custom_headers,omitempty"`
-	// TokensMaxInput ist das maximale Token-Limit für Eingaben (Standard: 4096)
-	TokensMaxInput int `json:"tokens_max_input" mapstructure:"tokens_max_input" toml:"tokens_max_input"`
-	// TokensMaxOutput ist das maximale Token-Limit für Ausgaben (Standard: 500)
-	TokensMaxOutput int `json:"tokens_max_output" mapstructure:"tokens_max_output" toml:"tokens_max_output"`
-}
-
-// ModelConfig wird für die API-Kompatibilität beibehalten
+// ModelConfig is maintained for API compatibility
 type ModelConfig struct {
-	// Provider ist der KI-Anbieter (z.B. "openai", "mistral")
+	// Provider is the AI provider (e.g., "openai", "mistral")
 	Provider string `json:"provider" mapstructure:"provider"`
-	// ModelID ist die spezifische Modell-ID beim Anbieter (z.B. "gpt-4", "mistral-medium")
+	// ModelID is the specific model ID from the provider (e.g., "gpt-4", "mistral-medium")
 	ModelID string `json:"model_id" mapstructure:"model_id"`
-	// APIKey ist der API-Schlüssel für diesen Anbieter (nur in globaler Konfiguration)
+	// APIKey is the API key for this provider (only in global configuration)
 	APIKey string `json:"api_key,omitempty" mapstructure:"api_key,omitempty"`
-	// Endpoint ist ein optionaler, benutzerdefinierter API-Endpunkt
+	// Endpoint is an optional custom API endpoint
 	Endpoint string `json:"endpoint,omitempty" mapstructure:"endpoint,omitempty"`
 }
 
-// ChangelogCommandConfig enthält die Konfiguration für den Changelog-Befehl
-// Diese Struktur ersetzt den alten CLIContext des Initializers
+// ChangelogCommandConfig contains the configuration for the changelog command
+// This structure replaces the old CLIContext of the initializer
 type ChangelogCommandConfig struct {
 	WorkingDir       string
 	ConfigPath       string
@@ -71,50 +38,51 @@ type ChangelogCommandConfig struct {
 	Sort             string
 }
 
-// ChangelogConfig enthält Changelog-bezogene Einstellungen
+// ChangelogConfig contains changelog-related settings
 type ChangelogConfig struct {
 	Template   string `mapstructure:"template"`
 	ConfigFile string `mapstructure:"config_file"`
 }
 
-// ChangelogInfoConfig enthält Metadaten für den Changelog
+// ChangelogInfoConfig contains metadata for the changelog
 type ChangelogInfoConfig struct {
 	Title         string `mapstructure:"title"`
 	RepositoryURL string `mapstructure:"repository_url"`
 }
 
-// GetModelConfig gibt die Konfiguration für ein bestimmtes Modell zurück
-func (c *AIConfig) GetModelConfig(modelName string) (ModelConfig, error) {
-	// Zuerst den Provider aus der Umgebungsvariable lesen
+// GetModelConfig returns the configuration for a specific model
+// This method is kept for backward compatibility but now uses the new config system
+func GetModelConfig(modelName string) (ModelConfig, error) {
+	// First read the provider from the environment variable
 	provider := os.Getenv("CLIKD_AI_PROVIDER")
 	if provider == "" {
-		// Standardwert, wenn nicht gesetzt
+		// Default value if not set
 		provider = "mistral"
 	}
 
-	// Das Modell aus der Umgebungsvariable lesen, wenn nicht explizit angegeben
+	// Read the model from the environment variable if not explicitly specified
 	if modelName == "" {
 		modelName = os.Getenv("CLIKD_MODEL")
 		if modelName == "" {
-			// Standardwert, wenn nicht gesetzt
+			// Default value if not set
 			modelName = "mistral-medium"
 		}
 	}
 
-	// Validiere das angeforderte Modell mit dem Provider
+	// Validate the requested model with the provider
 	if err := ValidateProviderModel(provider, modelName); err != nil {
-		// Bei fehlerhafter Kombination Fehler zurückgeben
+		// Return error for invalid combination
 		return ModelConfig{}, err
 	}
 
-	// API-URL aus Umgebungsvariable lesen
+	// Read API URL from environment variable
 	endpoint := os.Getenv("CLIKD_API_URL")
 
-	// Falls wir hier ankommen, ist die Kombination gültig
+	// If we reach this point, the combination is valid
 	model := ModelConfig{
 		Provider: provider,
 		ModelID:  modelName,
-		APIKey:   "", // API-Schlüssel wird über GetAPIKey abgerufen
+		APIKey:   "", // API key is retrieved via GetAPIKey
 		Endpoint: endpoint,
 	}
 

@@ -55,15 +55,13 @@ func Initialize(configFile string) error {
 
 // Get returns the current configuration
 // If the configuration has not been initialized yet, an error is returned
-func Get() (*ConfigData, error) {
+func Get() (*Config, error) {
 	if globalManager == nil {
 		return nil, fmt.Errorf("configuration not initialized, call Initialize() first")
 	}
 
-	// Convert the new config structure to the old ConfigData structure
 	config := globalManager.GetConfig()
-	configData := convertToConfigData(config)
-	return configData, nil
+	return &config, nil
 }
 
 // GetManager returns the global configuration manager
@@ -82,7 +80,6 @@ func GetConfigFilePath() (string, error) {
 		return "", fmt.Errorf("configuration not initialized, call Initialize() first")
 	}
 
-	// In the new implementation, this is simply configPath
 	return globalManager.configPath, nil
 }
 
@@ -160,17 +157,15 @@ func GetAIModelConfig(modelName string) (ModelConfig, error) {
 
 // EnsureInitialized ensures that the configuration is initialized
 // If not, it will be initialized with default values
-func EnsureInitialized() (*ConfigData, error) {
+func EnsureInitialized() (*Config, error) {
 	if globalManager == nil {
 		if err := Initialize(""); err != nil {
 			return nil, err
 		}
 	}
 
-	// Convert the new Config structure to the old ConfigData structure
 	config := globalManager.GetConfig()
-	configData := convertToConfigData(config)
-	return configData, nil
+	return &config, nil
 }
 
 // Reset resets the global configuration (mainly for tests)
@@ -179,25 +174,4 @@ func Reset() {
 	defer managerMutex.Unlock()
 
 	globalManager = nil
-}
-
-// convertToConfigData converts the new Config structure to the old ConfigData structure
-func convertToConfigData(config Config) *ConfigData {
-	configData := &ConfigData{
-		Version: config.Version,
-		General: GeneralConfig{
-			LogLevel: config.General.LogLevel,
-		},
-		AI: AIConfig{
-			Provider:         config.AI.Provider,
-			Model:            config.AI.Model,
-			APIKey:           config.AI.APIKey,
-			APIURL:           config.AI.APIURL,
-			APICustomHeaders: config.AI.APICustomHeaders,
-			TokensMaxInput:   config.AI.TokensMaxInput,
-			TokensMaxOutput:  config.AI.TokensMaxOutput,
-		},
-	}
-
-	return configData
 }
