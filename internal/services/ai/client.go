@@ -113,47 +113,35 @@ func WithJSONResponse() ChatOption {
 }
 
 // NewClient creates a new AI client based on the configuration
-func NewClient(ctx context.Context, config *Config, modelName string) (Client, error) {
-	// If no model specified, use the default
-	if modelName == "" {
-		modelName = config.Model
-	}
-
-	// Get the model configuration
-	modelConfig, err := config.GetModelConfig(modelName)
+func NewClient(ctx context.Context, provider, model, apiKey, endpoint string, tokensMaxInput, tokensMaxOutput int) (Client, error) {
+	// Create the model configuration using the new function
+	modelConfig, err := CreateModelConfig(provider, model, apiKey, endpoint, tokensMaxInput, tokensMaxOutput)
 	if err != nil {
 		// Log the error before returning it
-		log.Error("Failed to get model config for %s: %v", modelName, err)
-		// If the error comes from GetAPIKey, pass this error message directly
-		// as it already contains detailed instructions
-		return nil, fmt.Errorf("failed to get model config: %w", err)
+		log.Error("Failed to create model config for %s: %v", model, err)
+		return nil, fmt.Errorf("failed to create model config: %w", err)
 	}
 
 	// Check if API key is configured for non-local providers
 	if modelConfig.APIKey == "" && modelConfig.Provider != ProviderLocal {
 		// Log the error
 		log.Error("API key missing for non-local provider %s model %s",
-			modelConfig.Provider, modelName)
+			modelConfig.Provider, model)
 
-		// If we arrive here, something went wrong.
-		// GetModelConfig should normally already return an error with detailed instructions
-		// if no API key was found.
-
-		// Nevertheless, we want to ensure that the user receives helpful information
-		return nil, fmt.Errorf("API key for model %s (%s) is missing, please run the command again",
-			modelName, modelConfig.Provider)
+		return nil, fmt.Errorf("API key for model %s (%s) is missing, please configure it",
+			model, modelConfig.Provider)
 	}
 
 	// Gollm supports all providers, so we use it exclusively
 	client, err := NewGollmClient(ctx, modelConfig)
 	if err != nil {
 		log.Error("Failed to create Gollm client for %s (%s): %v",
-			modelName, modelConfig.Provider, err)
+			model, modelConfig.Provider, err)
 		return nil, err
 	}
 
 	log.Debug("AI client created successfully for %s (%s)",
-		modelName, modelConfig.Provider)
+		model, modelConfig.Provider)
 
 	return client, nil
 }

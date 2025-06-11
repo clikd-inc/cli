@@ -18,31 +18,31 @@ type Service interface {
 
 // ServiceImpl implements the Service interface
 type ServiceImpl struct {
-	client Client
-	config *Config
+	client   Client
+	provider string
+	model    string
 }
 
 // NewService creates a new AI service
-func NewService(ctx context.Context, config *Config) (Service, error) {
-	// Config is required for AI service
-	if config == nil {
-		return nil, fmt.Errorf("AI configuration is required")
+func NewService(ctx context.Context, provider, model, apiKey, endpoint string, tokensMaxInput, tokensMaxOutput int) (Service, error) {
+	// Provider and model are required for AI service
+	if provider == "" || model == "" {
+		return nil, fmt.Errorf("AI provider and model are required")
 	}
 
 	// Create AI client
-	logService.Debug("Creating AI client with provider %s and model %s",
-		config.Provider, config.Model)
-	client, err := NewClient(ctx, config, "")
+	logService.Debug("Creating AI client with provider %s and model %s", provider, model)
+	client, err := NewClient(ctx, provider, model, apiKey, endpoint, tokensMaxInput, tokensMaxOutput)
 	if err != nil {
 		logService.Error("Failed to create AI client: %v", err)
 		return nil, fmt.Errorf("failed to create AI client: %w", err)
 	}
 
-	logService.Info("AI service initialized successfully with provider %s and model %s",
-		config.Provider, config.Model)
+	logService.Info("AI service initialized successfully with provider %s and model %s", provider, model)
 	return &ServiceImpl{
-		client: client,
-		config: config,
+		client:   client,
+		provider: provider,
+		model:    model,
 	}, nil
 }
 

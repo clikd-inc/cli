@@ -18,7 +18,6 @@ import (
 	"clikd/internal/utils"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -212,7 +211,7 @@ PowerShell:
 			prompt := strings.Join(args, " ")
 
 			// Initialize AI configuration
-			_, err := config.EnsureInitialized()
+			globalConfig, err := config.EnsureInitialized()
 			if err != nil {
 				return fmt.Errorf("Error initializing configuration: %w", err)
 			}
@@ -223,30 +222,23 @@ PowerShell:
 
 			// Use model from flag or default model
 			modelName, _ := cmd.Flags().GetString("model")
+			if modelName == "" {
+				modelName = globalConfig.AI.Model
+			}
 
-			// Create client
+			// Create client using the new signature
 			ctx := context.Background()
 
-			// Load configuration in Viper
-			v := viper.New()
-			v.SetConfigType("yaml")
-
-			// Load AI configuration from global configuration
-			modelConfig, err := config.GetAIModelConfig(modelName)
-			if err != nil {
-				return fmt.Errorf("Error loading AI configuration: %w", err)
-			}
-
-			// Convert ModelConfig to ai.Config
-			aiConfig := &ai.Config{
-				Provider: ai.Provider(modelConfig.Provider),
-				Model:    modelConfig.ModelID,
-				APIKey:   modelConfig.APIKey,
-				APIURL:   modelConfig.Endpoint,
-			}
-
-			// Create client
-			client, err := ai.NewClient(ctx, aiConfig, modelName)
+			// Create client with parameters from global configuration
+			client, err := ai.NewClient(
+				ctx,
+				globalConfig.AI.Provider,        // provider
+				modelName,                       // model
+				globalConfig.AI.APIKey,          // apiKey
+				globalConfig.AI.APIURL,          // endpoint
+				globalConfig.AI.TokensMaxInput,  // tokensMaxInput
+				globalConfig.AI.TokensMaxOutput, // tokensMaxOutput
+			)
 			if err != nil {
 				return fmt.Errorf("Error creating AI client: %w", err)
 			}

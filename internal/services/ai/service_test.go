@@ -17,12 +17,9 @@ func TestService_EnhanceChangelog(t *testing.T) {
 
 	// Create service with mock client
 	service := &ServiceImpl{
-		client: mockClient,
-		config: &Config{
-			Provider: ProviderMistral,
-			Model:    "mistral-medium",
-			APIKey:   "test-key",
-		},
+		client:   mockClient,
+		provider: "mistral",
+		model:    "mistral-medium",
 	}
 
 	// Test enhancing changelog

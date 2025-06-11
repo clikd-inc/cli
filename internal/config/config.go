@@ -144,7 +144,7 @@ func GetAIModelConfig(modelName string) (ModelConfig, error) {
 		}
 	}
 
-	// Create ModelConfig
+	// Create ModelConfig (simple version for backward compatibility)
 	modelConfig := ModelConfig{
 		Provider: provider,
 		ModelID:  model,

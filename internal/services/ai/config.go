@@ -2,11 +2,8 @@ package ai
 
 import (
 	"fmt"
-	"os"
 
 	"clikd/internal/utils"
-
-	"github.com/spf13/viper"
 )
 
 // Use the same logger instance as in client.go
@@ -31,6 +28,7 @@ const (
 )
 
 // ModelConfig represents configuration for a specific AI model
+// This is the ONLY ModelConfig structure used by the AI service
 type ModelConfig struct {
 	Provider       Provider `json:"provider" yaml:"provider"`
 	ModelID        string   `json:"model_id" yaml:"model_id"`
@@ -43,127 +41,58 @@ type ModelConfig struct {
 	StreamResponse bool     `json:"stream_response" yaml:"stream_response"`
 }
 
-// Config represents the central AI configuration
-type Config struct {
-	Provider Provider `json:"provider" yaml:"provider"`
-	Model    string   `json:"model" yaml:"model"`
-	APIKey   string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
-	APIURL   string   `json:"api_url,omitempty" yaml:"api_url,omitempty"`
-}
-
-// DefaultConfig returns a default configuration
-func DefaultConfig() *Config {
-	return &Config{
-		Provider: ProviderMistral,
-		Model:    "mistral-medium",
-		APIKey:   "",
-		APIURL:   "",
-	}
-}
-
-// LoadConfig loads the AI configuration from viper
-func LoadConfig(v *viper.Viper) (*Config, error) {
-	config := DefaultConfig()
-
-	// Load AI configuration from viper
-	if v.IsSet("ai") {
-		// Load model configuration
-		providerStr := v.GetString("ai.provider")
-		if providerStr != "" {
-			config.Provider = Provider(providerStr)
-		}
-
-		modelName := v.GetString("ai.model")
-		if modelName != "" {
-			config.Model = modelName
-		}
-
-		// Load other parameters
-		if v.IsSet("ai.api_key") {
-			config.APIKey = v.GetString("ai.api_key")
-		}
-
-		if v.IsSet("ai.api_url") {
-			config.APIURL = v.GetString("ai.api_url")
-		}
+// CreateModelConfig creates a ModelConfig from global configuration values
+// This replaces the old Config struct and GetModelConfig method
+func CreateModelConfig(provider, model, apiKey, endpoint string, tokensMaxInput, tokensMaxOutput int) (ModelConfig, error) {
+	if provider == "" || model == "" {
+		return ModelConfig{}, fmt.Errorf("provider and model must not be empty")
 	}
 
-	// Set API key from environment variables if not set
-	if config.APIKey == "" {
-		logConfig.Debug("API key not set in config, attempting to get from environment")
-		apiKey, err := utils.GetAPIKey()
-		if err != nil {
-			// Log the error
-			logConfig.Error("Failed to get API key: %v", err)
-			// Provide provider-specific setup instructions
-			return config, fmt.Errorf("API key not found for provider %s: %w\n\n%s",
-				config.Provider, err, getAPIKeySetupInstructions(config.Provider))
-		}
-		config.APIKey = apiKey
-		logConfig.Debug("API key successfully retrieved from environment")
-	}
-
-	// Set API URL from environment variables if not set
-	if config.APIURL == "" {
-		envVarName := getEndpointEnvVar(config.Provider)
-		if envVarName != "" {
-			if envValue := os.Getenv(envVarName); envValue != "" {
-				logConfig.Debug("Using API URL from environment variable %s", envVarName)
-				config.APIURL = envValue
-			}
-		}
-	}
-
-	logConfig.Debug("AI configuration loaded: provider=%s, model=%s",
-		config.Provider, config.Model)
-	return config, nil
-}
-
-// GetModelConfig converts the unified config to a ModelConfig
-func (c *Config) GetModelConfig(modelName string) (ModelConfig, error) {
-	// If no model name is provided, use the default
-	if modelName == "" {
-		modelName = c.Model
-	}
-
-	logConfig.Debug("Getting model config for %s with provider %s", modelName, c.Provider)
+	// Convert string provider to Provider type
+	providerType := Provider(provider)
 
 	// Create a ModelConfig based on the provider and model
 	modelConfig := ModelConfig{
-		Provider: c.Provider,
-		ModelID:  modelName,
-		APIKey:   c.APIKey,
-		Endpoint: c.APIURL,
-		// Verwende Standardwerte für die Parameter
-		MaxTokens:      1024,
+		Provider: providerType,
+		ModelID:  model,
+		APIKey:   apiKey,
+		Endpoint: endpoint,
+		// Use token limits from global configuration
+		MaxTokens:      tokensMaxInput, // Use input tokens as max tokens for generation
 		Temperature:    0.7,
 		TopP:           0.9,
 		StreamResponse: false,
 	}
 
 	// Set context window based on provider and model
-	switch c.Provider {
+	switch providerType {
 	case ProviderMistral:
-		modelConfig.ContextWindow = 32000 // Maximum für Mistral
+		modelConfig.ContextWindow = 32000 // Maximum for Mistral
 	case ProviderOpenAI:
-		if modelName == "gpt-4o" {
+		if model == "gpt-4o" {
 			modelConfig.ContextWindow = 128000
-		} else if modelName == "gpt-4" {
+		} else if model == "gpt-4" {
 			modelConfig.ContextWindow = 8192
 		} else {
-			modelConfig.ContextWindow = 4096 // Für ältere Modelle wie gpt-3.5-turbo
+			modelConfig.ContextWindow = 4096 // For older models like gpt-3.5-turbo
 		}
 	case ProviderAnthropic:
 		modelConfig.ContextWindow = 100000
 	default:
-		modelConfig.ContextWindow = 8192 // Standardwert für andere Provider
+		modelConfig.ContextWindow = 8192 // Default value for other providers
 	}
 
-	// If API key is not set, try to get it
-	if modelConfig.APIKey == "" && c.Provider != ProviderLocal {
-		logConfig.Error("API key not configured for %s", c.Provider)
-		return modelConfig, fmt.Errorf("API-Schlüssel für %s nicht konfiguriert. %s",
-			c.Provider, getAPIKeySetupInstructions(c.Provider))
+	// If API key is not set, try to get it from environment
+	if modelConfig.APIKey == "" && providerType != ProviderLocal {
+		logConfig.Debug("API key not provided, attempting to get from environment")
+		apiKey, err := utils.GetAPIKey()
+		if err != nil {
+			logConfig.Error("Failed to get API key: %v", err)
+			return modelConfig, fmt.Errorf("API key for %s not configured. %s",
+				providerType, getAPIKeySetupInstructions(providerType))
+		}
+		modelConfig.APIKey = apiKey
+		logConfig.Debug("API key successfully retrieved from environment")
 	}
 
 	return modelConfig, nil
@@ -216,29 +145,4 @@ You can add the API key in the following ways:
 
 To obtain an API key for %s, visit: %s`,
 		provider, website)
-}
-
-// IsAPIKeyConfigured checks if an API key is configured
-func (c *Config) IsAPIKeyConfigured() bool {
-	return c.APIKey != ""
-}
-
-// SetModel sets the model
-func (c *Config) SetModel(modelName string) {
-	c.Model = modelName
-}
-
-// SetProvider sets the provider
-func (c *Config) SetProvider(provider Provider) {
-	c.Provider = provider
-}
-
-// GetContext returns the context window size based on the provider and model
-func (c *Config) GetContext() int {
-	// Diese Methode ruft GetModelConfig auf und gibt den ContextWindow zurück
-	modelConfig, err := c.GetModelConfig(c.Model)
-	if err != nil {
-		return 8192 // Default value if there's an error
-	}
-	return modelConfig.ContextWindow
 }

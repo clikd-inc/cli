@@ -67,32 +67,33 @@ import (
 )
 
 func main() {
-    // Load AI configuration
+    // Load global configuration
     cfg, err := config.EnsureInitialized()
     if err != nil {
         log.Fatalf("Failed to load configuration: %v", err)
     }
     
-    // Create AI service
+    // Create AI service with parameters from global configuration
     ctx := context.Background()
-    aiCfg, err := ai.LoadConfig(cfg.Viper)
-    if err != nil {
-        log.Fatalf("Failed to load AI configuration: %v", err)
-    }
-    
-    service, err := ai.NewService(ctx, aiCfg)
+    service, err := ai.NewService(
+        ctx,
+        cfg.AI.Provider,         // provider
+        cfg.AI.Model,            // model
+        cfg.AI.APIKey,           // apiKey
+        cfg.AI.APIURL,           // endpoint
+        cfg.AI.TokensMaxInput,   // tokensMaxInput
+        cfg.AI.TokensMaxOutput,  // tokensMaxOutput
+    )
     if err != nil {
         log.Fatalf("Failed to create AI service: %v", err)
     }
     
     // Use the service
-    if service.IsEnabled() {
-        enhancedChangelog, err := service.EnhanceChangelog(ctx, "## [1.0.0] - 2023-01-01\n- Fixed bugs\n- Added features")
-        if err != nil {
-            log.Fatalf("Failed to enhance changelog: %v", err)
-        }
-        fmt.Println(enhancedChangelog)
+    enhancedChangelog, err := service.EnhanceChangelog("## [1.0.0] - 2023-01-01\n- Fixed bugs\n- Added features")
+    if err != nil {
+        log.Fatalf("Failed to enhance changelog: %v", err)
     }
+    fmt.Println(enhancedChangelog)
 }
 ```
 
