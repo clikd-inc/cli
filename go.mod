@@ -20,6 +20,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/teilomillet/gollm v0.1.9
 	github.com/tsuyoshiwada/go-gitcmd v0.0.0-20180205145712-5f1f5f9475df
+	golang.org/x/mod v0.25.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

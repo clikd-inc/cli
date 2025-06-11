@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"clikd/internal/cli/version"
 	"clikd/internal/utils"
 
 	"github.com/pelletier/go-toml/v2"
@@ -65,7 +66,7 @@ func NewManager() *Manager {
 // createDefaultConfig erstellt eine Standardkonfiguration
 func createDefaultConfig() Config {
 	c := Config{
-		Version: "1.0.0",
+		Version: version.GetVersion(),
 	}
 
 	// General

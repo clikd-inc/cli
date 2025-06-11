@@ -67,7 +67,7 @@ func TestInitializeWithCustomFile(t *testing.T) {
 	// Create a test config file
 	configPath := filepath.Join(tempDir, "config.toml")
 	configContent := `
-version = "1.0.0"
+version = "dev"
 
 [general]
 log_level = "debug"
@@ -171,7 +171,7 @@ func TestConfig_LoadWithOverride(t *testing.T) {
 	// Erstelle eine Konfigurationsdatei
 	configPath := filepath.Join(tempDir, "config.toml")
 	configContent := `
-version = "1.0.0"
+version = "dev"
 
 [general]
 log_level = "debug"

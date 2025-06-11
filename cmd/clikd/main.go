@@ -10,6 +10,7 @@ import (
 	"clikd/internal/cli/commands/changelog"
 	"clikd/internal/cli/commands/initialize"
 	"clikd/internal/cli/commands/version"
+	cliversion "clikd/internal/cli/version"
 	"clikd/internal/config"
 	"clikd/internal/services/ai"
 	"clikd/internal/services/update"
@@ -21,8 +22,8 @@ import (
 )
 
 var (
-	// Version is the version of the CLI
-	Version = "0.1.0"
+	// Version is the version of the CLI - use the centralized version
+	Version = cliversion.GetVersion()
 
 	// Used for flags
 	cfgFile     string

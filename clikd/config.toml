@@ -1,4 +1,4 @@
-version = '1.0.0'
+version = 'dev'
 
 [general]
 log_level = 'info'

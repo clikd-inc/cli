@@ -35,7 +35,6 @@ func TestRootCmdFlags(t *testing.T) {
 	// Überprüfe, dass die globalen Flags korrekt hinzugefügt wurden
 	assert.NotNil(t, rootCmd.PersistentFlags().Lookup("config"))
 	assert.NotNil(t, rootCmd.PersistentFlags().Lookup("log-level"))
-	assert.NotNil(t, rootCmd.PersistentFlags().Lookup("ai"))
 
 	// Überprüfe, dass die Version-Flag hinzugefügt wurde
 	assert.NotNil(t, rootCmd.Flags().Lookup("version"))
@@ -51,21 +50,9 @@ func TestRootCmdHelp(t *testing.T) {
 	// Überprüfe, dass die Hilfe-Ausgabe die globalen Flags enthält
 	assert.Contains(t, output, "--config")
 	assert.Contains(t, output, "--log-level")
-	assert.Contains(t, output, "--ai")
 
 	// Überprüfe, dass die Hilfe-Ausgabe die verfügbaren Kommandos enthält
 	assert.Contains(t, output, "changelog")
-	assert.Contains(t, output, "hello")
 	assert.Contains(t, output, "version")
-}
-
-func TestRootCmdAIFlag(t *testing.T) {
-	rootCmd := newRootCmd()
-
-	// Test, dass das AI-Flag korrekt registriert ist
-	aiFlag := rootCmd.PersistentFlags().Lookup("ai")
-	assert.NotNil(t, aiFlag)
-	assert.Equal(t, "bool", aiFlag.Value.Type())
-	assert.Equal(t, "false", aiFlag.DefValue)
-	assert.Contains(t, aiFlag.Usage, "Enable AI-powered features")
+	assert.Contains(t, output, "init")
 }

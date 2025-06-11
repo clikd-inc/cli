@@ -101,7 +101,7 @@ You can also use environment variables prefixed with `CLIKD_` to configure the a
 Example configuration file (TOML):
 
 ```toml
-version = "1.0.0"
+version = "dev"
 
 [general]
 log_level = "debug"

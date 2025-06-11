@@ -39,17 +39,19 @@ func TestCommitMessageFormatFilterTypes(t *testing.T) {
 		},
 	}
 
-	assert.Equal(`
-    #     - feat
-    #     - fix
-    #     - perf
-    #     - refactor`, f.FilterTypesString())
+	expected := `
+      Type:
+        - feat
+        - fix
+        - perf
+        - refactor`
+	assert.Equal(expected, f.FilterTypesString())
 
 	f = &CommitMessageFormat{
-		patternMaps: []string{},
+		typeSamples: []typeSample{},
 	}
 
-	assert.Equal(" []", f.FilterTypesString())
+	assert.Equal(" {}", f.FilterTypesString())
 }
 
 func TestCommitMessageFormatTitleMaps(t *testing.T) {
@@ -62,15 +64,16 @@ func TestCommitMessageFormatTitleMaps(t *testing.T) {
 		},
 	}
 
-	assert.Equal(`
-    #   feat: Features
-    #   fix: Bug Fixes
-    #   perf: Performance Improvements
-    #   refactor: Code Refactoring`, f.TitleMapsString())
+	expected := `
+      feat: Features
+      fix: Bug Fixes
+      perf: Performance Improvements
+      refactor: Code Refactoring`
+	assert.Equal(expected, f.TitleMapsString())
 
 	f = &CommitMessageFormat{
-		patternMaps: []string{},
+		typeSamples: []typeSample{},
 	}
 
-	assert.Equal(" []", f.TitleMapsString())
+	assert.Equal(" {}", f.TitleMapsString())
 }

@@ -1,9 +1,11 @@
 package config
 
+import "clikd/internal/cli/version"
+
 // DefaultConfig gibt eine Konfiguration mit Standardwerten zurück
 func DefaultConfig() *ConfigData {
 	return &ConfigData{
-		Version: "1.0.0",
+		Version: version.GetVersion(),
 		General: GeneralConfig{
 			LogLevel: "info",
 		},

@@ -27,13 +27,13 @@ jobs:
           
           # Build for macOS (Intel)
           echo "Building for macOS (amd64)..."
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'clikd/internal/cli/version.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
           (cd dist && zip -q clikd_${VERSION}_darwin_amd64.zip clikd)
           rm dist/clikd
           
           # Build for macOS (Apple Silicon)
           echo "Building for macOS (arm64)..."
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-X 'clikd/internal/cli/version.Version=${VERSION}'" -o dist/clikd ./cmd/clikd
           (cd dist && zip -q clikd_${VERSION}_darwin_arm64.zip clikd)
           rm dist/clikd
           
@@ -43,7 +43,7 @@ jobs:
           
           # Build for Windows
           echo "Building for Windows (amd64)..."
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'main.Version=${VERSION}'" -o dist/clikd.exe ./cmd/clikd
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X 'clikd/internal/cli/version.Version=${VERSION}'" -o dist/clikd.exe ./cmd/clikd
           (cd dist && zip -q clikd_${VERSION}_windows_amd64.zip clikd.exe)
           rm dist/clikd.exe
           
