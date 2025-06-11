@@ -13,6 +13,7 @@ var logService = utils.NewLogger("info", true)
 
 // Service defines the interface for AI operations
 type Service interface {
+	// Changelog-related operations
 	EnhanceChangelog(changelog string) (string, error)
 }
 

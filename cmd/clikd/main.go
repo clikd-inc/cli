@@ -12,7 +12,7 @@ import (
 	"clikd/internal/cli/commands/version"
 	cliversion "clikd/internal/cli/version"
 	"clikd/internal/config"
-	"clikd/internal/services/ai"
+	"clikd/internal/services"
 	"clikd/internal/services/update"
 	"clikd/internal/ui/bubble"
 	"clikd/internal/utils"
@@ -210,62 +210,39 @@ PowerShell:
 			// Join all arguments as prompt
 			prompt := strings.Join(args, " ")
 
-			// Initialize AI configuration
-			globalConfig, err := config.EnsureInitialized()
+			// Create service factory
+			ctx := context.Background()
+			factory, err := services.NewServiceFactory(ctx)
 			if err != nil {
-				return fmt.Errorf("Error initializing configuration: %w", err)
+				return fmt.Errorf("Error creating service factory: %w", err)
 			}
 
-			// Create logger for debugging output
-			logger := utils.NewLogger(level, colorize)
+			// Get logger from factory
+			logger := factory.GetLogger()
 			logger.Info("Starting AI test with gollm...")
 
 			// Use model from flag or default model
 			modelName, _ := cmd.Flags().GetString("model")
-			if modelName == "" {
-				modelName = globalConfig.AI.Model
+			if modelName != "" {
+				// TODO: Support model override in factory
+				logger.Warn("Model override not yet supported via factory, using configured model")
 			}
 
-			// Create client using the new signature
-			ctx := context.Background()
-
-			// Create client with parameters from global configuration
-			client, err := ai.NewClient(
-				ctx,
-				globalConfig.AI.Provider,        // provider
-				modelName,                       // model
-				globalConfig.AI.APIKey,          // apiKey
-				globalConfig.AI.APIURL,          // endpoint
-				globalConfig.AI.TokensMaxInput,  // tokensMaxInput
-				globalConfig.AI.TokensMaxOutput, // tokensMaxOutput
-			)
+			// Create AI service via factory
+			aiService, err := factory.CreateAIService()
 			if err != nil {
-				return fmt.Errorf("Error creating AI client: %w", err)
+				return fmt.Errorf("Error creating AI service: %w", err)
 			}
 
-			logger.Info("Using provider: %s, model: %s", client.GetProvider(), client.GetModelName())
-
-			// Send prompt
-			messages := []ai.Message{
-				{
-					Role:    "system",
-					Content: "You are a helpful assistant.",
-				},
-				{
-					Role:    "user",
-					Content: prompt,
-				},
-			}
-
-			resp, err := client.Chat(ctx, messages)
+			// Test the service
+			result, err := aiService.EnhanceChangelog(prompt)
 			if err != nil {
-				return fmt.Errorf("Error in AI response: %w", err)
+				return fmt.Errorf("Error testing AI service: %w", err)
 			}
 
-			// Output response
-			fmt.Println("\n--- AI Response ---")
-			fmt.Println(resp.Text)
-			fmt.Println("------------------")
+			// Output result
+			fmt.Println("AI Response:")
+			fmt.Println(result)
 
 			return nil
 		},
