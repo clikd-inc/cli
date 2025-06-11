@@ -1,15 +1,12 @@
 package changelog
 
 import (
-	"bytes"
+	"context"
+	"os"
+	"strconv"
+
 	"clikd/internal/services/changelog"
 	"clikd/internal/ui/bubble"
-	"clikd/internal/utils"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -149,160 +146,42 @@ Examples:
 
 // runGenerator führt den Changelog-Generator aus
 func runGenerator(query string) error {
-	// Für Terminal-Ausgabe: Direkt im ChangelogViewer generieren
-	// Für Datei-Ausgabe: Minimale Logs für Feedback
-	if outputFlag == "" && !noColorFlag {
-		// Terminal-Ausgabe: Alles im ChangelogViewer
-		return runGeneratorInViewer(query)
-	} else {
-		// Datei-Ausgabe oder --no-color: Direkt ausführen
-		return runGeneratorDirect(query)
-	}
-}
+	// Create changelog service
+	service := changelog.NewService(configFlag)
 
-// runGeneratorInViewer führt die Generierung direkt im ChangelogViewer aus
-func runGeneratorInViewer(query string) error {
-	// Alle Daten für den Viewer vorbereiten
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	configPath := utils.ResolveConfigPath(configFlag)
-	configFileInfo, err := os.Stat(configPath)
-	if err != nil {
-		return fmt.Errorf("configuration file not found at %s: %v", configPath, err)
-	}
-	if configFileInfo.IsDir() {
-		configPath = filepath.Join(configPath, "config.yml")
-	}
-
-	cmdConfig := &changelog.CommandConfig{
-		WorkingDir:       wd,
-		ConfigPath:       configPath,
-		Template:         templateFlag,
-		RepositoryURL:    repositoryURLFlag,
-		OutputPath:       "",
-		Silent:           silentFlag,
-		NoColor:          noColorFlag,
-		NoEmoji:          noEmojiFlag,
-		NoCaseSensitive:  noCaseFlag,
-		Query:            query,
-		NextTag:          nextTagFlag,
-		TagFilterPattern: tagFilterPatternFlag,
-		JiraUsername:     jiraUsernameFlag,
-		JiraToken:        jiraTokenFlag,
-		JiraURL:          jiraURLFlag,
-		Paths:            pathsFlag,
-		Sort:             sortFlag,
-		Processor:        processorFlag,
-	}
-
-	// ChangelogViewer mit Generator-Daten starten
-	bubble.RunChangelogViewerWithGenerator("Changelog", cmdConfig, query)
-	return nil
-}
-
-// runGeneratorDirect führt die Generierung direkt aus (für Datei-Ausgabe oder --no-color)
-func runGeneratorDirect(query string) error {
-	// Minimaler Logger für Datei-Ausgabe
-	logLevel := "error"
-	if outputFlag != "" {
-		logLevel = "info"
-	}
-	logger := utils.NewLogger(logLevel, !noColorFlag)
-
-	// Working Directory bestimmen
-	wd, err := os.Getwd()
-	if err != nil {
-		logger.Error("Failed to get working directory: %v", err)
-		return err
-	}
-
-	// Konfigurationspfad auflösen
-	configPath := utils.ResolveConfigPath(configFlag)
-	configFileInfo, err := os.Stat(configPath)
-	if err != nil {
-		logger.Error("Configuration file not found at %s: %v", configPath, err)
-		return fmt.Errorf("configuration file not found at %s: %v", configPath, err)
-	}
-	if configFileInfo.IsDir() {
-		configPath = filepath.Join(configPath, "config.yml")
-	}
-
-	// Command-Konfiguration erstellen
-	cmdConfig := &changelog.CommandConfig{
-		WorkingDir:       wd,
-		ConfigPath:       configPath,
+	// Prepare generation options
+	options := &changelog.GenerationOptions{
+		ConfigPath:       configFlag,
 		Template:         templateFlag,
 		RepositoryURL:    repositoryURLFlag,
 		OutputPath:       outputFlag,
+		Query:            query,
+		NextTag:          nextTagFlag,
+		TagFilterPattern: tagFilterPatternFlag,
+		Paths:            pathsFlag,
 		Silent:           silentFlag,
 		NoColor:          noColorFlag,
 		NoEmoji:          noEmojiFlag,
 		NoCaseSensitive:  noCaseFlag,
-		Query:            query,
-		NextTag:          nextTagFlag,
-		TagFilterPattern: tagFilterPatternFlag,
+		JiraURL:          jiraURLFlag,
 		JiraUsername:     jiraUsernameFlag,
 		JiraToken:        jiraTokenFlag,
-		JiraURL:          jiraURLFlag,
-		Paths:            pathsFlag,
 		Sort:             sortFlag,
 		Processor:        processorFlag,
 	}
 
-	// Konfiguration laden
-	config, err := changelog.LoadConfigFromCommand(cmdConfig)
+	// Check if we need to use the interactive UI
+	result, err := service.PrepareGeneration(context.Background(), options)
 	if err != nil {
-		logger.Error("Failed to load config: %v", err)
 		return err
 	}
 
-	// Generator erstellen
-	generator := changelog.NewGenerator(logger, config)
-
-	// Output-Writer bestimmen
-	var writer io.Writer
-	var isStdout bool
-
-	if cmdConfig.OutputPath == "" {
-		// Terminal-Ausgabe - verwende Buffer
-		isStdout = true
-		writer = &bytes.Buffer{}
+	if result.ShouldUseUI {
+		// Use interactive viewer for terminal output
+		bubble.RunChangelogViewerWithGenerator("Changelog", result.CommandConfig, query)
+		return nil
 	} else {
-		// Datei-Ausgabe - direkt in Datei schreiben
-		isStdout = false
-
-		// Verzeichnis erstellen, falls es nicht existiert
-		dir := filepath.Dir(cmdConfig.OutputPath)
-		if dir != "." {
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				return fmt.Errorf("failed to create directory: %v", err)
-			}
-		}
-
-		// Datei öffnen
-		file, err := os.Create(cmdConfig.OutputPath)
-		if err != nil {
-			return fmt.Errorf("failed to create file: %v", err)
-		}
-		defer file.Close()
-		writer = file
+		// Use direct generation for file output or --no-color
+		return service.GenerateChangelog(context.Background(), options)
 	}
-
-	// Changelog generieren
-	err = generator.Generate(writer, query)
-	if err != nil {
-		return err
-	}
-
-	// Wenn stdout verwendet wird (--no-color Fall)
-	if isStdout {
-		buffer := writer.(*bytes.Buffer)
-		markdown := buffer.String()
-		fmt.Print(markdown)
-	}
-
-	return nil
 }

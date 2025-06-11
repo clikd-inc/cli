@@ -1,117 +1,304 @@
 package changelog
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+
+	"clikd/internal/utils"
 )
 
-// Service stellt Funktionen für die Changelog-Verwaltung bereit
+// Service provides functions for changelog management
 type Service struct {
 	ConfigPath string
 }
 
-// NewService erstellt einen neuen Changelog-Service
+// GenerationOptions contains all options for changelog generation
+type GenerationOptions struct {
+	// Core options
+	ConfigPath    string
+	Template      string
+	RepositoryURL string
+	OutputPath    string
+	Query         string
+	NextTag       string
+
+	// Filtering options
+	TagFilterPattern string
+	Paths            []string
+
+	// Display options
+	Silent          bool
+	NoColor         bool
+	NoEmoji         bool
+	NoCaseSensitive bool
+
+	// Integration options
+	JiraURL      string
+	JiraUsername string
+	JiraToken    string
+
+	// Sorting options
+	Sort      string
+	Processor string
+}
+
+// GenerationResult contains the result of changelog generation
+type GenerationResult struct {
+	Content       string
+	CommandConfig *CommandConfig
+	ShouldUseUI   bool
+}
+
+// PrepareGeneration prepares all the configuration and determines the generation strategy
+func (s *Service) PrepareGeneration(ctx context.Context, options *GenerationOptions) (*GenerationResult, error) {
+	// Create logger with appropriate level
+	logLevel := "error"
+	if options.OutputPath != "" {
+		logLevel = "info" // Show progress for file output
+	}
+	logger := utils.NewLogger(logLevel, !options.NoColor)
+
+	// Determine working directory
+	wd, err := os.Getwd()
+	if err != nil {
+		logger.Error("Failed to get working directory: %v", err)
+		return nil, err
+	}
+
+	// Resolve and validate config path
+	configPath := utils.ResolveConfigPath(options.ConfigPath)
+	configFileInfo, err := os.Stat(configPath)
+	if err != nil {
+		logger.Error("Configuration file not found at %s: %v", configPath, err)
+		return nil, fmt.Errorf("configuration file not found at %s: %v", configPath, err)
+	}
+	if configFileInfo.IsDir() {
+		configPath = filepath.Join(configPath, "config.yml")
+	}
+
+	// Create command configuration
+	cmdConfig := &CommandConfig{
+		WorkingDir:       wd,
+		ConfigPath:       configPath,
+		Template:         options.Template,
+		RepositoryURL:    options.RepositoryURL,
+		OutputPath:       options.OutputPath,
+		Silent:           options.Silent,
+		NoColor:          options.NoColor,
+		NoEmoji:          options.NoEmoji,
+		NoCaseSensitive:  options.NoCaseSensitive,
+		Query:            options.Query,
+		NextTag:          options.NextTag,
+		TagFilterPattern: options.TagFilterPattern,
+		JiraUsername:     options.JiraUsername,
+		JiraToken:        options.JiraToken,
+		JiraURL:          options.JiraURL,
+		Paths:            options.Paths,
+		Sort:             options.Sort,
+		Processor:        options.Processor,
+	}
+
+	// Determine if UI should be used
+	shouldUseUI := options.OutputPath == "" && !options.NoColor
+
+	result := &GenerationResult{
+		CommandConfig: cmdConfig,
+		ShouldUseUI:   shouldUseUI,
+	}
+
+	// If not using UI, generate content directly
+	if !shouldUseUI {
+		content, err := s.generateDirect(logger, cmdConfig, options.Query)
+		if err != nil {
+			return nil, err
+		}
+		result.Content = content
+	}
+
+	return result, nil
+}
+
+// GenerateChangelog is the high-level method that handles all changelog generation logic
+func (s *Service) GenerateChangelog(ctx context.Context, options *GenerationOptions) error {
+	result, err := s.PrepareGeneration(ctx, options)
+	if err != nil {
+		return err
+	}
+
+	// If content was generated directly, handle output
+	if !result.ShouldUseUI {
+		if options.OutputPath == "" {
+			// Terminal output
+			fmt.Print(result.Content)
+		} else {
+			// File output - content was already written to file in generateDirect
+		}
+	}
+
+	return nil
+}
+
+// generateDirect handles file output or no-color terminal output
+func (s *Service) generateDirect(logger utils.Logger, cmdConfig *CommandConfig, query string) (string, error) {
+	// Load configuration
+	config, err := LoadConfigFromCommand(cmdConfig)
+	if err != nil {
+		logger.Error("Failed to load config: %v", err)
+		return "", err
+	}
+
+	// Create generator
+	generator := NewGenerator(logger, config)
+
+	// Determine output writer
+	var writer io.Writer
+	var isStdout bool
+
+	if cmdConfig.OutputPath == "" {
+		// Terminal output - use buffer
+		isStdout = true
+		writer = &bytes.Buffer{}
+	} else {
+		// File output - write directly to file
+		isStdout = false
+
+		// Create directory if it doesn't exist
+		dir := filepath.Dir(cmdConfig.OutputPath)
+		if dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return "", fmt.Errorf("failed to create directory: %v", err)
+			}
+		}
+
+		// Open file
+		file, err := os.Create(cmdConfig.OutputPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to create file: %v", err)
+		}
+		defer file.Close()
+		writer = file
+	}
+
+	// Generate changelog
+	err = generator.Generate(writer, query)
+	if err != nil {
+		return "", err
+	}
+
+	// Return content if stdout was used
+	if isStdout {
+		buffer := writer.(*bytes.Buffer)
+		return buffer.String(), nil
+	}
+
+	return "", nil
+}
+
+// NewService creates a new Changelog service
 func NewService(configPath string) *Service {
 	return &Service{
 		ConfigPath: configPath,
 	}
 }
 
-// InitializeTemplates erstellt die Template- und Konfigurationsdateien
+// InitializeTemplates creates template and configuration files
 func (s *Service) InitializeTemplates(style string, configDir string) error {
-	// Erstelle die Verzeichnisse
+	// Create directories
 	templateDir := filepath.Join(configDir, "templates")
 	configDir = filepath.Join(configDir, "config")
 
 	dirs := []string{templateDir, configDir}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("fehler beim Erstellen des Verzeichnisses %s: %w", dir, err)
+			return fmt.Errorf("error creating directory %s: %w", dir, err)
 		}
 	}
 
-	// Template- und Konfigurationsdateien schreiben
+	// Write template and configuration files
 	templatePath := filepath.Join(templateDir, style+".tpl.md")
 	configPath := filepath.Join(configDir, style+".yml")
 
-	// Erstelle ein Answer-Objekt (wird nicht verwendet)
-	// aber kann in zukünftigen Implementierungen nützlich sein
+	// Create an Answer object (not used)
+	// but can be useful in future implementations
 
-	// Generiere das Template und die Konfiguration
+	// Generate template and configuration
 	templateContent := getDefaultTemplate(style)
 	configContent := getDefaultConfig(style)
 
-	// Schreibe das Template
+	// Write template
 	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
-		return fmt.Errorf("fehler beim Schreiben der Template-Datei: %w", err)
+		return fmt.Errorf("error writing template file: %w", err)
 	}
 
-	// Schreibe die Konfiguration
+	// Write configuration
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		return fmt.Errorf("fehler beim Schreiben der Konfigurations-Datei: %w", err)
+		return fmt.Errorf("error writing configuration file: %w", err)
 	}
 
 	return nil
 }
 
-// EnsureTemplateExists stellt sicher, dass die Template-Datei existiert
-// Falls nicht, wird sie aus dem eingebetteten Template wiederhergestellt
+// EnsureTemplateExists ensures that the template file exists
+// If not, it will be restored from the embedded template
 func (s *Service) EnsureTemplateExists(templatePath, style string) error {
 	if templatePath == "" {
-		return nil // Keine Template-Datei konfiguriert
+		return nil // No template file configured
 	}
 
-	// Prüfe, ob die Datei existiert
+	// Check if file exists
 	if _, err := os.Stat(templatePath); err == nil {
-		return nil // Datei existiert
+		return nil // File exists
 	}
 
-	// Stelle sicher, dass das Verzeichnis existiert
+	// Ensure directory exists
 	dir := filepath.Dir(templatePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("fehler beim Erstellen des Template-Verzeichnisses: %w", err)
+		return fmt.Errorf("error creating template directory: %w", err)
 	}
 
-	// Schreibe das Template
+	// Write template
 	templateContent := getDefaultTemplate(style)
 	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
-		return fmt.Errorf("fehler beim Wiederherstellen des Templates: %w", err)
+		return fmt.Errorf("error restoring template: %w", err)
 	}
 
-	fmt.Printf("Template-Datei wurde wiederhergestellt: %s\n", templatePath)
+	fmt.Printf("Template file has been restored: %s\n", templatePath)
 	return nil
 }
 
-// EnsureConfigExists stellt sicher, dass die Konfigurations-Datei existiert
-// Falls nicht, wird sie aus der eingebetteten Konfiguration wiederhergestellt
+// EnsureConfigExists ensures that the configuration file exists
+// If not, it will be restored from the embedded configuration
 func (s *Service) EnsureConfigExists(configPath, style string) error {
 	if configPath == "" {
-		return nil // Keine Konfigurations-Datei konfiguriert
+		return nil // No configuration file configured
 	}
 
-	// Prüfe, ob die Datei existiert
+	// Check if file exists
 	if _, err := os.Stat(configPath); err == nil {
-		return nil // Datei existiert
+		return nil // File exists
 	}
 
-	// Stelle sicher, dass das Verzeichnis existiert
+	// Ensure directory exists
 	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("fehler beim Erstellen des Konfigurations-Verzeichnisses: %w", err)
+		return fmt.Errorf("error creating configuration directory: %w", err)
 	}
 
-	// Schreibe die Konfiguration
+	// Write configuration
 	configContent := getDefaultConfig(style)
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		return fmt.Errorf("fehler beim Wiederherstellen der Konfiguration: %w", err)
+		return fmt.Errorf("error restoring configuration: %w", err)
 	}
 
-	fmt.Printf("Konfigurations-Datei wurde wiederhergestellt: %s\n", configPath)
+	fmt.Printf("Configuration file has been restored: %s\n", configPath)
 	return nil
 }
 
-// getDefaultTemplate liefert das Standard-Template für den angegebenen Stil
+// getDefaultTemplate returns the default template for the specified style
 func getDefaultTemplate(style string) string {
 	switch style {
 	case "github":
@@ -182,7 +369,7 @@ func getDefaultTemplate(style string) string {
 	}
 }
 
-// getDefaultConfig liefert die Standard-Konfiguration für den angegebenen Stil
+// getDefaultConfig returns the default configuration for the specified style
 func getDefaultConfig(style string) string {
 	switch style {
 	case "github":

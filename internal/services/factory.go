@@ -67,9 +67,24 @@ func (f *ServiceFactory) CreateAIService() (ai.Service, error) {
 func (f *ServiceFactory) CreateChangelogService(configPath string) (*changelog.Service, error) {
 	f.logger.Debug("Creating Changelog service with config: %s", configPath)
 
-	// For now, use the existing changelog service creation
-	// TODO: Refactor changelog service to accept injected dependencies
+	// Create the service with the new high-level functionality
 	return changelog.NewService(configPath), nil
+}
+
+// CreateChangelogServiceWithOptions creates a Changelog service and prepares generation options
+func (f *ServiceFactory) CreateChangelogServiceWithOptions(configPath string, options *changelog.GenerationOptions) (*changelog.Service, *changelog.GenerationResult, error) {
+	f.logger.Debug("Creating Changelog service with options")
+
+	// Create service
+	service := changelog.NewService(configPath)
+
+	// Prepare generation with the provided options
+	result, err := service.PrepareGeneration(f.ctx, options)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to prepare changelog generation: %w", err)
+	}
+
+	return service, result, nil
 }
 
 // CreateChangelogServiceWithDependencies creates a Changelog service with injected dependencies
