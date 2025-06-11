@@ -1,8 +1,14 @@
 <a name="unreleased"></a>
 ## [Unreleased]
 
+### Code Refactoring
+- **ai:** remove unused methods from Service interface to simplify code and improve maintainability chore(ai): delete corresponding tests for removed methods to keep test suite clean refactor(usecases): remove unused types and functions related to commit categorization and enhancement to streamline codebase
+- **config:** replace ConfigData with Config to simplify configuration structure and improve clarity refactor(config): remove unnecessary conversion functions and streamline configuration handling refactor(config): update configuration loading and saving methods to use new Config structure refactor(config): enhance environment variable handling for configuration settings refactor(validation): improve validation logic for provider and model compatibility
+
 ### Features
+- **changelog:** add a new changelog file to document project changes and updates for better tracking and transparency chore(docs): remove outdated changelog integration plan document to streamline documentation and avoid confusion fix(config): remove AI enable flag from configuration as AI is now always enabled for consistency and simplicity feat(ai): enhance AI integration by allowing advanced configuration options for token limits and custom API endpoints refactor(ai): simplify API key retrieval logic to use a single environment variable for all AI providers style(ui): improve user interface for AI configuration steps to enhance user experience during setup chore(tests): update tests to reflect changes in AI configuration handling and ensure reliability of new features docs: add comprehensive documentation for AI integration, including setup instructions and usage examples chore: remove unused debug template files to clean up the codebase and reduce clutter
 - **changelog:** enhance changelog template logic to include unreleased commits and groups chore(changelog): add debug template for easier changelog debugging fix(changelog): ensure all commits are included for the oldest tag in changelog generation style(changelog): clean up template formatting for better readability
+- **update:** implement semver comparison for version updates to ensure accurate update checks fix(config): change version to 'dev' in configuration files for development clarity refactor(main): centralize version management by using version package for consistency chore(tests): remove unused AI flag tests and enhance commit message tests for better coverage test(update): add comprehensive tests for version normalization and update checks to ensure reliability chore(workflows): update build commands to reference the correct version path for consistency across platforms
 
 
 <a name="v0.1.0"></a>

@@ -64,11 +64,9 @@ type SaveCompleteMsg struct {
 
 // NewChangelogViewerModel creates a new changelog viewer model
 func NewChangelogViewerModel(title, content string) ChangelogViewerModel {
-	// Render the markdown content with glamour using Tokyo Night style
-	rendered, err := glamour.Render(content, "tokyo-night")
-	if err != nil {
-		rendered = content // Fallback to plain text
-	}
+	// Use plain text to preserve original markdown structure
+	// This prevents glamour from moving reference links to the top
+	rendered := content
 
 	lines := strings.Split(rendered, "\n")
 	viewport := 30
@@ -383,15 +381,27 @@ func (m ChangelogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Content = fmt.Sprintf("Error generating changelog: %v", msg.Error)
 			m.RenderedContent = m.Content
 		} else {
-			// Erfolg: Content setzen und rendern
+			// Erfolg: Content setzen und mit korrigiertem Glamour rendern
 			m.Content = msg.Content
-			rendered, err := glamour.Render(msg.Content, "tokyo-night")
-			if err != nil {
-				rendered = msg.Content
-			}
-			m.RenderedContent = rendered
 
-			lines := strings.Split(rendered, "\n")
+			// Trenne Hauptinhalt von Referenz-Links für korrektes Rendering
+			mainContent, referenceLinks := separateReferenceLinks(msg.Content)
+
+			// Rendere nur den Hauptinhalt mit Glamour für schöne Formatierung
+			rendered, err := glamour.Render(mainContent, "tokyo-night")
+			if err != nil {
+				// Fallback: Verwende originalen Content ohne Glamour
+				m.RenderedContent = msg.Content
+			} else {
+				// Füge die Referenz-Links am Ende hinzu (ohne Glamour-Rendering)
+				if referenceLinks != "" {
+					m.RenderedContent = rendered + "\n" + referenceLinks
+				} else {
+					m.RenderedContent = rendered
+				}
+			}
+
+			lines := strings.Split(m.RenderedContent, "\n")
 			m.MaxScroll = len(lines) - m.Viewport
 			if m.MaxScroll < 0 {
 				m.MaxScroll = 0
@@ -528,4 +538,55 @@ func RunChangelogViewerWithGenerator(title string, config *changelog.CommandConf
 	m := NewChangelogViewerModelWithGenerator(title, config, query)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	p.Run()
+}
+
+// separateReferenceLinks separates markdown content into main content and reference links
+func separateReferenceLinks(content string) (mainContent, referenceLinks string) {
+	lines := strings.Split(content, "\n")
+	var mainLines []string
+	var refLines []string
+
+	// Find where reference links start (lines that match [text]: URL pattern)
+	inReferenceSection := false
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check if this line is a reference link definition
+		isRefLink := strings.HasPrefix(trimmed, "[") && strings.Contains(trimmed, "]:") && strings.Contains(trimmed, "http")
+
+		// If we find a reference link, check if all remaining non-empty lines are also reference links
+		if isRefLink && !inReferenceSection {
+			allRemainingAreRefs := true
+			for j := i; j < len(lines); j++ {
+				remainingTrimmed := strings.TrimSpace(lines[j])
+				if remainingTrimmed != "" {
+					isRemainingRefLink := strings.HasPrefix(remainingTrimmed, "[") && strings.Contains(remainingTrimmed, "]:") && strings.Contains(remainingTrimmed, "http")
+					if !isRemainingRefLink {
+						allRemainingAreRefs = false
+						break
+					}
+				}
+			}
+
+			if allRemainingAreRefs {
+				inReferenceSection = true
+			}
+		}
+
+		if inReferenceSection {
+			refLines = append(refLines, line)
+		} else {
+			mainLines = append(mainLines, line)
+		}
+	}
+
+	mainContent = strings.Join(mainLines, "\n")
+	referenceLinks = strings.Join(refLines, "\n")
+
+	// Clean up trailing whitespace from main content
+	mainContent = strings.TrimRight(mainContent, "\n")
+	referenceLinks = strings.TrimLeft(referenceLinks, "\n")
+
+	return mainContent, referenceLinks
 }
