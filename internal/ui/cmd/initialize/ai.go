@@ -129,52 +129,6 @@ func selectAIModel(provider string) string {
 	return selected.Value.(string)
 }
 
-// configureAdvancedAIOptions handles the advanced AI options configuration
-// and returns the configured options as a map
-func configureAdvancedAIOptions() map[string]string {
-	options := make(map[string]string)
-
-	// Ask if user wants to configure advanced options
-	configureAdvanced := bubble.RunConfirm(
-		"Advanced AI Options",
-		"Do you want to configure advanced AI options?",
-	)
-
-	if !configureAdvanced {
-		// Use defaults
-		options["tokens_max_input"] = "4096"
-		options["tokens_max_output"] = "500"
-		return options
-	}
-
-	// Configure advanced options - placeholder values will be used as defaults automatically
-	options["tokens_max_input"] = bubble.RunInput(
-		"Max Input Tokens",
-		"Maximum number of input tokens (context size)",
-		"4096",
-	)
-
-	options["tokens_max_output"] = bubble.RunInput(
-		"Max Output Tokens",
-		"Maximum number of output tokens (response length)",
-		"500",
-	)
-
-	options["api_url"] = bubble.RunInput(
-		"Custom API URL",
-		"Custom API endpoint URL (leave empty to use official API)",
-		"",
-	)
-
-	options["api_custom_headers"] = bubble.RunInput(
-		"Custom API Headers",
-		"Custom HTTP headers in JSON format (leave empty for standard authentication)",
-		"",
-	)
-
-	return options
-}
-
 // configureAPIKey handles the API key configuration
 // Returns the API key if provided, empty string otherwise
 func configureAPIKey(provider string, isGlobal bool) string {

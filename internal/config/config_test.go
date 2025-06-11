@@ -239,12 +239,10 @@ func TestSensitiveEnvironmentVariables(t *testing.T) {
 	// Reset the global manager before test
 	Reset()
 
-	// Set environment variables for API keys
-	os.Setenv("CLIKD_OPENAI_API_KEY", "test-openai-key")
-	os.Setenv("CLIKD_MISTRAL_API_KEY", "test-mistral-key")
+	// Set environment variable for API key
+	os.Setenv("CLIKD_API_KEY", "test-api-key")
 	defer func() {
-		os.Unsetenv("CLIKD_OPENAI_API_KEY")
-		os.Unsetenv("CLIKD_MISTRAL_API_KEY")
+		os.Unsetenv("CLIKD_API_KEY")
 	}()
 
 	// Initialize with defaults
@@ -259,15 +257,9 @@ func TestSensitiveEnvironmentVariables(t *testing.T) {
 		t.Fatalf("Get() failed: %v", err)
 	}
 
-	// Check that the API keys were loaded for the correct models
-	if cfg.AI.Provider == "openai" {
-		if cfg.AI.APIKey != "test-openai-key" {
-			t.Errorf("expected OpenAI API key, got %s", cfg.AI.APIKey)
-		}
-	} else if cfg.AI.Provider == "mistral" {
-		if cfg.AI.APIKey != "test-mistral-key" {
-			t.Errorf("expected Mistral API key, got %s", cfg.AI.APIKey)
-		}
+	// Check that the API key was loaded
+	if cfg.AI.APIKey != "test-api-key" {
+		t.Errorf("expected API key to be 'test-api-key', got %s", cfg.AI.APIKey)
 	}
 }
 

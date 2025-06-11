@@ -21,6 +21,10 @@ const (
 	StepProviderSelection = "provider_selection"
 	StepModelSelection    = "model_selection"
 	StepAdvancedAIOptions = "advanced_ai_options"
+	StepAITokensInput     = "ai_tokens_input"
+	StepAITokensOutput    = "ai_tokens_output"
+	StepAICustomURL       = "ai_custom_url"
+	StepAICustomHeaders   = "ai_custom_headers"
 	StepAPIKeyConfig      = "api_key_config"
 	StepChangelogConfig   = "changelog_config"
 	StepChangelogURL      = "changelog_url"
@@ -145,6 +149,12 @@ type InitModel struct {
 	AIProvider       string
 	AIModel          string
 	AICustomSettings bool
+
+	// Advanced AI configuration values
+	AITokensMaxInput  string
+	AITokensMaxOutput string
+	AICustomURL       string
+	AICustomHeaders   string
 
 	// Changelog configuration
 	ChangelogEnabled        bool

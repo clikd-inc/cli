@@ -1,0 +1,106 @@
+---
+title: Commands Reference
+description: Quick reference of all available CLIKD commands
+---
+
+# Commands Reference
+
+Quick reference of all available CLIKD commands. Click on any command for detailed documentation.
+
+## Core Commands
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+
+<div className="border rounded-lg p-4">
+### [`clikd init`](/docs/cli/commands/init)
+Initialize CLIKD configuration for your project with an interactive setup wizard.
+
+```bash
+clikd init
+```
+</div>
+
+<div className="border rounded-lg p-4">
+### [`clikd changelog`](/docs/cli/commands/changelog)
+Generate beautiful changelogs from your Git commit history.
+
+```bash
+clikd changelog -o CHANGELOG.md
+```
+</div>
+
+<div className="border rounded-lg p-4">
+### [`clikd config`](/docs/cli/commands/config)
+Manage CLIKD configuration settings after initialization.
+
+```bash
+clikd config show
+```
+</div>
+
+<div className="border rounded-lg p-4">
+### [`clikd ai-test`](/docs/cli/commands/ai-test)
+Test your AI integration and API key configuration.
+
+```bash
+clikd ai-test "Hello"
+```
+</div>
+
+</div>
+
+## Global Options
+
+Available for all commands:
+
+| Option | Description |
+|--------|-------------|
+| `--help, -h` | Show help for command |
+| `--version, -v` | Show version information |
+| `--config-dir` | Custom configuration directory |
+| `--log-level` | Set log level (error, warn, info, debug) |
+| `--no-color` | Disable colored output |
+
+## Quick Examples
+
+```bash
+# Get started quickly
+clikd init && clikd changelog
+
+# Generate changelog for specific version range
+clikd changelog v1.0.0..v2.0.0
+
+# Test your AI setup
+clikd ai-test "What is semantic versioning?"
+
+# Check current configuration
+clikd config show
+```
+
+## Environment Variables
+
+Configure CLIKD using environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `CLIKD_API_KEY` | API key for AI provider |
+| `CLIKD_CONFIG_DIR` | Custom configuration directory |
+| `CLIKD_LOG_LEVEL` | Default log level |
+| `CLIKD_NO_COLOR` | Disable colored output |
+
+## Getting Help
+
+```bash
+# General help
+clikd --help
+
+# Help for specific command
+clikd init --help
+clikd changelog --help
+```
+
+## Next Steps
+
+- **New to CLIKD?** Start with the [Quick Start Guide](/docs/cli/quick-start)
+- **Need detailed setup?** Check the [Configuration Guide](/docs/cli/configuration)
+- **Team setup?** See [Development Guide](/docs/cli/development) 

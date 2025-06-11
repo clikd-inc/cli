@@ -21,8 +21,6 @@ type GeneralConfig struct {
 
 // AIConfig enthält die Konfiguration für KI-bezogene Funktionen
 type AIConfig struct {
-	// Enable aktiviert oder deaktiviert KI-Funktionen global
-	Enable bool `json:"enable" mapstructure:"enable" toml:"enable"`
 	// Provider ist der KI-Anbieter (z.B. "mistral", "openai", "anthropic")
 	Provider string `json:"provider" mapstructure:"provider" toml:"provider"`
 	// Model ist das zu verwendende Modell (z.B. "mistral-medium", "gpt-4o")

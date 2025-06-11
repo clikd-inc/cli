@@ -31,7 +31,6 @@ type Config struct {
 		LogLevel string `toml:"log_level"`
 	} `toml:"general"`
 	AI struct {
-		// Enable aktiviert oder deaktiviert alle KI-Funktionen global.
 		// Alle weiteren KI-Einstellungen werden über Umgebungsvariablen gesteuert.
 		// CLIKD_API_KEY         - API-Schlüssel für den gewählten Provider
 		// CLIKD_AI_PROVIDER     - KI-Provider ('mistral', 'openai', 'anthropic', etc.)
@@ -40,7 +39,6 @@ type Config struct {
 		// CLIKD_API_CUSTOM_HEADERS - Benutzerdefinierte HTTP-Header für API-Anfragen
 		// CLIKD_TOKENS_MAX_INPUT  - Maximales Token-Limit für Eingaben (Standard: 4096)
 		// CLIKD_TOKENS_MAX_OUTPUT - Maximales Token-Limit für Ausgaben (Standard: 500)
-		Enable           bool   `toml:"enable"`
 		Provider         string `toml:"provider"`
 		Model            string `toml:"model"`
 		APIKey           string `toml:"api_key"`
@@ -74,10 +72,9 @@ func createDefaultConfig() Config {
 	c.General.LogLevel = "info"
 
 	// AI
-	c.AI.Enable = true
 	c.AI.Provider = "mistral"
 	c.AI.Model = "mistral-medium"
-	c.AI.APIKey = "" // Wird nur in der globalen Konfiguration gespeichert
+	c.AI.APIKey = ""
 	c.AI.APIURL = ""
 	c.AI.APICustomHeaders = ""
 	c.AI.TokensMaxInput = 4096
@@ -157,8 +154,6 @@ func (m *Manager) InitConfig(configPath string) error {
 					}
 
 					// KI-Einstellungen explizit übernehmen
-					// AI.Enable muss immer übernommen werden, unabhängig vom Wert
-					m.config.AI.Enable = tempConfig.AI.Enable
 
 					if tempConfig.AI.Provider != "" {
 						m.config.AI.Provider = tempConfig.AI.Provider
@@ -239,15 +234,7 @@ func (m *Manager) SaveConfig(configPath string) error {
 
 // SetConfigValue setzt einen Konfigurationswert anhand eines Pfades (z.B. "general.log_level")
 func (m *Manager) SetConfigValue(path, value string) error {
-	// Sonderbehandlung für AI-Einstellungen
-	if path == "ai.enable" {
-		if value == "true" || value == "1" {
-			m.config.AI.Enable = true
-		} else if value == "false" || value == "0" {
-			m.config.AI.Enable = false
-		}
-		return nil
-	}
+	// AI is now always enabled, no special handling needed for ai.enable
 
 	v := viper.New()
 	v.SetConfigType("toml")
@@ -286,11 +273,7 @@ func (m *Manager) loadSensitiveEnvVars() {
 	}
 
 	// AI-Konfigurationswerte aus Umgebungsvariablen
-	if enableAI := os.Getenv("CLIKD_AI_ENABLE"); enableAI == "true" || enableAI == "1" {
-		m.config.AI.Enable = true
-	} else if enableAI == "false" || enableAI == "0" {
-		m.config.AI.Enable = false
-	}
+	// AI is now always enabled, no need to check CLIKD_AI_ENABLE
 
 	if provider := os.Getenv("CLIKD_AI_PROVIDER"); provider != "" {
 		m.config.AI.Provider = provider
@@ -324,43 +307,9 @@ func (m *Manager) loadSensitiveEnvVars() {
 // loadEnvFile lädt API-Schlüssel aus einer .env-Datei im Projektverzeichnis
 // Diese Methode ist speziell für API-Schlüssel und andere sensible Daten vorgesehen
 func (m *Manager) loadEnvFile() {
-	// Prüfen, ob eine lokale Konfiguration existiert
-	localConfigExists := utils.IsLocalConfigPresent()
-
-	// Provider-spezifische Informationen basierend auf der aktuellen Konfiguration
-	var providerInfo utils.ProviderKeyInfo
-
-	// Provider-spezifische Konfiguration auswählen
-	switch strings.ToLower(m.config.AI.Provider) {
-	case "openai":
-		providerInfo = utils.OpenAIProvider
-	case "mistral":
-		providerInfo = utils.MistralProvider
-	case "anthropic":
-		providerInfo = utils.AnthropicProvider
-	case "groq":
-		providerInfo = utils.GroqProvider
-	case "openrouter":
-		providerInfo = utils.OpenRouterProvider
-	default:
-		// Fallback zu generischem Provider
-		providerInfo = utils.ProviderKeyInfo{
-			Name:            m.config.AI.Provider,
-			ConfigKey:       "ai.api_key",
-			EnvVarName:      "CLIKD_API_KEY",
-			EnvVarNameShort: "API_KEY",
-			Required:        false,
-		}
-	}
-
-	// API-Schlüssel für den aktuellen Provider abrufen
-	// Nur wenn KI aktiviert ist, markieren wir den Schlüssel als erforderlich
-	if m.config.AI.Enable {
-		providerInfo.Required = true
-	}
-
-	// Schlüssel laden mit Fallback-Logik
-	apiKey, err := utils.GetAPIKey(providerInfo, localConfigExists)
+	// AI is now always enabled, always try to load API key
+	// Schlüssel laden mit der vereinfachten GetAPIKey Funktion
+	apiKey, err := utils.GetAPIKey()
 	if err == nil && apiKey != "" {
 		// Wenn ein Schlüssel gefunden wurde, in der Konfiguration speichern
 		m.config.AI.APIKey = apiKey

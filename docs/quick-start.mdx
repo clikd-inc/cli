@@ -1,0 +1,122 @@
+---
+title: Quick Start
+description: Get CLIKD running and generate your first changelog in under 5 minutes
+---
+
+# Quick Start
+
+Get your first changelog generated in under 5 minutes.
+
+## Step 1: Install CLIKD
+
+<Tabs items={['macOS', 'Windows', 'Linux']}>
+<Tab value="macOS">
+```bash
+# Using Homebrew
+brew tap clikd-inc/tap
+brew install clikd
+```
+</Tab>
+
+<Tab value="Windows">
+```bash
+# Using Scoop
+scoop bucket add clikd https://github.com/clikd-inc/scoop-bucket
+scoop install clikd
+```
+</Tab>
+
+<Tab value="Linux">
+```bash
+# Download and install
+curl -L https://github.com/clikd-inc/cli/releases/latest/download/clikd_linux_amd64.zip -o clikd.zip
+unzip clikd.zip && chmod +x clikd && sudo mv clikd /usr/local/bin/
+```
+</Tab>
+</Tabs>
+
+**Verify installation:**
+```bash
+clikd version
+```
+
+## Step 2: Quick Setup
+
+Navigate to your Git repository and run:
+
+```bash
+cd your-project
+clikd init
+```
+
+**For the fastest setup, choose:**
+- ✅ **Local** configuration (recommended for teams)
+- ✅ **Yes** to AI integration 
+- ✅ **Mistral** as provider (best value)
+- ✅ **Yes** to changelog features
+- ✅ **GitHub** style
+
+<Callout type="info">
+**Need an API key?** Get a free Mistral API key at [console.mistral.ai](https://console.mistral.ai/) - most users get free credits to start.
+</Callout>
+
+## Step 3: Generate Your First Changelog
+
+```bash
+clikd changelog
+```
+
+That's it! 🎉 You now have a beautiful, interactive changelog viewer.
+
+**Want to save it to a file?**
+```bash
+clikd changelog -o CHANGELOG.md
+```
+
+## What's Next?
+
+<Steps>
+<Step>
+### Explore the Interactive Viewer
+- Use `↑/↓` or `j/k` to navigate
+- Press `c` to copy to clipboard
+- Press `h` for help
+- Press `q` to exit
+</Step>
+
+<Step>
+### Learn Advanced Features
+- [Configuration Guide](/docs/configuration) - Detailed setup options
+- [Changelog Command](/docs/commands/changelog) - Advanced generation options
+- [AI Integration](/docs/ai-integration) - Enhance with AI features
+</Step>
+
+<Step>
+### Team Setup
+- Commit your `clikd/` folder to share configuration
+- Team members only need to add their API key to `.env`
+- Set up [CI/CD integration](/docs/development) for automated changelogs
+</Step>
+</Steps>
+
+## Troubleshooting
+
+**Command not found?**
+```bash
+# Check if CLIKD is in PATH
+which clikd
+```
+
+**API key issues?**
+```bash
+# Test your setup
+clikd ai-test "Hello"
+```
+
+**No commits found?**
+```bash
+# Make sure you're in a Git repository
+git status
+```
+
+Need more help? Check our [full documentation](/docs) or [open an issue](https://github.com/clikd-inc/cli/issues). 

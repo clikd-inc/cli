@@ -8,7 +8,6 @@ func DefaultConfig() *ConfigData {
 			LogLevel: "info",
 		},
 		AI: AIConfig{
-			Enable:           true,
 			Provider:         "mistral",
 			Model:            "mistral-medium",
 			APIKey:           "",

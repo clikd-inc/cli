@@ -71,16 +71,9 @@ Use it to automate workflows and enhance productivity.`,
 				appConfig.General.LogLevel = logLevel
 			}
 
-			// Override AI enabled flag if provided and set environment variable to mark flag as explicitly set
-			if cmd.Flags().Changed("ai") {
-				if err := config.Set("ai.enable", aiEnabled); err != nil {
-					return fmt.Errorf("error setting AI enabled flag: %w", err)
-				}
-				appConfig.AI.Enable = aiEnabled
-
-				// Set environment variable so subcommands can detect that the flag was explicitly set
-				os.Setenv("CLIKD_AI_FLAG_SET", "true")
-			}
+			// AI is now always enabled, no need for flag override
+			// Set environment variable so subcommands can detect that AI is enabled
+			os.Setenv("CLIKD_AI_FLAG_SET", "true")
 
 			// Override color output flag if provided
 			if cmd.Flags().Changed("color") {
@@ -144,7 +137,6 @@ Use it to automate workflows and enhance productivity.`,
 	rootCmd.PersistentFlags().StringVarP(&level, "log-level", "l", "info", "Log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "V", false, "Enable verbose output")
 	rootCmd.PersistentFlags().BoolVar(&colorize, "no-color", true, "Disable colored output")
-	rootCmd.PersistentFlags().BoolVar(&aiEnabled, "ai", false, "Enable AI-powered features globally for all commands")
 	rootCmd.PersistentFlags().BoolVar(&colorOutput, "color", true, "Enable colorized output")
 
 	// Add version flag
@@ -250,7 +242,6 @@ PowerShell:
 				Model:    modelConfig.ModelID,
 				APIKey:   modelConfig.APIKey,
 				APIURL:   modelConfig.Endpoint,
-				EnableAI: true,
 			}
 
 			// Create client

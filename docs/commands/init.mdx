@@ -1,0 +1,302 @@
+---
+title: clikd init
+description: Initialize CLIKD configuration for your project
+---
+
+# clikd init
+
+Initialize CLIKD configuration for your project with an interactive setup wizard.
+
+## Synopsis
+
+```bash
+clikd init [flags]
+```
+
+## Description
+
+The `init` command launches an interactive configuration wizard that guides you through setting up CLIKD for your project. It can create either local (project-specific) or global (system-wide) configuration.
+
+## Examples
+
+```bash
+# Basic initialization with interactive wizard
+clikd init
+
+# Force reinitialize (overwrite existing config)
+clikd init --force
+
+# Initialize with specific configuration scope
+clikd init --scope local
+clikd init --scope global
+
+# Skip AI configuration
+clikd init --no-ai
+
+# Skip changelog configuration
+clikd init --no-changelog
+
+# Non-interactive mode with defaults
+clikd init --yes
+```
+
+## Flags
+
+### `--force`
+Force initialization even if configuration already exists. This will overwrite existing configuration files.
+
+```bash
+clikd init --force
+```
+
+### `--scope <local|global>`
+Specify configuration scope without interactive prompt.
+
+```bash
+# Create local configuration (project-specific)
+clikd init --scope local
+
+# Create global configuration (system-wide)
+clikd init --scope global
+```
+
+**Local vs Global:**
+- **Local**: Creates `clikd/` folder in current project, team-friendly
+- **Global**: Creates `~/.clikd/` in home directory, personal use
+
+### `--no-ai`
+Skip AI integration configuration. AI features will be disabled.
+
+```bash
+clikd init --no-ai
+```
+
+### `--no-changelog`
+Skip changelog configuration. Only available for local configurations.
+
+```bash
+clikd init --no-changelog
+```
+
+### `--yes, -y`
+Accept all default values without prompting. Useful for automation and CI/CD.
+
+```bash
+clikd init --yes
+```
+
+**Default values:**
+- Scope: `local` (if in Git repository), otherwise `global`
+- Log level: `info`
+- AI integration: `enabled`
+- AI provider: `mistral`
+- AI model: `mistral-medium`
+- Changelog: `enabled` (local only)
+- Changelog style: `github`
+
+### `--config-dir <path>`
+Specify custom configuration directory instead of default locations.
+
+```bash
+clikd init --config-dir /path/to/custom/config
+```
+
+### `--log-level <level>`
+Set log level without interactive prompt.
+
+```bash
+clikd init --log-level debug
+```
+
+**Available levels:** `error`, `warn`, `info`, `debug`
+
+### `--ai-provider <provider>`
+Set AI provider without interactive prompt.
+
+```bash
+clikd init --ai-provider mistral
+```
+
+**Available providers:** `mistral`, `openai`, `anthropic`, `groq`
+
+### `--ai-model <model>`
+Set AI model without interactive prompt. Must be compatible with the selected provider.
+
+```bash
+clikd init --ai-model mistral-medium
+```
+
+### `--api-key <key>`
+Set API key directly (not recommended for security reasons).
+
+```bash
+clikd init --api-key sk-your-api-key-here
+```
+
+<Callout type="warning">
+**Security Warning**: Avoid using `--api-key` flag in scripts or CI/CD as it may expose your API key in logs. Use environment variables instead.
+</Callout>
+
+### `--changelog-style <style>`
+Set changelog style without interactive prompt.
+
+```bash
+clikd init --changelog-style github
+```
+
+**Available styles:** `github`, `gitlab`, `bitbucket`, `none`
+
+### `--repository-url <url>`
+Set repository URL without interactive prompt.
+
+```bash
+clikd init --repository-url https://github.com/your-org/your-repo.git
+```
+
+### `--help, -h`
+Show help information for the init command.
+
+```bash
+clikd init --help
+```
+
+## Interactive Wizard Flow
+
+When run without flags, `clikd init` launches an interactive wizard:
+
+1. **Repository Detection** - Automatically detects Git repository
+2. **Configuration Scope** - Choose local or global configuration
+3. **General Settings** - Configure log level and basic options
+4. **AI Integration** - Enable/disable and configure AI features
+5. **AI Provider** - Select AI provider (Mistral, OpenAI, etc.)
+6. **Model Selection** - Choose specific model for the provider
+7. **Advanced AI Options** - Configure token limits, custom endpoints
+8. **API Key Setup** - Configure API key securely
+9. **Changelog Configuration** - Set up changelog generation (local only)
+10. **Summary** - Review and confirm configuration
+
+## Configuration Files Created
+
+### Local Configuration
+```
+your-project/
+├── clikd/
+│   ├── config.toml          # Main configuration
+│   └── changelog/
+│       ├── CHANGELOG.tpl.md # Changelog template
+│       └── config.toml      # Changelog-specific config
+└── .env                     # API keys (auto-added to .gitignore)
+```
+
+### Global Configuration
+```
+~/.clikd/
+├── config.toml              # Main configuration
+└── changelog/
+    ├── CHANGELOG.tpl.md     # Default changelog template
+    └── config.toml          # Default changelog config
+```
+
+## Environment Variables
+
+The init command respects these environment variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CLIKD_API_KEY` | Pre-set API key | `sk-...` |
+| `CLIKD_CONFIG_DIR` | Custom config directory | `/path/to/config` |
+| `CLIKD_LOG_LEVEL` | Default log level | `debug` |
+| `CLIKD_NO_COLOR` | Disable colored output | `true` |
+
+## Automation Examples
+
+### CI/CD Pipeline
+```yaml
+# GitHub Actions
+- name: Initialize CLIKD
+  env:
+    CLIKD_API_KEY: ${{ secrets.CLIKD_API_KEY }}
+  run: |
+    clikd init --yes --scope local --ai-provider mistral
+```
+
+### Docker Setup
+```dockerfile
+# Dockerfile
+ENV CLIKD_API_KEY=your-api-key
+RUN clikd init --yes --scope global --no-changelog
+```
+
+### Team Onboarding Script
+```bash
+#!/bin/bash
+# setup-clikd.sh
+
+echo "Setting up CLIKD for the team..."
+
+# Initialize with team defaults
+clikd init \
+  --scope local \
+  --ai-provider mistral \
+  --ai-model mistral-medium \
+  --changelog-style github \
+  --yes
+
+echo "CLIKD configuration complete!"
+echo "Add your API key to .env file:"
+echo "echo 'CLIKD_API_KEY=your_key_here' > .env"
+```
+
+## Troubleshooting
+
+### Permission Errors
+```bash
+# Fix directory permissions
+chmod 755 clikd/
+chmod 644 clikd/config.toml
+
+# Fix .env permissions (keep secure)
+chmod 600 .env
+```
+
+### Configuration Conflicts
+```bash
+# Force reinitialize to fix conflicts
+clikd init --force
+
+# Or remove existing config first
+rm -rf clikd/ .env
+clikd init
+```
+
+### Git Repository Not Detected
+```bash
+# Initialize Git repository first
+git init
+git add .
+git commit -m "Initial commit"
+
+# Then run CLIKD init
+clikd init
+```
+
+### API Key Issues
+```bash
+# Test API key after initialization
+clikd ai-test "Hello"
+
+# Reconfigure API key
+clikd config set ai.api_key your-new-key
+```
+
+## Related Commands
+
+- [`clikd config`](/docs/cli/commands/config) - Manage configuration after initialization
+- [`clikd changelog`](/docs/cli/commands/changelog) - Generate changelogs
+- [`clikd ai-test`](/docs/cli/commands/ai-test) - Test AI integration
+
+## See Also
+
+- [Configuration Guide](/docs/cli/configuration) - Detailed configuration options
+- [Quick Start](/docs/cli/quick-start) - Get started quickly
+- [AI Integration](/docs/cli/ai-integration) - AI features and setup 

@@ -1,0 +1,472 @@
+---
+title: Configuration Guide
+description: Complete guide to configuring CLIKD for your project and team
+---
+
+# Configuration Guide
+
+This guide covers all configuration options for CLIKD, from basic setup to advanced customization.
+
+## Overview
+
+CLIKD can be configured in two ways:
+- **Local Configuration**: Project-specific settings (recommended for teams)
+- **Global Configuration**: System-wide settings (good for personal use)
+
+## Interactive Configuration
+
+The easiest way to configure CLIKD is using the interactive wizard:
+
+```bash
+clikd init
+```
+
+This launches a step-by-step configuration assistant that guides you through all options.
+
+## Configuration Wizard Steps
+
+### 1. Repository Detection
+
+CLIKD automatically detects if you're in a Git repository:
+
+```
+Welcome to the clikd Configuration Assistant!
+This assistant helps you set up clikd for your project.
+
+✓ Git repository detected: https://github.com/your-org/your-repo.git
+```
+
+### 2. Configuration Scope
+
+Choose between local or global configuration:
+
+```
+? Choose Configuration Type
+
+Git repository detected: https://github.com/your-org/your-repo.git
+
+Select your preferred configuration scope:
+
+  ▸ Local (Project-specific configuration, recommended for teams)
+    Global (System-wide configuration, good for personal use)
+```
+
+#### Local Configuration
+- **Location**: `clikd/` folder in your project
+- **Benefits**: 
+  - Team-friendly (can be committed to version control)
+  - Project-specific settings
+  - API key stored in `.env` file
+  - Includes changelog configuration
+- **Best for**: Team projects, open source projects
+
+#### Global Configuration
+- **Location**: `~/.clikd/` in your home directory
+- **Benefits**:
+  - Personal use across all your projects
+  - Single configuration to maintain
+  - API key stored in global config file
+- **Best for**: Personal projects, single-user setups
+- **Note**: No changelog configuration (project-specific feature)
+
+### 3. General Configuration
+
+Configure basic settings:
+
+```
+? Select Log Level
+  ▸ info (Standard log level, recommended)
+    debug (Verbose logging for troubleshooting)
+    warn (Only warnings and errors)
+    error (Only errors)
+```
+
+**Log Levels:**
+- **info**: Standard output, good for most users
+- **debug**: Detailed output for troubleshooting
+- **warn**: Only warnings and errors
+- **error**: Only critical errors
+
+### 4. AI Integration
+
+Enable or disable AI features:
+
+```
+? AI Configuration
+Do you want to enable AI features?
+  ▸ Yes
+    No
+```
+
+If you choose "No", AI features will be disabled and you'll skip to changelog configuration.
+
+### 5. AI Provider Selection
+
+Choose your preferred AI provider:
+
+```
+? Select AI Provider
+  ▸ mistral (RECOMMENDED - Default model: mistral-medium)
+    anthropic (Default model: claude-3-sonnet)
+    openai (Default model: gpt-4o)
+    groq (Default model: llama3-70b-8192)
+```
+
+**Provider Comparison:**
+
+| Provider | Best For | Cost | Speed | Quality |
+|----------|----------|------|-------|---------|
+| **Mistral** | General use | Low | Fast | High |
+| **Anthropic** | Complex reasoning | Medium | Medium | Very High |
+| **OpenAI** | Versatility | High | Medium | Very High |
+| **Groq** | Speed | Low | Very Fast | High |
+
+### 6. Model Selection
+
+Select the specific model for your chosen provider:
+
+```
+? Select Model for mistral
+  ▸ mistral-medium (RECOMMENDED - Best overall value)
+    mistral-small (Good balance of speed and capability)
+    mistral-large (Most capable Mistral model, but more expensive)
+    mistral-tiny (Fastest, most cost-effective option, but less capable)
+```
+
+### 7. Advanced AI Options
+
+Configure technical parameters:
+
+```
+? Advanced AI Options
+Do you want to configure advanced AI options (token limits, custom endpoints, etc.)?
+  ▸ Yes
+    No
+```
+
+If you choose "Yes", you can configure:
+
+#### Max Input Tokens
+```
+? Max Input Tokens
+Maximum number of input tokens (context size)
+Higher values allow for larger context but cost more
+▸ 4096
+```
+
+#### Max Output Tokens
+```
+? Max Output Tokens
+Maximum number of output tokens (response length)
+Higher values allow for longer responses but cost more
+▸ 500
+```
+
+#### Custom API URL
+```
+? Custom API URL
+Custom API endpoint URL (leave empty to use official API)
+Use this for proxy servers or alternative endpoints
+▸ [empty - press Enter for default]
+```
+
+#### Custom API Headers
+```
+? Custom API Headers
+Custom HTTP headers in JSON format
+Leave empty for standard authentication
+▸ [empty - press Enter for default]
+```
+
+### 8. API Key Configuration
+
+Configure your API key based on configuration scope:
+
+#### For Local Configuration
+```
+? API Key Configuration
+Do you want to configure your mistral API key now?
+  ▸ Yes
+    No
+```
+
+If you choose "Yes":
+```
+? Do you want to create/update the .env file with your API key?
+  ▸ Yes
+    No
+```
+
+Then enter your API key:
+```
+? Enter your mistral API key for the .env file
+▸ [Your API key will be hidden as you type]
+```
+
+#### For Global Configuration
+```
+? Enter your mistral API key (or leave empty to configure later)
+▸ [Your API key will be hidden as you type]
+```
+
+### 9. Changelog Configuration
+
+Enable and configure changelog features (only for local configurations):
+
+```
+? Changelog Configuration
+Do you want to configure changelog features?
+  ▸ Yes
+    No
+```
+
+#### Repository URL
+```
+? Repository URL
+What is the URL of your repository?
+▸ https://github.com/your-org/your-repo.git
+```
+
+#### Changelog Style
+```
+? Select Changelog Style
+  ▸ github (RECOMMENDED - GitHub-style with Markdown, most widely used)
+    gitlab (GitLab-style with Markdown)
+    bitbucket (Bitbucket-style with Markdown)
+    none (Simple format without special links)
+```
+
+#### Commit Message Format
+```
+? Choose Commit Message Format
+  ▸ <type>(<scope>): <subject> (feat(core): Add new feature)
+    <type>: <subject> (feat: Add new feature)
+    <<type> subject> (Add new feature)
+    <subject> (Add new feature - Not detect 'type' field)
+    :<type>: <subject> (:sparkles: Add new feature - Commit message with emoji format)
+```
+
+#### Template Style
+```
+? Select Template Style
+  ▸ standard (Standard changelog template)
+    keep-a-changelog (Keep a Changelog format)
+    cool (Cool template with emojis)
+```
+
+#### Additional Options
+- **Terminal Color**: Enable colored terminal output
+- **Merge Commits**: Include merge commits in changelog
+- **Revert Commits**: Include revert commits in changelog
+
+### 10. Configuration Summary
+
+Review your final configuration:
+
+```
+Configuration Completed
+
+✓ General:
+   - Log Level: info
+
+✓ AI:
+   - Provider: mistral
+   - Model: mistral-medium
+   - API Key: Configured
+
+✓ Changelog:
+   - Style: github
+   - Format: <type>(<scope>): <subject>
+   - Template: standard
+   - Color Output: true
+   - Include Merges: true
+   - Include Reverts: true
+   - Config Dir: clikd/changelog/
+
+Next Steps
+
+✓ 1. Generate a changelog:
+   clikd changelog -o CHANGELOG.md
+```
+
+## Manual Configuration
+
+You can also configure CLIKD manually by editing configuration files directly.
+
+### Local Configuration Files
+
+For local configuration, CLIKD creates these files in your project:
+
+```
+your-project/
+├── clikd/
+│   ├── config.toml          # Main configuration
+│   └── changelog/
+│       ├── CHANGELOG.tpl.md # Changelog template
+│       └── config.toml      # Changelog-specific config
+└── .env                     # API keys (keep private!)
+```
+
+### Global Configuration Files
+
+For global configuration:
+
+```
+~/.clikd/
+├── config.toml              # Main configuration
+└── changelog/
+    ├── CHANGELOG.tpl.md     # Default changelog template
+    └── config.toml          # Default changelog config
+```
+
+### Configuration File Format
+
+The main `config.toml` file structure:
+
+```toml
+[general]
+log_level = "info"
+
+[ai]
+enabled = true
+provider = "mistral"
+model = "mistral-medium"
+max_input_tokens = 4096
+max_output_tokens = 500
+api_key = "your-api-key"  # Only in global config
+
+[ai.custom]
+api_url = ""
+headers = "{}"
+
+[changelog]
+enabled = true
+style = "github"
+template_style = "standard"
+commit_format = "<type>(<scope>): <subject>"
+repository_url = "https://github.com/your-org/your-repo.git"
+color_output = true
+include_merge_commits = true
+include_revert_commits = true
+```
+
+## Environment Variables
+
+CLIKD supports these environment variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CLIKD_API_KEY` | API key for AI provider | `sk-...` |
+| `CLIKD_CONFIG_DIR` | Custom config directory | `/path/to/config` |
+| `CLIKD_LOG_LEVEL` | Override log level | `debug` |
+| `CLIKD_NO_COLOR` | Disable colored output | `true` |
+
+## Team Configuration
+
+For team projects, follow these best practices:
+
+### 1. Commit Configuration
+```bash
+# Add configuration to version control
+git add clikd/
+git commit -m "feat: add CLIKD configuration"
+```
+
+### 2. Share Setup Instructions
+Create a `README.md` section:
+
+```markdown
+## Changelog Generation
+
+We use CLIKD for automated changelog generation.
+
+### Setup
+1. Install CLIKD: `brew install clikd`
+2. Add your API key: `echo "CLIKD_API_KEY=your_key" > .env`
+3. Generate changelog: `clikd changelog -o CHANGELOG.md`
+
+Get a free API key at: https://console.mistral.ai/
+```
+
+### 3. Gitignore Setup
+```bash
+# Add to .gitignore
+echo ".env" >> .gitignore
+echo "clikd/cache/" >> .gitignore
+```
+
+## Advanced Configuration
+
+### Custom Templates
+
+You can customize changelog templates by editing:
+- Local: `clikd/changelog/CHANGELOG.tpl.md`
+- Global: `~/.clikd/changelog/CHANGELOG.tpl.md`
+
+### Multiple Configurations
+
+For projects with different needs, you can:
+
+1. **Use different branches** with different `clikd/` configurations
+2. **Use environment-specific configs** with `CLIKD_CONFIG_DIR`
+3. **Override settings** with environment variables
+
+### CI/CD Integration
+
+For automated changelog generation:
+
+```yaml
+# GitHub Actions
+- name: Generate Changelog
+  env:
+    CLIKD_API_KEY: ${{ secrets.CLIKD_API_KEY }}
+  run: |
+    clikd changelog --no-color -o CHANGELOG.md
+```
+
+## Troubleshooting
+
+### Configuration Issues
+
+**Configuration not found:**
+```bash
+# Reinitialize configuration
+clikd init --force
+```
+
+**Invalid configuration:**
+```bash
+# Check configuration syntax
+clikd config validate
+```
+
+**Permission errors:**
+```bash
+# Fix file permissions
+chmod 644 clikd/config.toml
+chmod 600 .env  # Keep API keys secure
+```
+
+### API Key Issues
+
+**API key not working:**
+```bash
+# Test API key
+clikd ai-test "Hello"
+
+# Check configuration
+clikd config list
+```
+
+**Wrong provider:**
+```bash
+# Reconfigure AI provider
+clikd config set ai.provider mistral
+clikd config set ai.model mistral-medium
+```
+
+## Next Steps
+
+- [Commands Reference](/docs/cli/commands) - Learn all available commands
+- [AI Integration](/docs/cli/ai-integration) - Deep dive into AI features
+- [Development Guide](/docs/cli/development) - Advanced workflows and CI/CD 

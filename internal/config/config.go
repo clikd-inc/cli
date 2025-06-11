@@ -42,15 +42,9 @@ func Initialize(configFile string) error {
 		manager.config.AI.Provider = provider
 	}
 
-	// Explicitly check API keys for tests
+	// Load API key from environment variable
 	if apiKey := os.Getenv("CLIKD_API_KEY"); apiKey != "" {
 		manager.config.AI.APIKey = apiKey
-	} else if openaiKey := os.Getenv("CLIKD_OPENAI_API_KEY"); openaiKey != "" && manager.config.AI.Provider == "openai" {
-		manager.config.AI.APIKey = openaiKey
-	} else if mistralKey := os.Getenv("CLIKD_MISTRAL_API_KEY"); mistralKey != "" && manager.config.AI.Provider == "mistral" {
-		manager.config.AI.APIKey = mistralKey
-	} else if anthropicKey := os.Getenv("CLIKD_ANTHROPIC_API_KEY"); anthropicKey != "" && manager.config.AI.Provider == "anthropic" {
-		manager.config.AI.APIKey = anthropicKey
 	}
 
 	// Set global instance
@@ -110,9 +104,6 @@ func Set(key string, value interface{}) error {
 		return nil
 	} else if key == "ai.provider" {
 		globalManager.config.AI.Provider = valueStr
-		return nil
-	} else if key == "ai.enable" {
-		globalManager.config.AI.Enable = (valueStr == "true")
 		return nil
 	}
 
@@ -198,7 +189,6 @@ func convertToConfigData(config Config) *ConfigData {
 			LogLevel: config.General.LogLevel,
 		},
 		AI: AIConfig{
-			Enable:           config.AI.Enable,
 			Provider:         config.AI.Provider,
 			Model:            config.AI.Model,
 			APIKey:           config.AI.APIKey,

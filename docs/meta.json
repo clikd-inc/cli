@@ -1,0 +1,16 @@
+{
+  "title": "CLI",
+  "description": "Command Line Interface",
+  "root": true,
+  "pages": [
+    "---Introduction---",
+    "quick-start",
+    "what-is-clikd",
+    "---Setup---",
+    "getting-started",
+    "configuration",
+    "commands",
+    "ai-integration",
+    "development"
+  ]
+} 

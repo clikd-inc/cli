@@ -11,37 +11,25 @@ import (
 // Use the same logger instance as in other AI package files
 var logService = utils.NewLogger("info", true)
 
-// Service provides a centralized way to access AI functionality
+// Service defines the interface for AI operations
 type Service interface {
-	// IsEnabled returns whether AI functionality is enabled
-	IsEnabled() bool
-
-	// GetConfig returns the current AI configuration
-	GetConfig() *Config
-
-	// EnhanceChangelog improves a generated changelog
-	EnhanceChangelog(ctx context.Context, changelog string) (string, error)
-
-	// GetClient returns the underlying AI client (for advanced usage)
-	GetClient() Client
+	EnhanceChangelog(changelog string) (string, error)
+	CategorizeCommit(commitMessage string) (string, error)
+	EnhanceCommitMessage(commitMessage string) (string, error)
+	ExtractCommitInfo(commitMessage string) (map[string]interface{}, error)
 }
 
 // ServiceImpl implements the Service interface
 type ServiceImpl struct {
-	client    Client
-	isEnabled bool
-	config    *Config
+	client Client
+	config *Config
 }
 
 // NewService creates a new AI service
 func NewService(ctx context.Context, config *Config) (Service, error) {
-	// If AI is disabled or config is nil, return a disabled service
-	if config == nil || !config.EnableAI {
-		logService.Debug("Creating disabled AI service (config nil or AI disabled)")
-		return &ServiceImpl{
-			isEnabled: false,
-			config:    config,
-		}, nil
+	// Config is required for AI service
+	if config == nil {
+		return nil, fmt.Errorf("AI configuration is required")
 	}
 
 	// Create AI client
@@ -56,40 +44,20 @@ func NewService(ctx context.Context, config *Config) (Service, error) {
 	logService.Info("AI service initialized successfully with provider %s and model %s",
 		config.Provider, config.Model)
 	return &ServiceImpl{
-		client:    client,
-		isEnabled: true,
-		config:    config,
+		client: client,
+		config: config,
 	}, nil
 }
 
-// IsEnabled implements the Service interface
-func (s *ServiceImpl) IsEnabled() bool {
-	return s.isEnabled
-}
-
-// GetConfig implements the Service interface
-func (s *ServiceImpl) GetConfig() *Config {
-	return s.config
-}
-
-// GetClient implements the Service interface
-func (s *ServiceImpl) GetClient() Client {
-	return s.client
-}
-
 // EnhanceChangelog implements the Service interface
-func (s *ServiceImpl) EnhanceChangelog(ctx context.Context, changelog string) (string, error) {
-	if !s.isEnabled {
-		logService.Debug("AI is disabled, returning original changelog")
-		return changelog, nil
-	}
-
+func (s *ServiceImpl) EnhanceChangelog(changelog string) (string, error) {
 	logService.Debug("Enhancing changelog with AI")
 
 	// Create client adapter for usecase
 	clientAdapter := &usecaseClientAdapter{client: s.client}
 
 	// Delegate to the usecase implementation
+	ctx := context.Background()
 	enhancedChangelog, err := usecases.EnhanceChangelog(clientAdapter, ctx, changelog)
 	if err != nil {
 		logService.Error("Failed to enhance changelog: %v", err)
@@ -98,6 +66,77 @@ func (s *ServiceImpl) EnhanceChangelog(ctx context.Context, changelog string) (s
 
 	logService.Debug("Changelog enhanced successfully")
 	return enhancedChangelog, nil
+}
+
+// CategorizeCommit implements the Service interface
+func (s *ServiceImpl) CategorizeCommit(commitMessage string) (string, error) {
+	logService.Debug("Categorizing commit with AI")
+
+	// Create client adapter for usecase
+	clientAdapter := &usecaseClientAdapter{client: s.client}
+
+	// Delegate to the usecase implementation
+	ctx := context.Background()
+	category, err := usecases.CategorizeCommit(clientAdapter, ctx, commitMessage)
+	if err != nil {
+		logService.Error("Failed to categorize commit: %v", err)
+		return "other", err
+	}
+
+	logService.Debug("Commit categorized successfully as: %s", category)
+	return string(category), nil
+}
+
+// EnhanceCommitMessage implements the Service interface
+func (s *ServiceImpl) EnhanceCommitMessage(commitMessage string) (string, error) {
+	logService.Debug("Enhancing commit message with AI")
+
+	// Create client adapter for usecase
+	clientAdapter := &usecaseClientAdapter{client: s.client}
+
+	// Delegate to the usecase implementation
+	ctx := context.Background()
+	enhancedMessage, err := usecases.EnhanceCommitMessage(clientAdapter, ctx, commitMessage)
+	if err != nil {
+		logService.Error("Failed to enhance commit message: %v", err)
+		return commitMessage, err
+	}
+
+	logService.Debug("Commit message enhanced successfully")
+	return enhancedMessage, nil
+}
+
+// ExtractCommitInfo implements the Service interface
+func (s *ServiceImpl) ExtractCommitInfo(commitMessage string) (map[string]interface{}, error) {
+	logService.Debug("Extracting commit info with AI")
+
+	// Create client adapter for usecase
+	clientAdapter := &usecaseClientAdapter{client: s.client}
+
+	// Delegate to the usecase implementation
+	ctx := context.Background()
+	// ExtractCommitInfo requires author, date, and hash parameters
+	// For now, we'll use empty values since they're not provided in the interface
+	info, err := usecases.ExtractCommitInfo(clientAdapter, ctx, commitMessage, "", "", "")
+	if err != nil {
+		logService.Error("Failed to extract commit info: %v", err)
+		return nil, err
+	}
+
+	// Convert CommitInfo to map[string]interface{}
+	result := map[string]interface{}{
+		"message":    info.Message,
+		"author":     info.Author,
+		"date":       info.Date,
+		"hash":       info.Hash,
+		"category":   string(info.Category),
+		"scope":      info.Scope,
+		"summary":    info.Summary,
+		"issue_refs": info.IssueRefs,
+	}
+
+	logService.Debug("Commit info extracted successfully")
+	return result, nil
 }
 
 // usecaseClientAdapter adapts our Client to the usecases.Client interface

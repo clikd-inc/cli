@@ -9,139 +9,55 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ProviderKeyInfo holds information about an API key for a specific provider
-type ProviderKeyInfo struct {
-	Name            string // Name of the provider (e.g., "OpenAI", "Mistral")
-	ConfigKey       string // Key in config file (e.g., "ai.models.openai.api_key")
-	EnvVarName      string // Environment variable name (e.g., "CLIKD_OPENAI_API_KEY")
-	EnvVarNameShort string // Short env var for error messages (e.g., "OPENAI_API_KEY")
-	Required        bool   // Whether this key is required for the current operation
-}
-
-// GetAPIKey retrieves the appropriate API key based on the following logic:
-// 1. If a local configuration exists, look for the key in .env file
-// 2. If no key in .env and a global key exists, ask the user if they want to use it
-// 3. If user agrees or no local config exists, use the global key
-// 4. If no key is found anywhere, provide clear instructions for the user
-// Note: Environment variables from the shell are NOT considered, only .env file and global config
-func GetAPIKey(provider ProviderKeyInfo, localConfigExists bool) (string, error) {
-	// Check if we have a local config
-	if localConfigExists {
-		// Zuerst prüfen, ob der generische API-Key gesetzt ist (neue Konfigurationsstruktur)
-		genericKey := getEnvKeyFromDotEnv("CLIKD_API_KEY")
-		if genericKey != "" {
-			return genericKey, nil
+// GetAPIKey retrieves the CLIKD_API_KEY from the following sources in order:
+// 1. .env file (if local config exists)
+// 2. Environment variable CLIKD_API_KEY
+// 3. Global configuration ai.api_key
+func GetAPIKey() (string, error) {
+	// 1. Check .env file first (if local config exists)
+	if IsLocalConfigPresent() {
+		if key := getEnvKeyFromDotEnv("CLIKD_API_KEY"); key != "" {
+			return key, nil
 		}
-
-		// Dann nach dem provider-spezifischen Key suchen (alte Konfigurationsstruktur)
-		envKey := getEnvKeyFromDotEnv(provider.EnvVarName)
-
-		// If we found a key in .env, return it
-		if envKey != "" {
-			return envKey, nil
-		}
-
-		// No key in .env, check if we have a global key
-		globalKey := viper.GetString(provider.ConfigKey)
-		if globalKey != "" {
-			// Ask user if they want to use the global key
-			fmt.Printf("No %s found in .env file. A global API key is available.\n", provider.EnvVarNameShort)
-			fmt.Print("Do you want to use the global API key? (y/n): ")
-
-			reader := bufio.NewReader(os.Stdin)
-			response, err := reader.ReadString('\n')
-			if err != nil {
-				return "", fmt.Errorf("error reading user input: %w", err)
-			}
-
-			response = strings.TrimSpace(strings.ToLower(response))
-			if response == "y" || response == "yes" {
-				return globalKey, nil
-			}
-
-			// User declined to use global key
-			if provider.Required {
-				errorMsg := fmt.Sprintf("API-Schlüssel für %s wird benötigt, wenn KI-Funktionen aktiviert sind.", provider.Name)
-				errorMsg += fmt.Sprintf("\nBitte fügen Sie den Schlüssel zur .env-Datei hinzu: %s=ihr_api_schlüssel", provider.EnvVarName)
-				errorMsg += fmt.Sprintf("\nOder verwenden Sie den generischen Schlüssel: CLIKD_API_KEY=ihr_api_schlüssel")
-				errorMsg += fmt.Sprintf("\nOder deaktivieren Sie die KI-Funktionen durch Weglassen des --ai Flags.")
-				return "", fmt.Errorf("%s", errorMsg)
-			}
-			return "", nil
-		}
-
-		// No key in .env and no global key
-		if provider.Required {
-			// Klare Anweisungen für das Hinzufügen eines API-Schlüssels
-			errMsg := fmt.Sprintf("API-Schlüssel für %s nicht gefunden. ", provider.Name)
-
-			if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
-				errMsg += "KI-Funktionen wurden explizit aktiviert (--ai), aber kein API-Schlüssel gefunden.\n\n"
-			}
-
-			errMsg += "Sie können den Schlüssel auf folgende Weise hinzufügen:\n\n"
-			errMsg += fmt.Sprintf("1. Erstellen Sie eine .env-Datei im Projektverzeichnis und fügen Sie hinzu:\n   %s=ihr_api_schlüssel\n\n", provider.EnvVarName)
-			errMsg += "   Oder verwenden Sie den generischen Schlüssel:\n   CLIKD_API_KEY=ihr_api_schlüssel\n\n"
-			errMsg += fmt.Sprintf("2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:\n   clikd config set %s ihr_api_schlüssel\n\n", provider.ConfigKey)
-			errMsg += fmt.Sprintf("Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s", getProviderURL(provider.Name))
-
-			if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
-				errMsg += fmt.Sprintf("\n\nAlternativ können Sie die KI-Funktionen deaktivieren mit:\n  clikd config set ai.enable false")
-			}
-
-			return "", fmt.Errorf("%s", errMsg)
-		}
-		return "", nil
 	}
 
-	// Prüfen, ob der generische API-Key in der globalen Konfiguration gesetzt ist
-	genericGlobalKey := viper.GetString("ai.api_key")
-	if genericGlobalKey != "" {
-		return genericGlobalKey, nil
+	// 2. Check environment variable
+	if key := os.Getenv("CLIKD_API_KEY"); key != "" {
+		return key, nil
 	}
 
-	// No local config, try to get from global config
-	globalKey := viper.GetString(provider.ConfigKey)
-	if globalKey != "" {
-		return globalKey, nil
+	// 3. Check global configuration
+	if key := viper.GetString("ai.api_key"); key != "" {
+		return key, nil
 	}
 
-	// No global key either
-	if provider.Required {
-		// Klare Anweisungen für das Hinzufügen eines API-Schlüssels zur globalen Konfiguration
-		errMsg := fmt.Sprintf("API-Schlüssel für %s nicht gefunden. ", provider.Name)
+	// No API key found anywhere
+	errMsg := "CLIKD_API_KEY not found. "
 
-		if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
-			errMsg += "KI-Funktionen wurden explizit aktiviert (--ai), aber kein API-Schlüssel gefunden.\n\n"
-		}
-
-		errMsg += fmt.Sprintf("Sie können den Schlüssel zu Ihrer globalen Konfiguration hinzufügen:\n\n")
-		errMsg += fmt.Sprintf("  clikd config set %s ihr_api_schlüssel\n\n", provider.ConfigKey)
-		errMsg += "  Oder verwenden Sie den generischen Schlüssel:\n  clikd config set ai.api_key ihr_api_schlüssel\n\n"
-		errMsg += fmt.Sprintf("Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s", getProviderURL(provider.Name))
-
-		if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
-			errMsg += fmt.Sprintf("\n\nAlternativ können Sie die KI-Funktionen deaktivieren mit:\n  clikd config set ai.enable false")
-		}
-
-		return "", fmt.Errorf("%s", errMsg)
+	if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
+		errMsg += "AI features were explicitly enabled (--ai), but no API key found.\n\n"
 	}
 
-	return "", nil
-}
+	errMsg += "You can add the API key in the following ways:\n\n"
 
-// getProviderURL returns the URL where users can obtain an API key for the given provider
-func getProviderURL(providerName string) string {
-	switch providerName {
-	case "OpenAI":
-		return "https://platform.openai.com/api-keys"
-	case "Mistral":
-		return "https://console.mistral.ai/api-keys/"
-	case "Azure OpenAI":
-		return "https://portal.azure.com/#create/Microsoft.CognitiveServicesOpenAI"
-	default:
-		return "die entsprechende Anbieter-Website"
+	if IsLocalConfigPresent() {
+		errMsg += "1. Create a .env file in the project directory and add:\n   CLIKD_API_KEY=your_api_key\n\n"
+		errMsg += "2. Or add it to your global configuration:\n   clikd config set ai.api_key your_api_key\n\n"
+	} else {
+		errMsg += "Add it to your global configuration:\n   clikd config set ai.api_key your_api_key\n\n"
 	}
+
+	errMsg += "To configure your API key, you can:\n"
+	errMsg += "1. Create a .env file in your project directory with:\n"
+	errMsg += "   CLIKD_API_KEY=your_api_key\n"
+	errMsg += "2. Or set it globally with:\n"
+	errMsg += "   clikd config set ai.api_key your_api_key"
+
+	if os.Getenv("CLIKD_AI_EXPLICITLY_ENABLED") == "true" {
+		errMsg += "\n\nNote: AI features were explicitly enabled via command line flag."
+	}
+
+	return "", fmt.Errorf("%s", errMsg)
 }
 
 // IsLocalConfigPresent checks if a local clikd configuration directory exists
@@ -193,51 +109,3 @@ func getEnvKeyFromDotEnv(envVarName string) string {
 
 	return ""
 }
-
-// Examples of provider configurations
-var (
-	OpenAIProvider = ProviderKeyInfo{
-		Name:            "OpenAI",
-		ConfigKey:       "ai.api_key",
-		EnvVarName:      "CLIKD_OPENAI_API_KEY",
-		EnvVarNameShort: "OPENAI_API_KEY",
-		Required:        false,
-	}
-
-	MistralProvider = ProviderKeyInfo{
-		Name:            "Mistral AI",
-		ConfigKey:       "ai.api_key",
-		EnvVarName:      "CLIKD_MISTRAL_API_KEY",
-		EnvVarNameShort: "MISTRAL_API_KEY",
-		Required:        false,
-	}
-
-	// AnthropicProvider definiert die Konfiguration für Anthropic
-	AnthropicProvider = ProviderKeyInfo{
-		Name:            "Anthropic",
-		ConfigKey:       "ai.api_key",
-		EnvVarName:      "CLIKD_ANTHROPIC_API_KEY",
-		EnvVarNameShort: "ANTHROPIC_API_KEY",
-		Required:        false,
-	}
-
-	// GroqProvider definiert die Konfiguration für Groq
-	GroqProvider = ProviderKeyInfo{
-		Name:            "Groq",
-		ConfigKey:       "ai.api_key",
-		EnvVarName:      "CLIKD_GROQ_API_KEY",
-		EnvVarNameShort: "GROQ_API_KEY",
-		Required:        false,
-	}
-
-	// OpenRouterProvider definiert die Konfiguration für OpenRouter
-	OpenRouterProvider = ProviderKeyInfo{
-		Name:            "OpenRouter",
-		ConfigKey:       "ai.api_key",
-		EnvVarName:      "CLIKD_OPENROUTER_API_KEY",
-		EnvVarNameShort: "OPENROUTER_API_KEY",
-		Required:        false,
-	}
-
-	// Add more providers as needed
-)

@@ -43,11 +43,15 @@ func View(m InitModel) string {
 	switch m.CurrentStep {
 	case StepStart:
 		content += styles.InfoText("Initialization in progress...")
+		if m.IsInGitRepo && m.RepoURL != "" {
+			content += "\n\n" + styles.SuccessText(fmt.Sprintf("✓ Git repository detected: %s", m.RepoURL))
+		}
 
 	case StepConfigType:
 		if m.IsInGitRepo {
 			content += styles.H2.Render("Choose Configuration Type") + "\n\n"
-			content += styles.NormalText.Render("Do you want to create a local configuration for this repository?") + "\n\n"
+			content += styles.InfoText(fmt.Sprintf("Git repository detected: %s", m.RepoURL)) + "\n\n"
+			content += styles.NormalText.Render("Select your preferred configuration scope:") + "\n\n"
 		}
 
 	case StepCreateDirs:
@@ -55,16 +59,18 @@ func View(m InitModel) string {
 
 	case StepConfirmOverwrite:
 		content += styles.H2.Render("Existing Configuration") + "\n\n"
-		content += styles.NormalText.Render(fmt.Sprintf("Configuration file already exists at %s. Do you want to overwrite it?", m.ConfigPath)) + "\n\n"
+		configType := "Local"
+		configLocation := "clikd/"
+		if m.Global {
+			configType = "Global"
+			configLocation = "~/.clikd/"
+		}
+		content += styles.NormalText.Render(fmt.Sprintf("%s configuration already exists in %s. Do you want to overwrite it?", configType, configLocation)) + "\n\n"
 
 	case StepGeneralConfig:
 		content += styles.SectionTitle("General Configuration") + "\n\n"
 		content += styles.H2.Render("Select Log Level") + "\n\n"
 		content += styles.InfoText("Loading options...")
-
-	case StepAIConfig:
-		content += styles.SectionTitle("AI Configuration") + "\n\n"
-		content += styles.NormalText.Render("Do you want to enable AI features?") + "\n\n"
 
 	case StepProviderSelection:
 		content += styles.SectionTitle("AI Provider") + "\n\n"
@@ -83,6 +89,26 @@ func View(m InitModel) string {
 		content += styles.InfoText("  - Maximum output tokens (default: 500) - controls response length") + "\n"
 		content += styles.InfoText("  - Custom API endpoints (default: official provider endpoints)") + "\n"
 		content += styles.InfoText("  - Custom HTTP headers (default: none, standard authentication)") + "\n\n"
+
+	case StepAITokensInput:
+		content += styles.SectionTitle("Max Input Tokens") + "\n\n"
+		content += styles.InfoText("Maximum number of input tokens (context size)") + "\n"
+		content += styles.InfoText("Higher values allow for larger context but cost more") + "\n\n"
+
+	case StepAITokensOutput:
+		content += styles.SectionTitle("Max Output Tokens") + "\n\n"
+		content += styles.InfoText("Maximum number of output tokens (response length)") + "\n"
+		content += styles.InfoText("Higher values allow for longer responses but cost more") + "\n\n"
+
+	case StepAICustomURL:
+		content += styles.SectionTitle("Custom API URL") + "\n\n"
+		content += styles.InfoText("Custom API endpoint URL (leave empty to use official API)") + "\n"
+		content += styles.InfoText("Use this for proxy servers or alternative endpoints") + "\n\n"
+
+	case StepAICustomHeaders:
+		content += styles.SectionTitle("Custom API Headers") + "\n\n"
+		content += styles.InfoText("Custom HTTP headers in JSON format") + "\n"
+		content += styles.InfoText("Leave empty for standard authentication") + "\n\n"
 
 	case StepAPIKeyConfig:
 		content += styles.SectionTitle("API Key Configuration") + "\n\n"
@@ -146,20 +172,16 @@ func View(m InitModel) string {
 		content += "\n"
 
 		// AI Configuration
-		if m.AIEnabled {
-			content += styles.SuccessIcon + " " + styles.BoldText.Render("AI:") + "\n"
-			content += "   - Provider: " + styles.NormalText.Render(m.AIProvider) + "\n"
-			content += "   - Model: " + styles.NormalText.Render(m.AIModel) + "\n"
+		content += styles.SuccessIcon + " " + styles.BoldText.Render("AI:") + "\n"
+		content += "   - Provider: " + styles.NormalText.Render(m.AIProvider) + "\n"
+		content += "   - Model: " + styles.NormalText.Render(m.AIModel) + "\n"
 
-			if m.ApiKeyStatus == "check" {
-				content += "   - API Key: " + styles.InfoText("Please add to .env file") + "\n\n"
-			} else if m.ApiKeyStatus == "done" {
-				content += "   - API Key: " + styles.SuccessText("Configured") + "\n\n"
-			} else {
-				content += "   - API Key: " + styles.WarningText("Not yet configured") + "\n\n"
-			}
+		if m.ApiKeyStatus == "check" {
+			content += "   - API Key: " + styles.InfoText("Please add to .env file") + "\n\n"
+		} else if m.ApiKeyStatus == "done" {
+			content += "   - API Key: " + styles.SuccessText("Configured") + "\n\n"
 		} else {
-			content += styles.WarningIcon + " " + styles.BoldText.Render("AI Features: Disabled") + "\n\n"
+			content += "   - API Key: " + styles.WarningText("Not yet configured") + "\n\n"
 		}
 
 		// Changelog Configuration
@@ -180,7 +202,7 @@ func View(m InitModel) string {
 		content += styles.SectionTitle("Next Steps") + "\n\n"
 
 		// API Key configuration (if needed)
-		if m.AIEnabled && m.ApiKeyStatus != "done" {
+		if m.ApiKeyStatus != "done" {
 			if m.ApiKeyStatus == "check" {
 				content += styles.SuccessIcon + " " + styles.BoldText.Render("1. Check API Key in .env file:") + "\n"
 				content += "   " + styles.HighlightStyle.Render(fmt.Sprintf("CLIKD_API_KEY=YOUR_%s_API_KEY", strings.ToUpper(m.AIProvider))) + "\n\n"
@@ -196,7 +218,7 @@ func View(m InitModel) string {
 		// Changelog generation
 		if m.ChangelogEnabled {
 			stepNum := "1"
-			if m.AIEnabled && m.ApiKeyStatus != "done" {
+			if m.ApiKeyStatus != "done" {
 				stepNum = "2"
 			}
 			content += styles.ArrowIcon + " " + styles.BoldText.Render(stepNum+". Generate a changelog:") + "\n"

@@ -1,0 +1,84 @@
+---
+title: AI Integration
+description: AI-powered features and integrations
+---
+
+# AI Integration
+
+CLIKD provides powerful AI integration capabilities to enhance your development workflow.
+
+## Supported AI Providers
+
+CLIKD supports multiple AI providers for different use cases:
+
+- **OpenAI** - GPT models for code generation and assistance
+- **Anthropic** - Claude models for advanced reasoning
+- **Local Models** - Support for local AI models via Ollama
+
+## Configuration
+
+### Environment Variables
+
+Set up your AI provider credentials using environment variables:
+
+```bash
+# OpenAI
+export CLIKD_OPENAI_API_KEY="your-api-key"
+
+# Anthropic
+export CLIKD_ANTHROPIC_API_KEY="your-api-key"
+
+# Custom endpoint (for local models)
+export CLIKD_AI_ENDPOINT="http://localhost:11434"
+```
+
+### Configuration File
+
+You can also configure AI settings in your `clikd.toml` file:
+
+```toml
+[ai]
+provider = "openai"
+model = "gpt-4"
+temperature = 0.7
+max_tokens = 2048
+
+[ai.openai]
+api_key = "your-api-key"
+base_url = "https://api.openai.com/v1"
+
+[ai.anthropic]
+api_key = "your-api-key"
+```
+
+## Usage
+
+### Basic AI Commands
+
+```bash
+# Configure AI provider
+clikd ai configure
+
+# Test AI connection
+clikd ai test
+
+# Generate code with AI
+clikd ai generate --prompt "Create a REST API handler"
+
+# Ask AI for help
+clikd ai ask "How do I optimize this function?"
+```
+
+### AI-Powered Features
+
+- **Code Generation** - Generate boilerplate code and functions
+- **Code Review** - Get AI feedback on your code
+- **Documentation** - Auto-generate documentation
+- **Debugging** - AI-assisted debugging and error resolution
+
+## Best Practices
+
+1. **API Key Security** - Store API keys in environment variables, not in config files
+2. **Model Selection** - Choose appropriate models for your use case
+3. **Rate Limiting** - Be mindful of API rate limits
+4. **Cost Management** - Monitor usage to control costs 

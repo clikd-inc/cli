@@ -3,6 +3,7 @@ package initialize
 import (
 	"clikd/internal/config"
 	"clikd/internal/ui/bubble"
+	"clikd/internal/ui/styles"
 	"fmt"
 	"os"
 
@@ -81,6 +82,65 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectModel = &selectModel
 			return m, nil
 
+		case StepAITokensInput:
+			// Max input tokens was entered
+			m.AITokensMaxInput = msg.Value
+			m.Manager.SetConfigValue("ai.tokens_max_input", msg.Value)
+
+			// Continue to max output tokens
+			m.CurrentStep = StepAITokensOutput
+			inputModel := bubble.NewInputModel(
+				"Max Output Tokens",
+				"Maximum number of output tokens (response length)",
+				"500",
+			)
+			m.inputModel = &inputModel
+			return m, nil
+
+		case StepAITokensOutput:
+			// Max output tokens was entered
+			m.AITokensMaxOutput = msg.Value
+			m.Manager.SetConfigValue("ai.tokens_max_output", msg.Value)
+
+			// Continue to custom API URL
+			m.CurrentStep = StepAICustomURL
+			inputModel := bubble.NewInputModel(
+				"Custom API URL",
+				"Custom API endpoint URL (leave empty to use official API)",
+				"",
+			)
+			m.inputModel = &inputModel
+			return m, nil
+
+		case StepAICustomURL:
+			// Custom API URL was entered
+			m.AICustomURL = msg.Value
+			m.Manager.SetConfigValue("ai.api_url", msg.Value)
+
+			// Continue to custom headers
+			m.CurrentStep = StepAICustomHeaders
+			inputModel := bubble.NewInputModel(
+				"Custom API Headers",
+				"Custom HTTP headers in JSON format (leave empty for standard authentication)",
+				"",
+			)
+			m.inputModel = &inputModel
+			return m, nil
+
+		case StepAICustomHeaders:
+			// Custom headers was entered
+			m.AICustomHeaders = msg.Value
+			m.Manager.SetConfigValue("ai.api_custom_headers", msg.Value)
+
+			// Continue to API key configuration
+			m.CurrentStep = StepAPIKeyConfig
+			confirmModel := bubble.NewConfirmModel(
+				"API Key Configuration",
+				fmt.Sprintf("Do you want to configure your %s API key now?", m.AIProvider),
+			)
+			m.confirmModel = &confirmModel
+			return m, nil
+
 			// StepChangelogConfigDir removed - we use fixed directory structure: clikd/changelog/
 		}
 
@@ -88,10 +148,6 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case bubble.ConfirmResultMsg:
 		m.confirmModel = nil
 		switch m.CurrentStep {
-		case StepConfigType:
-			m.Global = !msg.Result // If not using local config, use global
-			m.CurrentStep = StepCreateDirs
-			return m, determineConfigPath(m)
 
 		case StepConfirmOverwrite:
 			if !msg.Result {
@@ -102,41 +158,6 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.Force = true
 			return m, initConfigManager(m.ConfigPath, m.ConfigExists && !m.Force)
-
-		case StepAIConfig:
-			m.AIEnabled = msg.Result
-			m.Manager.SetConfigValue("ai.enable", BoolToString(msg.Result))
-
-			if msg.Result {
-				// Set up provider selection directly
-				m.CurrentStep = StepProviderSelection
-
-				// Get available providers
-				providers := []string{"mistral", "anthropic", "openai"}
-				providerItems := make([]bubble.SelectItem, len(providers))
-
-				for i, provider := range providers {
-					defaultModel, _ := config.GetDefaultModelForProvider(provider)
-					providerItems[i] = bubble.SelectItem{
-						Title:       provider,
-						Description: fmt.Sprintf("Default model: %s", defaultModel),
-						Value:       provider,
-					}
-				}
-
-				selectModel := bubble.NewSelectModel("Select AI Provider", providerItems)
-				m.selectModel = &selectModel
-				return m, nil
-			} else {
-				// Skip AI config, go to changelog
-				m.CurrentStep = StepChangelogConfig
-				confirmModel := bubble.NewConfirmModel(
-					"Changelog Configuration",
-					"Do you want to configure changelog features?",
-				)
-				m.confirmModel = &confirmModel
-				return m, nil
-			}
 
 		case StepChangelogConfig:
 			m.ChangelogEnabled = msg.Result
@@ -184,6 +205,45 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			confirmModel := bubble.NewConfirmModel(
 				"Merge Commits",
 				"Do you include Merge Commit in CHANGELOG?",
+			)
+			m.confirmModel = &confirmModel
+			return m, nil
+
+		case StepAdvancedAIOptions:
+			m.AICustomSettings = msg.Result
+			if msg.Result {
+				// Start the multi-step advanced AI options configuration
+				m.CurrentStep = StepAITokensInput
+				inputModel := bubble.NewInputModel(
+					"Max Input Tokens",
+					"Maximum number of input tokens (context size)",
+					"4096",
+				)
+				m.inputModel = &inputModel
+				return m, nil
+			} else {
+				// Use default values for AI configuration
+				m.Manager.SetConfigValue("ai.provider", "mistral")
+				m.Manager.SetConfigValue("ai.model", "mistral-medium")
+				m.Manager.SetConfigValue("ai.tokens_max_input", "4096")
+				m.Manager.SetConfigValue("ai.tokens_max_output", "500")
+				m.Manager.SetConfigValue("ai.api_url", "")
+				m.Manager.SetConfigValue("ai.api_custom_headers", "")
+
+				// Set the values in the model as well
+				m.AIProvider = "mistral"
+				m.AIModel = "mistral-medium"
+				m.AITokensMaxInput = "4096"
+				m.AITokensMaxOutput = "500"
+				m.AICustomURL = ""
+				m.AICustomHeaders = ""
+			}
+
+			// Go to API key configuration
+			m.CurrentStep = StepAPIKeyConfig
+			confirmModel := bubble.NewConfirmModel(
+				"API Key Configuration",
+				fmt.Sprintf("Do you want to configure your %s API key now?", m.AIProvider),
 			)
 			m.confirmModel = &confirmModel
 			return m, nil
@@ -236,16 +296,34 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case bubble.SelectResultMsg:
 		m.selectModel = nil
 		switch m.CurrentStep {
+		case StepConfigType:
+			if value, ok := msg.Value.(string); ok {
+				m.Global = (value == "global")
+				m.CurrentStep = StepCreateDirs
+				return m, determineConfigPath(m)
+			}
+
 		case StepGeneralConfig:
 			if value, ok := msg.Value.(string); ok {
 				m.Manager.SetConfigValue("general.log_level", value)
-				// Go directly to AI configuration (color config removed)
-				m.CurrentStep = StepAIConfig
-				confirmModel := bubble.NewConfirmModel(
-					"AI Configuration",
-					"Do you want to enable AI features?",
-				)
-				m.confirmModel = &confirmModel
+				// AI is now mandatory, go directly to provider selection
+				m.CurrentStep = StepProviderSelection
+
+				// Get available providers
+				providers := []string{"mistral", "anthropic", "openai"}
+				providerItems := make([]bubble.SelectItem, len(providers))
+
+				for i, provider := range providers {
+					defaultModel, _ := config.GetDefaultModelForProvider(provider)
+					providerItems[i] = bubble.SelectItem{
+						Title:       provider,
+						Description: fmt.Sprintf("Default model: %s", defaultModel),
+						Value:       provider,
+					}
+				}
+
+				selectModel := bubble.NewSelectModel("Select AI Provider", providerItems)
+				m.selectModel = &selectModel
 				return m, nil
 			}
 
@@ -296,11 +374,11 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.AIModel = value
 				m.Manager.SetConfigValue("ai.model", value)
 
-				// Go to API key configuration
-				m.CurrentStep = StepAPIKeyConfig
+				// Go to advanced AI options configuration
+				m.CurrentStep = StepAdvancedAIOptions
 				confirmModel := bubble.NewConfirmModel(
-					"API Key Configuration",
-					fmt.Sprintf("Do you want to configure your %s API key now?", m.AIProvider),
+					"Advanced AI Options",
+					"Do you want to configure advanced AI options (token limits, custom endpoints, etc.)?",
 				)
 				m.confirmModel = &confirmModel
 				return m, nil
@@ -402,12 +480,26 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, determineConfigPath(m)
 		}
 
-		// Setup the confirm component for repository configuration
-		confirmModel := bubble.NewConfirmModel(
-			"Choose Configuration Type",
-			fmt.Sprintf("Git repository detected: %s\n\nDo you want to create a local configuration for this repository?", m.RepoURL),
-		)
-		m.confirmModel = &confirmModel
+		// Setup the select component for configuration type
+		title := "Choose Configuration Type"
+		if m.IsInGitRepo && m.RepoURL != "" {
+			title = fmt.Sprintf("Git repository detected: %s\n\nChoose Configuration Type", styles.SuccessText(m.RepoURL))
+		}
+
+		configTypeItems := []bubble.SelectItem{
+			{
+				Title:       "Local",
+				Description: "Project-specific configuration (recommended for teams)",
+				Value:       "local",
+			},
+			{
+				Title:       "Global",
+				Description: "System-wide configuration (good for personal use)",
+				Value:       "global",
+			},
+		}
+		selectModel := bubble.NewSelectModel(title, configTypeItems)
+		m.selectModel = &selectModel
 		return m, nil
 
 	case ConfigPathMsg:
@@ -420,9 +512,15 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// If configuration exists and no force flag
 		if m.ConfigExists && !m.Force && !m.Yes {
+			configType := "Local"
+			configLocation := "clikd/"
+			if m.Global {
+				configType = "Global"
+				configLocation = "~/.clikd/"
+			}
 			confirmModel := bubble.NewConfirmModel(
 				"Existing Configuration",
-				fmt.Sprintf("Configuration file already exists at %s. Do you want to overwrite it?", m.ConfigPath),
+				fmt.Sprintf("%s configuration already exists in %s. Do you want to overwrite it?", configType, configLocation),
 			)
 			m.confirmModel = &confirmModel
 			m.CurrentStep = StepConfirmOverwrite
@@ -441,12 +539,26 @@ func (m InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Manager.SetConfigValue("general.log_level", "info")
 
 			// Configure AI with defaults in non-interactive mode
-			m.AIEnabled = true
 			m.AIProvider = "mistral"
 			m.AIModel = "mistral-medium"
-			m.Manager.SetConfigValue("ai.enable", "true")
 			m.Manager.SetConfigValue("ai.provider", "mistral")
 			m.Manager.SetConfigValue("ai.model", "mistral-medium")
+
+			// Set default values for AI configuration
+			m.Manager.SetConfigValue("ai.provider", "mistral")
+			m.Manager.SetConfigValue("ai.model", "mistral-medium")
+			m.Manager.SetConfigValue("ai.tokens_max_input", "4096")
+			m.Manager.SetConfigValue("ai.tokens_max_output", "500")
+			m.Manager.SetConfigValue("ai.api_url", "")
+			m.Manager.SetConfigValue("ai.api_custom_headers", "")
+
+			// Set the values in the model as well
+			m.AIProvider = "mistral"
+			m.AIModel = "mistral-medium"
+			m.AITokensMaxInput = "4096"
+			m.AITokensMaxOutput = "500"
+			m.AICustomURL = ""
+			m.AICustomHeaders = ""
 
 			// Configure changelog with defaults (only for local configuration)
 			if !m.Global {

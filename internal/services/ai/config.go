@@ -49,7 +49,6 @@ type Config struct {
 	Model    string   `json:"model" yaml:"model"`
 	APIKey   string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
 	APIURL   string   `json:"api_url,omitempty" yaml:"api_url,omitempty"`
-	EnableAI bool     `json:"enable_ai" yaml:"enable_ai"`
 }
 
 // DefaultConfig returns a default configuration
@@ -59,7 +58,6 @@ func DefaultConfig() *Config {
 		Model:    "mistral-medium",
 		APIKey:   "",
 		APIURL:   "",
-		EnableAI: true,
 	}
 }
 
@@ -69,8 +67,6 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 
 	// Load AI configuration from viper
 	if v.IsSet("ai") {
-		config.EnableAI = v.GetBool("ai.enable")
-
 		// Load model configuration
 		providerStr := v.GetString("ai.provider")
 		if providerStr != "" {
@@ -92,26 +88,19 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 		}
 	}
 
-	// If AI is not enabled, return the config as is
-	if !config.EnableAI {
-		logConfig.Debug("AI is disabled in configuration")
-		return config, nil
-	}
-
 	// Set API key from environment variables if not set
 	if config.APIKey == "" {
 		logConfig.Debug("API key not set in config, attempting to get from environment")
-		apiKey, err := utils.GetAPIKey(mapProviderToKeyInfo(config.Provider), true)
+		apiKey, err := utils.GetAPIKey()
 		if err != nil {
 			// Log the error
-			logConfig.Error("Failed to get API key for provider %s: %v", config.Provider, err)
-			// Wenn der API-Schlüssel nicht gefunden werden konnte, geben wir eine
-			// benutzerfreundliche Fehlermeldung zurück.
-			return config, fmt.Errorf("API-Schlüssel für %s nicht gefunden. %s",
-				config.Provider, getAPIKeySetupInstructions(config.Provider))
+			logConfig.Error("Failed to get API key: %v", err)
+			// Provide provider-specific setup instructions
+			return config, fmt.Errorf("API key not found for provider %s: %w\n\n%s",
+				config.Provider, err, getAPIKeySetupInstructions(config.Provider))
 		}
 		config.APIKey = apiKey
-		logConfig.Debug("API key successfully retrieved from environment for provider %s", config.Provider)
+		logConfig.Debug("API key successfully retrieved from environment")
 	}
 
 	// Set API URL from environment variables if not set
@@ -125,8 +114,8 @@ func LoadConfig(v *viper.Viper) (*Config, error) {
 		}
 	}
 
-	logConfig.Debug("AI configuration loaded: provider=%s, model=%s, enabled=%v",
-		config.Provider, config.Model, config.EnableAI)
+	logConfig.Debug("AI configuration loaded: provider=%s, model=%s",
+		config.Provider, config.Model)
 	return config, nil
 }
 
@@ -182,49 +171,6 @@ func (c *Config) GetModelConfig(modelName string) (ModelConfig, error) {
 
 // Helper functions
 
-// mapProviderToKeyInfo maps our provider enum to utils.ProviderKeyInfo
-func mapProviderToKeyInfo(provider Provider) utils.ProviderKeyInfo {
-	switch provider {
-	case ProviderMistral:
-		return utils.MistralProvider
-	case ProviderOpenAI:
-		return utils.OpenAIProvider
-	case ProviderAnthropic:
-		return utils.AnthropicProvider
-	case ProviderGroq:
-		return utils.GroqProvider
-	case ProviderOpenRouter:
-		return utils.OpenRouterProvider
-	default:
-		// Generische Struktur für andere Provider
-		return utils.ProviderKeyInfo{
-			Name:            string(provider),
-			ConfigKey:       "ai.api_key",
-			EnvVarName:      fmt.Sprintf("CLIKD_%s_API_KEY", provider),
-			EnvVarNameShort: fmt.Sprintf("%s_API_KEY", provider),
-			Required:        true,
-		}
-	}
-}
-
-// getAPIKeyEnvVar returns the environment variable name for the API key
-func getAPIKeyEnvVar(provider Provider) string {
-	switch provider {
-	case ProviderMistral:
-		return "CLIKD_MISTRAL_API_KEY"
-	case ProviderOpenAI:
-		return "CLIKD_OPENAI_API_KEY"
-	case ProviderAnthropic:
-		return "CLIKD_ANTHROPIC_API_KEY"
-	case ProviderGroq:
-		return "CLIKD_GROQ_API_KEY"
-	case ProviderOpenRouter:
-		return "CLIKD_OPENROUTER_API_KEY"
-	default:
-		return fmt.Sprintf("CLIKD_%s_API_KEY", provider)
-	}
-}
-
 // getEndpointEnvVar returns the environment variable name for the endpoint
 func getEndpointEnvVar(provider Provider) string {
 	switch provider {
@@ -258,19 +204,18 @@ func getProviderWebsite(provider Provider) string {
 // getAPIKeySetupInstructions returns instructions for setting up the API key
 func getAPIKeySetupInstructions(provider Provider) string {
 	website := getProviderWebsite(provider)
-	envVar := getAPIKeyEnvVar(provider)
 
 	return fmt.Sprintf(`
-Sie können den Schlüssel auf folgende Weise hinzufügen:
+You can add the API key in the following ways:
 
-1. Erstellen Sie eine .env-Datei im Projektverzeichnis und fügen Sie hinzu:
-   %s=ihr_api_schlüssel
+1. Create a .env file in the project directory and add:
+   CLIKD_API_KEY=your_api_key
 
-2. Oder fügen Sie den Schlüssel zu Ihrer globalen Konfiguration hinzu:
-   clikd init config set %s=ihr_api_schlüssel
+2. Or add it to your global configuration:
+   clikd config set ai.api_key your_api_key
 
-Um einen API-Schlüssel zu erhalten, besuchen Sie die Website des Anbieters: %s`,
-		envVar, envVar, website)
+To obtain an API key for %s, visit: %s`,
+		provider, website)
 }
 
 // IsAPIKeyConfigured checks if an API key is configured
