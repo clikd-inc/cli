@@ -14,9 +14,6 @@ var logService = utils.NewLogger("info", true)
 // Service defines the interface for AI operations
 type Service interface {
 	EnhanceChangelog(changelog string) (string, error)
-	CategorizeCommit(commitMessage string) (string, error)
-	EnhanceCommitMessage(commitMessage string) (string, error)
-	ExtractCommitInfo(commitMessage string) (map[string]interface{}, error)
 }
 
 // ServiceImpl implements the Service interface
@@ -66,77 +63,6 @@ func (s *ServiceImpl) EnhanceChangelog(changelog string) (string, error) {
 
 	logService.Debug("Changelog enhanced successfully")
 	return enhancedChangelog, nil
-}
-
-// CategorizeCommit implements the Service interface
-func (s *ServiceImpl) CategorizeCommit(commitMessage string) (string, error) {
-	logService.Debug("Categorizing commit with AI")
-
-	// Create client adapter for usecase
-	clientAdapter := &usecaseClientAdapter{client: s.client}
-
-	// Delegate to the usecase implementation
-	ctx := context.Background()
-	category, err := usecases.CategorizeCommit(clientAdapter, ctx, commitMessage)
-	if err != nil {
-		logService.Error("Failed to categorize commit: %v", err)
-		return "other", err
-	}
-
-	logService.Debug("Commit categorized successfully as: %s", category)
-	return string(category), nil
-}
-
-// EnhanceCommitMessage implements the Service interface
-func (s *ServiceImpl) EnhanceCommitMessage(commitMessage string) (string, error) {
-	logService.Debug("Enhancing commit message with AI")
-
-	// Create client adapter for usecase
-	clientAdapter := &usecaseClientAdapter{client: s.client}
-
-	// Delegate to the usecase implementation
-	ctx := context.Background()
-	enhancedMessage, err := usecases.EnhanceCommitMessage(clientAdapter, ctx, commitMessage)
-	if err != nil {
-		logService.Error("Failed to enhance commit message: %v", err)
-		return commitMessage, err
-	}
-
-	logService.Debug("Commit message enhanced successfully")
-	return enhancedMessage, nil
-}
-
-// ExtractCommitInfo implements the Service interface
-func (s *ServiceImpl) ExtractCommitInfo(commitMessage string) (map[string]interface{}, error) {
-	logService.Debug("Extracting commit info with AI")
-
-	// Create client adapter for usecase
-	clientAdapter := &usecaseClientAdapter{client: s.client}
-
-	// Delegate to the usecase implementation
-	ctx := context.Background()
-	// ExtractCommitInfo requires author, date, and hash parameters
-	// For now, we'll use empty values since they're not provided in the interface
-	info, err := usecases.ExtractCommitInfo(clientAdapter, ctx, commitMessage, "", "", "")
-	if err != nil {
-		logService.Error("Failed to extract commit info: %v", err)
-		return nil, err
-	}
-
-	// Convert CommitInfo to map[string]interface{}
-	result := map[string]interface{}{
-		"message":    info.Message,
-		"author":     info.Author,
-		"date":       info.Date,
-		"hash":       info.Hash,
-		"category":   string(info.Category),
-		"scope":      info.Scope,
-		"summary":    info.Summary,
-		"issue_refs": info.IssueRefs,
-	}
-
-	logService.Debug("Commit info extracted successfully")
-	return result, nil
 }
 
 // usecaseClientAdapter adapts our Client to the usecases.Client interface
