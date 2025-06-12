@@ -61,7 +61,7 @@ Use it to automate workflows and enhance productivity.`,
 			if err != nil {
 				logger.Debug("Using default configuration")
 			} else if configPath != "" {
-				logger.Debug("Configuration loaded from: %s", configPath)
+				logger.Debug("Configuration loaded", "path", configPath)
 			} else {
 				logger.Debug("Using default configuration")
 			}

@@ -89,9 +89,6 @@ func NewGenerator(logger utils.Logger, config *Config) *Generator {
 
 	normalizeConfig(config)
 
-	// Git-Service mit Tag-Filter-Konfiguration erstellen
-	gitClientWrapper, _ := git.NewClientWithRepoDir(config.WorkingDir)
-
 	// Tag-Filter-Pattern und Sort-Option aus der Konfiguration verwenden
 	tagFilterPattern := config.Options.TagFilterPattern
 	tagSortBy := config.Options.Sort
@@ -99,7 +96,11 @@ func NewGenerator(logger utils.Logger, config *Config) *Generator {
 		tagSortBy = "date" // Standard-Sortierung
 	}
 
-	gitService := git.NewServiceWithOptions(gitClientWrapper, tagFilterPattern, tagSortBy)
+	// Git-Service mit Tag-Filter-Konfiguration erstellen
+	gitService, err := git.NewServiceWithOptions(config.WorkingDir, tagFilterPattern, tagSortBy, logger)
+	if err != nil {
+		return nil
+	}
 
 	return &Generator{
 		client:     client,

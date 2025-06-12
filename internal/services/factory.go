@@ -3,11 +3,13 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"clikd/internal/config"
 	"clikd/internal/services/ai"
 	"clikd/internal/services/changelog"
 	"clikd/internal/services/git"
+	"clikd/internal/services/update"
 	"clikd/internal/utils"
 )
 
@@ -36,21 +38,35 @@ func NewServiceFactory(ctx context.Context) (*ServiceFactory, error) {
 	}, nil
 }
 
-// CreateGitService creates a Git service
+// CreateGitService creates a Git service with all dependencies
 func (f *ServiceFactory) CreateGitService() (git.Service, error) {
 	f.logger.Debug("Creating Git service")
-	return git.NewService()
+
+	// Create git service with injected logger
+	service, err := git.NewService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create git service: %w", err)
+	}
+
+	return service, nil
 }
 
-// CreateGitServiceWithRepoDir creates a Git service for a specific repository directory
-func (f *ServiceFactory) CreateGitServiceWithRepoDir(repoDir string) (git.Service, error) {
-	f.logger.Debug("Creating Git service for repository: %s", repoDir)
-	return git.NewServiceWithRepoDir(repoDir)
+// CreateGitServiceWithOptions creates a Git service with custom options
+func (f *ServiceFactory) CreateGitServiceWithOptions(repoDir, tagFilterPattern, tagSortBy string) (git.Service, error) {
+	f.logger.Debug("Creating Git service with options", "repoDir", repoDir, "tagFilter", tagFilterPattern, "tagSort", tagSortBy)
+
+	// Create service with options and injected logger
+	service, err := git.NewServiceWithOptions(repoDir, tagFilterPattern, tagSortBy, f.logger.WithFields(map[string]interface{}{"module": "git"}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create git service with options: %w", err)
+	}
+
+	return service, nil
 }
 
 // CreateAIService creates an AI service with configuration from global config
 func (f *ServiceFactory) CreateAIService() (ai.Service, error) {
-	f.logger.Debug("Creating AI service with provider: %s, model: %s", f.config.AI.Provider, f.config.AI.Model)
+	f.logger.Debug("Creating AI service", "provider", f.config.AI.Provider, "model", f.config.AI.Model)
 
 	return ai.NewService(
 		f.ctx,
@@ -65,7 +81,7 @@ func (f *ServiceFactory) CreateAIService() (ai.Service, error) {
 
 // CreateChangelogService creates a Changelog service with all dependencies
 func (f *ServiceFactory) CreateChangelogService(configPath string) (*changelog.Service, error) {
-	f.logger.Debug("Creating Changelog service with config: %s", configPath)
+	f.logger.Debug("Creating Changelog service", "config", configPath)
 
 	// Create the service with the new high-level functionality
 	return changelog.NewService(configPath), nil
@@ -101,7 +117,7 @@ func (f *ServiceFactory) CreateChangelogServiceWithDependencies(configPath strin
 	// Create AI service
 	aiService, err := f.CreateAIService()
 	if err != nil {
-		f.logger.Warn("Failed to create AI service, changelog will work without AI enhancement: %v", err)
+		f.logger.Warn("Failed to create AI service, changelog will work without AI enhancement", "error", err)
 		// AI service is optional for changelog, so we continue without it
 		aiService = nil
 	}
@@ -113,6 +129,27 @@ func (f *ServiceFactory) CreateChangelogServiceWithDependencies(configPath strin
 	_ = gitService // Suppress unused variable warning
 	_ = aiService  // Suppress unused variable warning
 	return changelog.NewService(configPath), nil
+}
+
+// CreateUpdateService creates an Update service with all dependencies
+func (f *ServiceFactory) CreateUpdateService() update.Service {
+	f.logger.Debug("Creating Update service")
+
+	// Create update service with injected logger
+	return update.NewServiceWithOptions(nil, f.logger.WithFields(map[string]interface{}{"module": "update"}))
+}
+
+// CreateUpdateServiceWithOptions creates an Update service with custom options
+func (f *ServiceFactory) CreateUpdateServiceWithOptions(repoOwner, repoName string, timeout time.Duration) update.Service {
+	f.logger.Debug("Creating Update service with options", "owner", repoOwner, "repo", repoName, "timeout", timeout)
+
+	options := &update.UpdateOptions{
+		RepoOwner: repoOwner,
+		RepoName:  repoName,
+		Timeout:   timeout,
+	}
+
+	return update.NewServiceWithOptions(options, f.logger.WithFields(map[string]interface{}{"module": "update"}))
 }
 
 // GetConfig returns the loaded configuration

@@ -11,14 +11,39 @@ import (
 
 // Logger ist eine Schnittstelle für einheitliches Logging in allen Modulen
 type Logger interface {
-	Debug(format string, args ...interface{})
-	Info(format string, args ...interface{})
-	Warn(format string, args ...interface{})
-	Error(format string, args ...interface{})
-	Fatal(format string, args ...interface{})
+	// Standard logging methods with structured key-value pairs
+	Debug(msg interface{}, keyvals ...interface{})
+	Info(msg interface{}, keyvals ...interface{})
+	Warn(msg interface{}, keyvals ...interface{})
+	Error(msg interface{}, keyvals ...interface{})
+	Fatal(msg interface{}, keyvals ...interface{})
+
+	// Formatted logging methods
+	Debugf(format string, args ...interface{})
+	Infof(format string, args ...interface{})
+	Warnf(format string, args ...interface{})
+	Errorf(format string, args ...interface{})
+	Fatalf(format string, args ...interface{})
+
+	// Structured logging
+	With(keyvals ...interface{}) Logger
 	WithFields(fields map[string]interface{}) Logger
+
+	// Configuration
 	GetLevel() string
 	SetOutput(w io.Writer)
+	Helper()
+}
+
+// LoggerOptions contains configuration options for creating a new logger
+type LoggerOptions struct {
+	Level           string
+	UseColors       bool
+	ReportCaller    bool
+	ReportTimestamp bool
+	TimeFormat      string
+	Prefix          string
+	Formatter       string // "text", "json", "logfmt"
 }
 
 // CharmLogger implementiert die Logger-Schnittstelle mit dem Charm Log-Logger
@@ -28,10 +53,21 @@ type CharmLogger struct {
 
 // NewLogger erstellt einen neuen Logger mit dem angegebenen Log-Level und Farboptionen
 func NewLogger(level string, useColors bool) Logger {
+	return NewLoggerWithOptions(LoggerOptions{
+		Level:           level,
+		UseColors:       useColors,
+		ReportTimestamp: true,
+		TimeFormat:      time.DateTime,
+		Formatter:       "text",
+	})
+}
+
+// NewLoggerWithOptions erstellt einen neuen Logger mit erweiterten Optionen
+func NewLoggerWithOptions(opts LoggerOptions) Logger {
 	logger := log.New(os.Stdout)
 
 	// Setze das Log-Level
-	switch level {
+	switch opts.Level {
 	case "debug":
 		logger.SetLevel(log.DebugLevel)
 	case "info":
@@ -47,12 +83,31 @@ func NewLogger(level string, useColors bool) Logger {
 	}
 
 	// Konfiguriere Ausgabeoptionen
-	logger.SetReportTimestamp(true)
-	logger.SetTimeFormat(time.DateTime)
+	logger.SetReportTimestamp(opts.ReportTimestamp)
+	if opts.TimeFormat != "" {
+		logger.SetTimeFormat(opts.TimeFormat)
+	}
+
+	// Caller-Informationen
+	logger.SetReportCaller(opts.ReportCaller)
+
+	// Prefix setzen
+	if opts.Prefix != "" {
+		logger.SetPrefix(opts.Prefix)
+	}
+
+	// Formatter setzen
+	switch opts.Formatter {
+	case "json":
+		logger.SetFormatter(log.JSONFormatter)
+	case "logfmt":
+		logger.SetFormatter(log.LogfmtFormatter)
+	default:
+		logger.SetFormatter(log.TextFormatter)
+	}
 
 	// Deaktiviere Farben, wenn gewünscht
-	if !useColors {
-		// Deaktiviere farbige Ausgabe mit dem NoColor-Profil
+	if !opts.UseColors {
 		logger.SetColorProfile(termenv.Ascii)
 	}
 
@@ -66,40 +121,72 @@ func (l *CharmLogger) SetOutput(w io.Writer) {
 	l.logger.SetOutput(w)
 }
 
-// Debug loggt eine Debug-Nachricht
-func (l *CharmLogger) Debug(format string, args ...interface{}) {
-	l.logger.Debugf(format, args...)
+// Debug loggt eine Debug-Nachricht mit strukturierten Key-Value-Paaren
+func (l *CharmLogger) Debug(msg interface{}, keyvals ...interface{}) {
+	l.logger.Debug(msg, keyvals...)
 }
 
-// Info loggt eine Info-Nachricht
-func (l *CharmLogger) Info(format string, args ...interface{}) {
-	l.logger.Infof(format, args...)
+// Info loggt eine Info-Nachricht mit strukturierten Key-Value-Paaren
+func (l *CharmLogger) Info(msg interface{}, keyvals ...interface{}) {
+	l.logger.Info(msg, keyvals...)
 }
 
-// Warn loggt eine Warnungs-Nachricht
-func (l *CharmLogger) Warn(format string, args ...interface{}) {
-	l.logger.Warnf(format, args...)
+// Warn loggt eine Warnungs-Nachricht mit strukturierten Key-Value-Paaren
+func (l *CharmLogger) Warn(msg interface{}, keyvals ...interface{}) {
+	l.logger.Warn(msg, keyvals...)
 }
 
-// Error loggt eine Fehler-Nachricht
-func (l *CharmLogger) Error(format string, args ...interface{}) {
-	l.logger.Errorf(format, args...)
+// Error loggt eine Fehler-Nachricht mit strukturierten Key-Value-Paaren
+func (l *CharmLogger) Error(msg interface{}, keyvals ...interface{}) {
+	l.logger.Error(msg, keyvals...)
 }
 
 // Fatal loggt eine fatale Fehler-Nachricht und beendet das Programm
-func (l *CharmLogger) Fatal(format string, args ...interface{}) {
+func (l *CharmLogger) Fatal(msg interface{}, keyvals ...interface{}) {
+	l.logger.Fatal(msg, keyvals...)
+}
+
+// Debugf loggt eine formatierte Debug-Nachricht
+func (l *CharmLogger) Debugf(format string, args ...interface{}) {
+	l.logger.Debugf(format, args...)
+}
+
+// Infof loggt eine formatierte Info-Nachricht
+func (l *CharmLogger) Infof(format string, args ...interface{}) {
+	l.logger.Infof(format, args...)
+}
+
+// Warnf loggt eine formatierte Warnungs-Nachricht
+func (l *CharmLogger) Warnf(format string, args ...interface{}) {
+	l.logger.Warnf(format, args...)
+}
+
+// Errorf loggt eine formatierte Fehler-Nachricht
+func (l *CharmLogger) Errorf(format string, args ...interface{}) {
+	l.logger.Errorf(format, args...)
+}
+
+// Fatalf loggt eine formatierte fatale Fehler-Nachricht und beendet das Programm
+func (l *CharmLogger) Fatalf(format string, args ...interface{}) {
 	l.logger.Fatalf(format, args...)
+}
+
+// With gibt einen neuen Logger mit zusätzlichen Key-Value-Paaren zurück
+func (l *CharmLogger) With(keyvals ...interface{}) Logger {
+	return &CharmLogger{
+		logger: l.logger.With(keyvals...),
+	}
 }
 
 // WithFields gibt einen neuen Logger mit zusätzlichen Feldern zurück
 func (l *CharmLogger) WithFields(fields map[string]interface{}) Logger {
-	newLogger := l.logger.With()
+	keyvals := make([]interface{}, 0, len(fields)*2)
 	for k, v := range fields {
-		newLogger = newLogger.With(k, v)
+		keyvals = append(keyvals, k, v)
 	}
 
 	return &CharmLogger{
-		logger: newLogger,
+		logger: l.logger.With(keyvals...),
 	}
 }
 

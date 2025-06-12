@@ -13,7 +13,6 @@ import (
 	cliversion "clikd/internal/cli/version"
 	"clikd/internal/config"
 	"clikd/internal/services"
-	"clikd/internal/services/update"
 	"clikd/internal/ui/bubble"
 	"clikd/internal/utils"
 
@@ -87,7 +86,7 @@ Use it to automate workflows and enhance productivity.`,
 
 			configPath, _ := config.GetConfigFilePath()
 			if configPath != "" {
-				logger.Debug("Configuration loaded from: %s", configPath)
+				logger.Debug("Configuration loaded", "path", configPath)
 			} else {
 				logger.Debug("Using default configuration")
 			}
@@ -104,10 +103,20 @@ Use it to automate workflows and enhance productivity.`,
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			// Check for updates
-			hasUpdate, latestVersion, releaseURL, err := update.CheckForUpdates(ctx, Version)
+			// Create service factory for update service
+			factory, err := services.NewServiceFactory(ctx)
 			if err != nil {
-				logger.Debug("Failed to check for updates: %v", err)
+				logger.Debug("Failed to create service factory for update check", "error", err)
+				return nil // Silently ignore update check errors
+			}
+
+			// Create update service
+			updateService := factory.CreateUpdateService()
+
+			// Check for updates using the service
+			hasUpdate, latestVersion, releaseURL, err := updateService.CheckForUpdates(ctx, Version)
+			if err != nil {
+				logger.Debug("Failed to check for updates", "error", err)
 				return nil // Silently ignore update check errors
 			}
 
