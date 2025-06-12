@@ -25,7 +25,6 @@ var (
 
 	// Used for flags
 	cfgFile     string
-	logLevel    string
 	aiEnabled   bool
 	colorOutput bool
 	appConfig   *config.Config
@@ -64,10 +63,10 @@ Use it to automate workflows and enhance productivity.`,
 
 			// Override config with command line flags if provided
 			if cmd.Flags().Changed("log-level") {
-				if err := config.Set("general.log_level", logLevel); err != nil {
+				if err := config.Set("general.log_level", level); err != nil {
 					return fmt.Errorf("error setting log level: %w", err)
 				}
-				appConfig.General.LogLevel = logLevel
+				appConfig.General.LogLevel = level
 			}
 
 			// AI is now always enabled, no need for flag override
