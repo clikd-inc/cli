@@ -6,7 +6,7 @@
 *.dylib
 /clikd
 example
-
+coverage.html
 # Test binary, built with `go test -c`
 *.test
 
