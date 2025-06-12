@@ -78,7 +78,7 @@ func JoinAndQuoteMeta(list []string, sep string) string {
 // Compare vergleicht zwei Werte mit einem Operator
 func Compare(a interface{}, operator string, b interface{}) (bool, error) {
 	at := reflect.TypeOf(a).String()
-	bt := reflect.TypeOf(a).String()
+	bt := reflect.TypeOf(b).String()
 	if at != bt {
 		return false, fmt.Errorf("\"%s\" and \"%s\" can not be compared", at, bt)
 	}

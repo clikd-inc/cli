@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -337,4 +338,188 @@ func TestEnsureInitialized(t *testing.T) {
 	if cfg.General.LogLevel != "debug" {
 		t.Errorf("expected log level to be 'debug', got %s", cfg.General.LogLevel)
 	}
+}
+
+func TestGetManager(t *testing.T) {
+	// Reset global state
+	Reset()
+
+	// Test when not initialized
+	manager, err := GetManager()
+	assert.Error(t, err)
+	assert.Nil(t, manager)
+	assert.Contains(t, err.Error(), "configuration not initialized")
+
+	// Initialize and test again
+	err = Initialize("")
+	require.NoError(t, err)
+
+	manager, err = GetManager()
+	assert.NoError(t, err)
+	assert.NotNil(t, manager)
+
+	// Cleanup
+	Reset()
+}
+
+func TestGetConfigFilePath(t *testing.T) {
+	// Reset global state
+	Reset()
+
+	// Test when not initialized
+	path, err := GetConfigFilePath()
+	assert.Error(t, err)
+	assert.Empty(t, path)
+	assert.Contains(t, err.Error(), "configuration not initialized")
+
+	// Initialize and test again
+	err = Initialize("")
+	require.NoError(t, err)
+
+	path, err = GetConfigFilePath()
+	assert.NoError(t, err)
+	// Path might be empty if no config file was found, which is valid
+	// Just test that no error occurred
+
+	// Cleanup
+	Reset()
+}
+
+func TestSave(t *testing.T) {
+	// Reset global state
+	Reset()
+
+	// Test when not initialized
+	err := Save("test.toml")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "configuration not initialized")
+
+	// Initialize and test again
+	err = Initialize("")
+	require.NoError(t, err)
+
+	// Create a temporary file for testing
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test_config.toml")
+
+	err = Save(testFile)
+	assert.NoError(t, err)
+
+	// Verify file was created
+	_, err = os.Stat(testFile)
+	assert.NoError(t, err)
+
+	// Cleanup
+	Reset()
+}
+
+func TestDefaultConfigFunction(t *testing.T) {
+	config := DefaultConfig()
+
+	// Test that default config is properly initialized
+	assert.NotNil(t, config)
+	assert.NotEmpty(t, config.Version)
+	assert.Equal(t, "info", config.General.LogLevel)
+	assert.Equal(t, "mistral", config.AI.Provider)
+	assert.Equal(t, "mistral-medium", config.AI.Model)
+	assert.Equal(t, "", config.AI.APIKey)
+	assert.Equal(t, "", config.AI.APIURL)
+	assert.Equal(t, "", config.AI.APICustomHeaders)
+	assert.Equal(t, 4096, config.AI.TokensMaxInput)
+	assert.Equal(t, 500, config.AI.TokensMaxOutput)
+}
+
+func TestSetConfigValue(t *testing.T) {
+	// Reset global state
+	Reset()
+
+	// Initialize
+	err := Initialize("")
+	require.NoError(t, err)
+
+	manager, err := GetManager()
+	require.NoError(t, err)
+
+	// Test setting a valid config value
+	err = manager.SetConfigValue("ai.provider", "openai")
+	assert.NoError(t, err)
+
+	// Verify the value was set
+	config := manager.GetConfig()
+	assert.Equal(t, "openai", config.AI.Provider)
+
+	// Test setting another value using the global Set function
+	err = Set("general.log_level", "debug")
+	assert.NoError(t, err)
+
+	configPtr, err := Get()
+	require.NoError(t, err)
+	assert.Equal(t, "debug", configPtr.General.LogLevel)
+
+	// Cleanup
+	Reset()
+}
+
+func TestMaskAPIKey(t *testing.T) {
+	// Test masking empty API key
+	masked := MaskAPIKey("")
+	assert.Equal(t, "****", masked)
+
+	// Test masking short API key
+	masked = MaskAPIKey("abc")
+	assert.Equal(t, "****", masked)
+
+	// Test masking normal API key
+	masked = MaskAPIKey("sk-1234567890abcdef")
+	assert.Equal(t, "sk-1...cdef", masked)
+
+	// Test masking very long API key
+	masked = MaskAPIKey("very-long-api-key-that-should-be-masked-properly")
+	assert.Equal(t, "very...erly", masked)
+}
+
+func TestGetSupportedModelsForProvider(t *testing.T) {
+	// Test supported providers
+	models, err := GetSupportedModelsForProvider("openai")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, models)
+	assert.Contains(t, models, "gpt-4")
+
+	models, err = GetSupportedModelsForProvider("mistral")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, models)
+	assert.Contains(t, models, "mistral-medium")
+
+	models, err = GetSupportedModelsForProvider("anthropic")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, models)
+	assert.Contains(t, models, "claude-3-sonnet")
+
+	// Test unsupported provider
+	models, err = GetSupportedModelsForProvider("unsupported")
+	assert.Error(t, err)
+	assert.Nil(t, models)
+}
+
+func TestGetDefaultModelForProvider(t *testing.T) {
+	// Test supported providers
+	model, err := GetDefaultModelForProvider("openai")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, model)
+	assert.Equal(t, "gpt-4o", model)
+
+	model, err = GetDefaultModelForProvider("mistral")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, model)
+	assert.Equal(t, "mistral-medium", model)
+
+	model, err = GetDefaultModelForProvider("anthropic")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, model)
+	assert.Equal(t, "claude-3-sonnet", model)
+
+	// Test unsupported provider
+	model, err = GetDefaultModelForProvider("unsupported")
+	assert.Error(t, err)
+	assert.Empty(t, model)
 }

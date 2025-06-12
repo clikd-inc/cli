@@ -876,3 +876,47 @@ func TestGeneratorSpecialTagQueries(t *testing.T) {
 	assert.Nil(err)
 	assert.NotEmpty(buf.String())
 }
+
+func TestNewJiraClientForChglog(t *testing.T) {
+	// Create a test config
+	config := &Config{
+		Options: &Options{},
+	}
+
+	// Test NewJiraClientForChglog
+	client := NewJiraClientForChglog(config)
+
+	// Verify that a client is returned
+	assert.NotNil(t, client)
+
+	// Verify that it's a JiraClientMock
+	_, ok := client.(*JiraClientMock)
+	assert.True(t, ok, "Expected JiraClientMock")
+}
+
+func TestJiraClientMock_FetchIssue(t *testing.T) {
+	mock := &JiraClientMock{}
+
+	// Test FetchIssue
+	issue, err := mock.FetchIssue("TEST-123")
+
+	// Should return a mock issue and no error
+	assert.NotNil(t, issue)
+	assert.NoError(t, err)
+	assert.Equal(t, "TEST-123", issue.Key)
+	assert.Equal(t, "Mock issue type", issue.Type)
+	assert.Equal(t, "Mock issue summary", issue.Summary)
+	assert.Equal(t, "Mock issue description", issue.Description)
+
+	// Test with different issue ID
+	issue, err = mock.FetchIssue("PROJ-456")
+	assert.NotNil(t, issue)
+	assert.NoError(t, err)
+	assert.Equal(t, "PROJ-456", issue.Key)
+
+	// Test with empty issue ID
+	issue, err = mock.FetchIssue("")
+	assert.NotNil(t, issue)
+	assert.NoError(t, err)
+	assert.Equal(t, "", issue.Key)
+}

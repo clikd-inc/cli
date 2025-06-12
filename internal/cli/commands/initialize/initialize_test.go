@@ -6,200 +6,180 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewInitCmd(t *testing.T) {
 	cmd := NewInitCmd()
 
 	// Test basic command properties
-	if cmd.Use != "init" {
-		t.Errorf("Expected Use to be 'init', got %s", cmd.Use)
-	}
+	assert.Equal(t, "init", cmd.Use)
+	assert.Equal(t, "Initialize the clikd configuration", cmd.Short)
+	assert.Contains(t, cmd.Long, "Initialize the clikd configuration either globally or for the current project")
 
-	if cmd.Short != "Initialize the clikd configuration" {
-		t.Errorf("Expected Short description, got %s", cmd.Short)
-	}
-
-	if !strings.Contains(cmd.Long, "Initialize the clikd configuration either globally or for the current project") {
-		t.Errorf("Expected Long description to contain expected text, got %s", cmd.Long)
-	}
-
-	// Test that flags are set
+	// Test flags
 	globalFlag := cmd.Flags().Lookup("global")
-	if globalFlag == nil {
-		t.Error("Expected --global flag to be present")
-	}
+	require.NotNil(t, globalFlag)
+	assert.Equal(t, "g", globalFlag.Shorthand)
+	assert.Equal(t, "false", globalFlag.DefValue)
 
 	forceFlag := cmd.Flags().Lookup("force")
-	if forceFlag == nil {
-		t.Error("Expected --force flag to be present")
-	}
+	require.NotNil(t, forceFlag)
+	assert.Equal(t, "f", forceFlag.Shorthand)
+	assert.Equal(t, "false", forceFlag.DefValue)
 
 	yesFlag := cmd.Flags().Lookup("yes")
-	if yesFlag == nil {
-		t.Error("Expected --yes flag to be present")
-	}
+	require.NotNil(t, yesFlag)
+	assert.Equal(t, "y", yesFlag.Shorthand)
+	assert.Equal(t, "false", yesFlag.DefValue)
 
-	// Test that subcommands are added
-	configCmd := cmd.Commands()
-	if len(configCmd) == 0 {
-		t.Error("Expected subcommands to be present")
-	}
-
-	// Find config subcommand
-	var foundConfigCmd *cobra.Command
-	for _, subCmd := range configCmd {
-		if subCmd.Use == "config" {
-			foundConfigCmd = subCmd
-			break
-		}
-	}
-
-	if foundConfigCmd == nil {
-		t.Error("Expected 'config' subcommand to be present")
-	}
+	// Test subcommands
+	subcommands := cmd.Commands()
+	assert.Len(t, subcommands, 1)
+	assert.Equal(t, "config", subcommands[0].Use)
 }
 
 func TestNewConfigCmd(t *testing.T) {
 	cmd := newConfigCmd()
 
 	// Test basic command properties
-	if cmd.Use != "config" {
-		t.Errorf("Expected Use to be 'config', got %s", cmd.Use)
-	}
+	assert.Equal(t, "config", cmd.Use)
+	assert.Equal(t, "Manage clikd configuration", cmd.Short)
+	assert.Contains(t, cmd.Long, "Manage clikd configuration settings")
 
-	if cmd.Short != "Manage clikd configuration" {
-		t.Errorf("Expected Short description, got %s", cmd.Short)
-	}
+	// Test subcommands
+	subcommands := cmd.Commands()
+	assert.Len(t, subcommands, 3)
 
-	if !strings.Contains(cmd.Long, "Manage clikd configuration settings") {
-		t.Errorf("Expected Long description to contain expected text, got %s", cmd.Long)
+	// Check each subcommand
+	subcommandNames := make([]string, len(subcommands))
+	for i, subcmd := range subcommands {
+		subcommandNames[i] = subcmd.Use
 	}
-
-	// Test that subcommands are added
-	subCommands := cmd.Commands()
-	if len(subCommands) != 3 {
-		t.Errorf("Expected 3 subcommands, got %d", len(subCommands))
-	}
-
-	// Check for specific subcommands (extract command name from Use field)
-	expectedSubCommands := []string{"get", "set", "list"}
-	foundSubCommands := make(map[string]bool)
-
-	for _, subCmd := range subCommands {
-		// Extract command name (before any space or bracket)
-		parts := strings.Fields(subCmd.Use)
-		if len(parts) > 0 {
-			foundSubCommands[parts[0]] = true
-		}
-	}
-
-	for _, expected := range expectedSubCommands {
-		if !foundSubCommands[expected] {
-			t.Errorf("Expected subcommand '%s' not found. Found: %v", expected, foundSubCommands)
-		}
-	}
+	assert.Contains(t, subcommandNames, "get [key]")
+	assert.Contains(t, subcommandNames, "set [key=value]")
+	assert.Contains(t, subcommandNames, "list")
 }
 
 func TestNewConfigGetCmd(t *testing.T) {
 	cmd := newConfigGetCmd()
 
 	// Test basic command properties
-	if cmd.Use != "get [key]" {
-		t.Errorf("Expected Use to be 'get [key]', got %s", cmd.Use)
-	}
+	assert.Equal(t, "get [key]", cmd.Use)
+	assert.Equal(t, "Get a configuration value", cmd.Short)
+	assert.Contains(t, cmd.Long, "Get a configuration value by key")
 
-	if cmd.Short != "Get a configuration value" {
-		t.Errorf("Expected Short description, got %s", cmd.Short)
-	}
-
-	if !strings.Contains(cmd.Long, "Get a configuration value by key") {
-		t.Errorf("Expected Long description to contain expected text, got %s", cmd.Long)
-	}
-
-	// Test args validation
-	if cmd.Args == nil {
-		t.Error("Expected Args validation to be set")
-	}
+	// Test args validation by testing the function behavior
+	assert.NotNil(t, cmd.Args)
 
 	// Test that it requires exactly one argument
 	err := cmd.Args(cmd, []string{})
-	if err == nil {
-		t.Error("Expected error for no arguments")
-	}
+	assert.Error(t, err, "Should require at least one argument")
 
 	err = cmd.Args(cmd, []string{"key"})
-	if err != nil {
-		t.Errorf("Expected no error for one argument, got %v", err)
-	}
+	assert.NoError(t, err, "Should accept exactly one argument")
 
 	err = cmd.Args(cmd, []string{"key1", "key2"})
-	if err == nil {
-		t.Error("Expected error for too many arguments")
-	}
+	assert.Error(t, err, "Should reject more than one argument")
+
+	// Test that RunE is set
+	assert.NotNil(t, cmd.RunE)
 }
 
 func TestNewConfigSetCmd(t *testing.T) {
 	cmd := newConfigSetCmd()
 
 	// Test basic command properties
-	if cmd.Use != "set [key=value]" {
-		t.Errorf("Expected Use to be 'set [key=value]', got %s", cmd.Use)
-	}
+	assert.Equal(t, "set [key=value]", cmd.Use)
+	assert.Equal(t, "Set a configuration value", cmd.Short)
+	assert.Contains(t, cmd.Long, "Set a configuration value by key")
 
-	if cmd.Short != "Set a configuration value" {
-		t.Errorf("Expected Short description, got %s", cmd.Short)
-	}
-
-	if !strings.Contains(cmd.Long, "Set a configuration value by key") {
-		t.Errorf("Expected Long description to contain expected text, got %s", cmd.Long)
-	}
-
-	// Test args validation
-	if cmd.Args == nil {
-		t.Error("Expected Args validation to be set")
-	}
+	// Test args validation by testing the function behavior
+	assert.NotNil(t, cmd.Args)
 
 	// Test that it requires exactly one argument
 	err := cmd.Args(cmd, []string{})
-	if err == nil {
-		t.Error("Expected error for no arguments")
-	}
+	assert.Error(t, err, "Should require at least one argument")
 
 	err = cmd.Args(cmd, []string{"key=value"})
-	if err != nil {
-		t.Errorf("Expected no error for one argument, got %v", err)
-	}
+	assert.NoError(t, err, "Should accept exactly one argument")
 
 	err = cmd.Args(cmd, []string{"key1=value1", "key2=value2"})
-	if err == nil {
-		t.Error("Expected error for too many arguments")
-	}
+	assert.Error(t, err, "Should reject more than one argument")
+
+	// Test that RunE is set
+	assert.NotNil(t, cmd.RunE)
 }
 
 func TestNewConfigListCmd(t *testing.T) {
 	cmd := newConfigListCmd()
 
 	// Test basic command properties
-	if cmd.Use != "list" {
-		t.Errorf("Expected Use to be 'list', got %s", cmd.Use)
-	}
+	assert.Equal(t, "list", cmd.Use)
+	assert.Equal(t, "List all configuration values", cmd.Short)
+	assert.Contains(t, cmd.Long, "List all configuration values")
 
-	if cmd.Short != "List all configuration values" {
-		t.Errorf("Expected Short description, got %s", cmd.Short)
-	}
+	// Test that RunE is set
+	assert.NotNil(t, cmd.RunE)
+}
 
-	if !strings.Contains(cmd.Long, "List all configuration values") {
-		t.Errorf("Expected Long description to contain expected text, got %s", cmd.Long)
-	}
+func TestRunConfigGet(t *testing.T) {
+	// Test the runConfigGet function
+	err := runConfigGet("test.key")
+	assert.NoError(t, err)
 
-	// Test that it doesn't require arguments (Args should be nil or allow zero args)
-	if cmd.Args != nil {
-		err := cmd.Args(cmd, []string{})
-		if err != nil {
-			t.Errorf("Expected no error for zero arguments, got %v", err)
-		}
-	}
+	// Test with different key formats
+	err = runConfigGet("ai.provider")
+	assert.NoError(t, err)
+
+	err = runConfigGet("general.log_level")
+	assert.NoError(t, err)
+}
+
+func TestRunConfigSet(t *testing.T) {
+	// Test the runConfigSet function
+	err := runConfigSet("test.key=value")
+	assert.NoError(t, err)
+
+	// Test with different key-value formats
+	err = runConfigSet("ai.provider=openai")
+	assert.NoError(t, err)
+
+	err = runConfigSet("general.log_level=debug")
+	assert.NoError(t, err)
+}
+
+func TestRunConfigList(t *testing.T) {
+	// Test the runConfigList function
+	err := runConfigList()
+	assert.NoError(t, err)
+}
+
+func TestConfigGetCmdExecution(t *testing.T) {
+	cmd := newConfigGetCmd()
+
+	// Test command execution with valid args
+	cmd.SetArgs([]string{"test.key"})
+	err := cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestConfigSetCmdExecution(t *testing.T) {
+	cmd := newConfigSetCmd()
+
+	// Test command execution with valid args
+	cmd.SetArgs([]string{"test.key=value"})
+	err := cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestConfigListCmdExecution(t *testing.T) {
+	cmd := newConfigListCmd()
+
+	// Test command execution
+	err := cmd.Execute()
+	assert.NoError(t, err)
 }
 
 func TestInitCmd_Flags(t *testing.T) {
@@ -236,36 +216,6 @@ func TestInitCmd_Flags(t *testing.T) {
 				t.Errorf("Flag %s expected shorthand %s, got %s", tt.flagName, tt.shorthand, flag.Shorthand)
 			}
 		})
-	}
-}
-
-func TestRunConfigGet(t *testing.T) {
-	// Test the runConfigGet function
-	err := runConfigGet("test.key")
-
-	// Since the function currently returns nil, we expect no error
-	if err != nil {
-		t.Errorf("runConfigGet() returned unexpected error: %v", err)
-	}
-}
-
-func TestRunConfigSet(t *testing.T) {
-	// Test the runConfigSet function
-	err := runConfigSet("test.key=test.value")
-
-	// Since the function currently returns nil, we expect no error
-	if err != nil {
-		t.Errorf("runConfigSet() returned unexpected error: %v", err)
-	}
-}
-
-func TestRunConfigList(t *testing.T) {
-	// Test the runConfigList function
-	err := runConfigList()
-
-	// Since the function currently returns nil, we expect no error
-	if err != nil {
-		t.Errorf("runConfigList() returned unexpected error: %v", err)
 	}
 }
 
