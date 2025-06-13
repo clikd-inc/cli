@@ -131,6 +131,48 @@ func (f *ServiceFactory) CreateChangelogServiceWithDependencies(configPath strin
 	return changelog.NewService(configPath), nil
 }
 
+// CreateChangelogServiceWithAI creates a Changelog service with AI enhancement
+// This method properly injects the AI service into the changelog generator
+func (f *ServiceFactory) CreateChangelogServiceWithAI(configPath string) (*changelog.Service, error) {
+	f.logger.Debug("Creating Changelog service with AI enhancement")
+
+	// Create service with factory injection for AI enhancement
+	service := changelog.NewServiceWithFactory(configPath, f)
+
+	// Verify AI service is available
+	_, err := f.CreateAIService()
+	if err != nil {
+		f.logger.Debug("Could not create AI service, changelog will work without AI enhancement: %v", err)
+		// Return service anyway - it will gracefully degrade
+		return service, nil
+	}
+
+	f.logger.Debug("AI service is available for changelog enhancement")
+	return service, nil
+}
+
+// CreateChangelogGeneratorWithAI creates a changelog generator with AI service injected
+// This is a helper method for proper AI service injection
+func (f *ServiceFactory) CreateChangelogGeneratorWithAI(config *changelog.Config, logger utils.Logger) (*changelog.Generator, error) {
+	f.logger.Debug("Creating Changelog generator with AI enhancement")
+
+	// Create the basic generator
+	generator := changelog.NewGenerator(logger, config)
+
+	// Try to create and inject AI service
+	aiService, err := f.CreateAIService()
+	if err != nil {
+		f.logger.Debug("Could not create AI service, generator will work without AI enhancement: %v", err)
+		// Return generator without AI - graceful degradation
+		return generator, nil
+	}
+
+	f.logger.Debug("AI service created successfully, injecting into changelog generator")
+	generator.SetAIService(aiService)
+
+	return generator, nil
+}
+
 // CreateUpdateService creates an Update service with all dependencies
 func (f *ServiceFactory) CreateUpdateService() update.Service {
 	f.logger.Debug("Creating Update service")
@@ -165,4 +207,41 @@ func (f *ServiceFactory) GetLogger() utils.Logger {
 // GetContext returns the context
 func (f *ServiceFactory) GetContext() context.Context {
 	return f.ctx
+}
+
+// Implement ServiceFactoryInterface for changelog service injection
+// This avoids circular import issues by using interfaces
+
+// CreateAIService implements ServiceFactoryInterface
+func (f *ServiceFactory) CreateAIServiceForChangelog() (changelog.AIServiceInterface, error) {
+	aiService, err := f.CreateAIService()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return an adapter that implements the changelog.AIServiceInterface
+	return &aiServiceAdapter{service: aiService}, nil
+}
+
+// GetConfigForChangelog implements ServiceFactoryInterface
+func (f *ServiceFactory) GetConfigForChangelog() changelog.ConfigInterface {
+	return &configAdapter{config: f.config}
+}
+
+// aiServiceAdapter adapts ai.Service to changelog.AIServiceInterface
+type aiServiceAdapter struct {
+	service ai.Service
+}
+
+func (a *aiServiceAdapter) EnhanceChangelog(changelog string) (string, error) {
+	return a.service.EnhanceChangelog(changelog)
+}
+
+// configAdapter adapts config.Config to changelog.ConfigInterface
+type configAdapter struct {
+	config *config.Config
+}
+
+func (c *configAdapter) GetAIConfig() (provider, model, apiKey, apiURL string, tokensMaxInput, tokensMaxOutput int) {
+	return c.config.AI.Provider, c.config.AI.Model, c.config.AI.APIKey, c.config.AI.APIURL, c.config.AI.TokensMaxInput, c.config.AI.TokensMaxOutput
 }

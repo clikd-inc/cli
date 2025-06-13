@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"clikd/internal/services"
 	"clikd/internal/services/changelog"
 	"clikd/internal/ui/bubble"
 
@@ -146,8 +147,17 @@ Examples:
 
 // runGenerator führt den Changelog-Generator aus
 func runGenerator(query string) error {
-	// Create changelog service
-	service := changelog.NewService(configFlag)
+	// Create service factory for proper dependency injection
+	factory, err := services.NewServiceFactory(context.Background())
+	if err != nil {
+		return err
+	}
+
+	// Create changelog service with AI enhancement
+	service, err := factory.CreateChangelogServiceWithAI(configFlag)
+	if err != nil {
+		return err
+	}
 
 	// Prepare generation options
 	options := &changelog.GenerationOptions{
@@ -177,7 +187,7 @@ func runGenerator(query string) error {
 	}
 
 	if result.ShouldUseUI {
-		// Use interactive viewer for terminal output
+		// Always use the unified interactive viewer that handles both progress and display
 		bubble.RunChangelogViewerWithGenerator("Changelog", result.CommandConfig, query)
 		return nil
 	} else {

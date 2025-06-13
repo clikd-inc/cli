@@ -1,6 +1,7 @@
 package changelog
 
 import (
+	"clikd/internal/services/ai"
 	"clikd/internal/services/git"
 	"clikd/internal/utils"
 	"errors"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"bytes"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/tsuyoshiwada/go-gitcmd"
@@ -73,6 +76,8 @@ type Generator struct {
 	client     gitcmd.Client
 	config     *Config
 	gitService git.Service
+	aiService  ai.Service // Optional AI service for enhancement
+	logger     utils.Logger
 }
 
 // NewGenerator receives `Config` and create an new `Generator`
@@ -106,7 +111,14 @@ func NewGenerator(logger utils.Logger, config *Config) *Generator {
 		client:     client,
 		config:     config,
 		gitService: gitService,
+		aiService:  nil, // Will be set via SetAIService if available
+		logger:     logger,
 	}
+}
+
+// SetAIService sets the AI service for changelog enhancement
+func (gen *Generator) SetAIService(aiService ai.Service) {
+	gen.aiService = aiService
 }
 
 // Generate gets the commit based on the specified tag `query` and writes the result to `io.Writer`
@@ -420,6 +432,42 @@ func (gen *Generator) render(w io.Writer, unreleased *ChangelogUnreleased, versi
 
 	t := template.Must(template.New(fname).Funcs(sprig.TxtFuncMap()).Funcs(fmap).ParseFiles(gen.config.Template))
 
+	// If AI service is available, render to buffer first for enhancement
+	if gen.aiService != nil {
+		gen.logger.Debug("AI service available, rendering changelog for enhancement")
+
+		// Render to buffer first
+		var buffer bytes.Buffer
+		err := t.Execute(&buffer, &RenderData{
+			Info:       gen.config.Info,
+			Unreleased: unreleased,
+			Versions:   versions,
+		})
+		if err != nil {
+			return err
+		}
+
+		// Get the raw changelog content
+		rawChangelog := buffer.String()
+
+		// Enhance with AI
+		gen.logger.Debug("Enhancing changelog with AI")
+		enhancedChangelog, err := gen.aiService.EnhanceChangelog(rawChangelog)
+		if err != nil {
+			// If AI enhancement fails, log warning and use original
+			gen.logger.Warn("AI enhancement failed, using original changelog: %v", err)
+			enhancedChangelog = rawChangelog
+		} else {
+			gen.logger.Debug("Changelog enhanced successfully with AI")
+		}
+
+		// Write enhanced changelog to final output
+		_, err = w.Write([]byte(enhancedChangelog))
+		return err
+	}
+
+	// No AI service available, render directly to output
+	gen.logger.Debug("No AI service available, rendering changelog directly")
 	return t.Execute(w, &RenderData{
 		Info:       gen.config.Info,
 		Unreleased: unreleased,

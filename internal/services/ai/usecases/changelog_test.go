@@ -108,8 +108,8 @@ func TestEnhanceChangelog(t *testing.T) {
 			// Set up mock expectations
 			mockClient.On("Complete", ctx, mock.MatchedBy(func(req *CompletionRequest) bool {
 				// Verify the request contains our changelog
-				return req.MaxTokens == 1024 &&
-					req.Temperature == 0.7 &&
+				return req.MaxTokens == 3072 &&
+					req.Temperature == 0.3 &&
 					req.TopP == 0.9 &&
 					len(req.Prompt) > 0
 			})).Return(tt.mockResponse, tt.mockError)
@@ -140,12 +140,12 @@ func TestEnhanceChangelogPromptFormat(t *testing.T) {
 
 	mockClient.On("Complete", ctx, mock.MatchedBy(func(req *CompletionRequest) bool {
 		// Verify the prompt contains the expected structure
-		expectedPromptStart := "You are an expert in writing clear, concise, and informative changelogs."
-		expectedChangelogSection := "CHANGELOG:\nTest changelog content"
+		expectedPromptStart := "You are an expert in writing clear, professional changelogs following industry standards."
+		expectedChangelogSection := "CHANGELOG TO ENHANCE:\nTest changelog content"
 		expectedEndSection := "ENHANCED CHANGELOG:"
 
-		return req.MaxTokens == 1024 &&
-			req.Temperature == 0.7 &&
+		return req.MaxTokens == 3072 &&
+			req.Temperature == 0.3 &&
 			req.TopP == 0.9 &&
 			len(req.Prompt) > 0 &&
 			// Check that prompt contains expected sections

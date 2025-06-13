@@ -14,6 +14,24 @@ import (
 // Service provides functions for changelog management
 type Service struct {
 	ConfigPath string
+	factory    ServiceFactoryInterface // Optional factory for AI service injection
+}
+
+// ServiceFactoryInterface defines the interface for service creation
+// This allows for dependency injection while avoiding circular imports
+type ServiceFactoryInterface interface {
+	CreateAIServiceForChangelog() (AIServiceInterface, error)
+	GetConfigForChangelog() ConfigInterface
+}
+
+// AIServiceInterface defines the interface for AI services
+type AIServiceInterface interface {
+	EnhanceChangelog(changelog string) (string, error)
+}
+
+// ConfigInterface defines the interface for configuration
+type ConfigInterface interface {
+	GetAIConfig() (provider, model, apiKey, apiURL string, tokensMaxInput, tokensMaxOutput int)
 }
 
 // GenerationOptions contains all options for changelog generation
@@ -142,6 +160,15 @@ func (s *Service) GenerateChangelog(ctx context.Context, options *GenerationOpti
 	return nil
 }
 
+// aiServiceToGeneratorAdapter adapts changelog.AIServiceInterface to ai.Service
+type aiServiceToGeneratorAdapter struct {
+	aiService AIServiceInterface
+}
+
+func (a *aiServiceToGeneratorAdapter) EnhanceChangelog(changelog string) (string, error) {
+	return a.aiService.EnhanceChangelog(changelog)
+}
+
 // generateDirect handles file output or no-color terminal output
 func (s *Service) generateDirect(logger utils.Logger, cmdConfig *CommandConfig, query string) (string, error) {
 	// Load configuration
@@ -153,6 +180,21 @@ func (s *Service) generateDirect(logger utils.Logger, cmdConfig *CommandConfig, 
 
 	// Create generator
 	generator := NewGenerator(logger, config)
+
+	// Try to inject AI service if factory is available
+	if s.factory != nil {
+		aiService, err := s.factory.CreateAIServiceForChangelog()
+		if err != nil {
+			logger.Debug("Could not create AI service, generator will work without AI enhancement: %v", err)
+		} else {
+			logger.Debug("AI service created successfully, injecting into changelog generator")
+			// Create adapter to convert changelog.AIServiceInterface to ai.Service
+			adapter := &aiServiceToGeneratorAdapter{aiService: aiService}
+			generator.SetAIService(adapter)
+		}
+	} else {
+		logger.Debug("No service factory available, generator will work without AI enhancement")
+	}
 
 	// Determine output writer
 	var writer io.Writer
@@ -183,7 +225,7 @@ func (s *Service) generateDirect(logger utils.Logger, cmdConfig *CommandConfig, 
 		writer = file
 	}
 
-	// Generate changelog
+	// Generate changelog (with AI enhancement if available)
 	err = generator.Generate(writer, query)
 	if err != nil {
 		return "", err
@@ -202,6 +244,15 @@ func (s *Service) generateDirect(logger utils.Logger, cmdConfig *CommandConfig, 
 func NewService(configPath string) *Service {
 	return &Service{
 		ConfigPath: configPath,
+		factory:    nil, // No factory injection - graceful degradation
+	}
+}
+
+// NewServiceWithFactory creates a new Changelog service with ServiceFactory injection
+func NewServiceWithFactory(configPath string, factory ServiceFactoryInterface) *Service {
+	return &Service{
+		ConfigPath: configPath,
+		factory:    factory,
 	}
 }
 

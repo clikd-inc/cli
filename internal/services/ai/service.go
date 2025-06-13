@@ -9,7 +9,7 @@ import (
 )
 
 // Use the same logger instance as in other AI package files
-var logService = utils.NewLogger("info", true)
+var logService = utils.NewLogger("error", true)
 
 // Service defines the interface for AI operations
 type Service interface {
@@ -19,9 +19,12 @@ type Service interface {
 
 // ServiceImpl implements the Service interface
 type ServiceImpl struct {
-	client   Client
-	provider string
-	model    string
+	client      Client
+	provider    string
+	model       string
+	maxTokens   int
+	temperature float64
+	topP        float64
 }
 
 // NewService creates a new AI service
@@ -41,22 +44,33 @@ func NewService(ctx context.Context, provider, model, apiKey, endpoint string, t
 
 	logService.Info("AI service initialized successfully with provider %s and model %s", provider, model)
 	return &ServiceImpl{
-		client:   client,
-		provider: provider,
-		model:    model,
+		client:      client,
+		provider:    provider,
+		model:       model,
+		maxTokens:   tokensMaxInput, // Use input tokens as max tokens for generation
+		temperature: 0.3,            // Default temperature for changelog enhancement
+		topP:        0.9,            // Default topP for changelog enhancement
 	}, nil
 }
 
 // EnhanceChangelog implements the Service interface
 func (s *ServiceImpl) EnhanceChangelog(changelog string) (string, error) {
-	logService.Debug("Enhancing changelog with AI")
+	logService.Debug("Enhancing changelog with AI using config values: maxTokens=%d, temperature=%.2f, topP=%.2f",
+		s.maxTokens, s.temperature, s.topP)
 
 	// Create client adapter for usecase
 	clientAdapter := &usecaseClientAdapter{client: s.client}
 
-	// Delegate to the usecase implementation
+	// Use configuration values from service instead of hardcoded values
+	options := usecases.EnhanceChangelogOptions{
+		MaxTokens:   s.maxTokens,
+		Temperature: s.temperature,
+		TopP:        s.topP,
+	}
+
+	// Delegate to the usecase implementation with configuration
 	ctx := context.Background()
-	enhancedChangelog, err := usecases.EnhanceChangelog(clientAdapter, ctx, changelog)
+	enhancedChangelog, err := usecases.EnhanceChangelogWithOptions(clientAdapter, ctx, changelog, options)
 	if err != nil {
 		logService.Error("Failed to enhance changelog: %v", err)
 		return changelog, err

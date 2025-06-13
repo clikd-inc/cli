@@ -2,6 +2,7 @@ package bubble
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 
+	"clikd/internal/services"
 	"clikd/internal/services/changelog"
 	"clikd/internal/ui/styles"
 	"clikd/internal/utils"
@@ -98,7 +100,7 @@ func NewChangelogViewerModelWithGenerator(title string, config *changelog.Comman
 		GeneratorConfig: config,
 		Query:           query,
 		Progress:        p,
-		ProgressPercent: 0.0,
+		ProgressPercent: 0.10, // Start at 10%
 		Viewport:        30,
 		ShowHelp:        false,
 	}
@@ -120,45 +122,102 @@ func (m *ChangelogViewerModel) initSaveInput() {
 // Init initializes the model
 func (m ChangelogViewerModel) Init() tea.Cmd {
 	if m.IsGenerating {
+		// Initialize progress bar with starting percentage and start both generation and animation
+		progressCmd := m.Progress.SetPercent(m.ProgressPercent)
 		return tea.Batch(
-			m.generateChangelog,
+			progressCmd,
+			m.generateChangelogAsync(),
 			m.tickProgress(),
 		)
 	}
 	return nil
 }
 
-// generateChangelog führt die Changelog-Generierung als Command aus
-func (m ChangelogViewerModel) generateChangelog() tea.Msg {
-	// Schritt 1: Konfiguration laden
-	configPath := utils.ResolveConfigPath(m.GeneratorConfig.ConfigPath)
-	configFileInfo, err := os.Stat(configPath)
-	if err != nil {
-		return GenerateCompleteMsg{Error: fmt.Errorf("configuration file not found at %s: %v", configPath, err)}
+// generateChangelogAsync starts the changelog generation asynchronously
+func (m ChangelogViewerModel) generateChangelogAsync() tea.Cmd {
+	return func() tea.Msg {
+		// Create a channel for the result
+		resultChan := make(chan GenerateCompleteMsg, 1)
+
+		// Start generation in background
+		go func() {
+			defer close(resultChan)
+
+			// Schritt 1: Konfiguration laden
+			configPath := utils.ResolveConfigPath(m.GeneratorConfig.ConfigPath)
+			configFileInfo, err := os.Stat(configPath)
+			if err != nil {
+				resultChan <- GenerateCompleteMsg{Error: fmt.Errorf("configuration file not found at %s: %v", configPath, err)}
+				return
+			}
+			if configFileInfo.IsDir() {
+				configPath = filepath.Join(configPath, "config.yml")
+			}
+
+			// Config-Pfad korrigieren
+			m.GeneratorConfig.ConfigPath = configPath
+
+			logger := utils.NewLogger("error", !m.GeneratorConfig.NoColor)
+			config, err := changelog.LoadConfigFromCommand(m.GeneratorConfig)
+			if err != nil {
+				resultChan <- GenerateCompleteMsg{Error: err}
+				return
+			}
+
+			generator := changelog.NewGenerator(logger, config)
+
+			// Try to create and inject AI service for enhancement using ServiceFactory
+			ctx := context.Background()
+
+			// Use ServiceFactory for proper AI service creation
+			factory, err := services.NewServiceFactory(ctx)
+			if err != nil {
+				logger.Debug("Could not create service factory, proceeding without AI enhancement: %v", err)
+			} else {
+				// Try to create AI service via factory
+				aiService, err := factory.CreateAIService()
+				if err != nil {
+					logger.Debug("Could not create AI service, proceeding without AI enhancement: %v", err)
+				} else {
+					logger.Debug("AI service created successfully, changelog will be enhanced")
+					generator.SetAIService(aiService)
+				}
+			}
+
+			buffer := &bytes.Buffer{}
+
+			err = generator.Generate(buffer, m.Query)
+			if err != nil {
+				resultChan <- GenerateCompleteMsg{Error: err}
+				return
+			}
+
+			content := buffer.String()
+			resultChan <- GenerateCompleteMsg{Content: content}
+		}()
+
+		// Wait for result - this will block this command but not the UI
+		// The progress bar will continue to animate in parallel
+		return <-resultChan
 	}
-	if configFileInfo.IsDir() {
-		configPath = filepath.Join(configPath, "config.yml")
+}
+
+// Helper functions for the changelog viewer
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
 	}
+	return defaultValue
+}
 
-	// Config-Pfad korrigieren
-	m.GeneratorConfig.ConfigPath = configPath
-
-	logger := utils.NewLogger("error", !m.GeneratorConfig.NoColor)
-	config, err := changelog.LoadConfigFromCommand(m.GeneratorConfig)
-	if err != nil {
-		return GenerateCompleteMsg{Error: err}
+func getEnvIntOrDefault(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		var intValue int
+		if _, err := fmt.Sscanf(value, "%d", &intValue); err == nil {
+			return intValue
+		}
 	}
-
-	generator := changelog.NewGenerator(logger, config)
-	buffer := &bytes.Buffer{}
-
-	err = generator.Generate(buffer, m.Query)
-	if err != nil {
-		return GenerateCompleteMsg{Error: err}
-	}
-
-	content := buffer.String()
-	return GenerateCompleteMsg{Content: content}
+	return defaultValue
 }
 
 // saveToFile speichert den Changelog in eine Datei
@@ -243,7 +302,7 @@ func findRepositoryRoot() (string, error) {
 	return wd, fmt.Errorf("no git repository found")
 }
 
-// tickProgress erstellt einen Tick für die Progress-Animation
+// tickProgress returns a command that ticks the progress bar
 func (m ChangelogViewerModel) tickProgress() tea.Cmd {
 	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return ProgressTickMsg(t)
@@ -253,154 +312,67 @@ func (m ChangelogViewerModel) tickProgress() tea.Cmd {
 // Update updates the model
 func (m ChangelogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if m.IsGenerating {
-			// Während der Generierung nur Ctrl+C erlauben
-			if msg.Type == tea.KeyCtrlC {
-				return m, tea.Quit
-			}
-			return m, nil
-		}
-
-		// Save-Input-Dialog aktiv
-		if m.ShowingSaveInput {
-			switch msg.Type {
-			case tea.KeyEsc:
-				// Save-Dialog abbrechen
-				m.ShowingSaveInput = false
-				return m, nil
-			case tea.KeyEnter:
-				// Speichern ausführen
-				filename := strings.TrimSpace(m.SaveInput.Value())
-				if filename == "" {
-					// Verwende Placeholder als Default
-					filename = m.SaveInput.Placeholder
-				}
-				m.ShowingSaveInput = false
-				return m, m.saveToFile(filename)
-			}
-
-			// Input-Update weiterleiten
-			var cmd tea.Cmd
-			m.SaveInput, cmd = m.SaveInput.Update(msg)
-			return m, cmd
-		}
-
-		// Normale Navigation
-		switch msg.String() {
-		case "q", "esc":
-			return m, tea.Quit
-		case "s":
-			// Save-to-File Dialog öffnen
-			m.ShowingSaveInput = true
-			m.initSaveInput()
-			return m, textinput.Blink
-		case "c":
-			// Copy to clipboard
-			err := clipboard.WriteAll(m.Content)
-			if err == nil {
-				m.CopyMessage = "✅ Copied to clipboard!"
-			} else {
-				m.CopyMessage = "❌ Failed to copy"
-			}
-			m.CopyMessageTime = 3
-			return m, nil
-		case "h":
-			m.ShowHelp = !m.ShowHelp
-			return m, nil
-		case "up", "k":
-			if m.Scroll > 0 {
-				m.Scroll--
-			}
-			return m, nil
-		case "down", "j":
-			if m.Scroll < m.MaxScroll {
-				m.Scroll++
-			}
-			return m, nil
-		case "pgup":
-			m.Scroll -= 10
-			if m.Scroll < 0 {
-				m.Scroll = 0
-			}
-			return m, nil
-		case "pgdown":
-			m.Scroll += 10
-			if m.Scroll > m.MaxScroll {
-				m.Scroll = m.MaxScroll
-			}
-			return m, nil
-		case "home":
-			m.Scroll = 0
-			return m, nil
-		case "end":
-			m.Scroll = m.MaxScroll
-			return m, nil
-		}
-
-	case SaveCompleteMsg:
-		// Speichern abgeschlossen
-		if msg.Error != nil {
-			m.SaveMessage = fmt.Sprintf("❌ Failed to save: %v", msg.Error)
-			m.SaveMessageTime = 8 // Fehler länger anzeigen
-			return m, nil
-		} else {
-			// Zeige relativen Pfad vom Repository-Root wenn möglich
-			displayPath := msg.Filename
-			if repoRoot, err := findRepositoryRoot(); err == nil {
-				if relPath, err := filepath.Rel(repoRoot, msg.Filename); err == nil && !strings.HasPrefix(relPath, "..") {
-					displayPath = relPath
-				}
-			}
-			m.SaveMessage = fmt.Sprintf("✅ Saved to %s", displayPath)
-			m.SaveMessageTime = 3 // Kurz anzeigen vor dem Schließen
-
-			// Auto-Close nach erfolgreichem Speichern
-			return m, tea.Batch(
-				tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
-					return tea.Quit()
-				}),
-			)
-		}
-
 	case ProgressTickMsg:
 		if m.IsGenerating {
-			// Animiere Progress-Bar während der Generierung
-			m.ProgressPercent += 0.02
+			// Increment progress smoothly
+			m.ProgressPercent += 0.005 // Slower increment for smoother animation
 			if m.ProgressPercent > 0.95 {
-				m.ProgressPercent = 0.1 // Reset für kontinuierliche Animation
+				m.ProgressPercent = 0.95 // Cap at 95% until generation completes
 			}
-			cmd := m.Progress.SetPercent(m.ProgressPercent)
-			return m, tea.Batch(cmd, m.tickProgress())
+
+			// Update progress bar and continue ticking
+			progressCmd := m.Progress.SetPercent(m.ProgressPercent)
+			return m, tea.Batch(progressCmd, m.tickProgress())
 		}
 		return m, nil
 
+	// FrameMsg is sent when the progress bar wants to animate itself
+	case progress.FrameMsg:
+		progressModel, cmd := m.Progress.Update(msg)
+		m.Progress = progressModel.(progress.Model)
+		return m, cmd
+
 	case GenerateCompleteMsg:
 		if msg.Error != nil {
-			// Fehler anzeigen
+			// Handle error case
 			m.Content = fmt.Sprintf("Error generating changelog: %v", msg.Error)
 			m.RenderedContent = m.Content
 		} else {
-			// Erfolg: Content setzen und mit korrigiertem Glamour rendern
+			// Set progress to 100% and process content
+			m.ProgressPercent = 1.0
 			m.Content = msg.Content
 
-			// Trenne Hauptinhalt von Referenz-Links für korrektes Rendering
+			// Separate main content from reference links to prevent Glamour from moving them
 			mainContent, referenceLinks := separateReferenceLinks(msg.Content)
 
-			// Rendere nur den Hauptinhalt mit Glamour für schöne Formatierung
-			rendered, err := glamour.Render(mainContent, "tokyo-night")
+			// Render main content with Glamour for beautiful styling
+			renderer, err := glamour.NewTermRenderer(
+				glamour.WithStylePath("tokyo-night"),
+				glamour.WithWordWrap(120),
+			)
+
+			var rendered string
 			if err != nil {
-				// Fallback: Verwende originalen Content ohne Glamour
-				m.RenderedContent = msg.Content
+				// Fallback to plain text if glamour fails
+				rendered = mainContent
 			} else {
-				// Füge die Referenz-Links am Ende hinzu (ohne Glamour-Rendering)
-				if referenceLinks != "" {
-					m.RenderedContent = rendered + "\n" + referenceLinks
+				renderedMain, err := renderer.Render(mainContent)
+				if err != nil {
+					// Fallback to plain text if rendering fails
+					rendered = mainContent
 				} else {
-					m.RenderedContent = rendered
+					rendered = renderedMain
 				}
 			}
 
+			// Combine rendered main content with unprocessed reference links
+			if referenceLinks != "" {
+				m.RenderedContent = rendered + "\n" + referenceLinks
+			} else {
+				m.RenderedContent = rendered
+			}
+
+			// Calculate scroll bounds
 			lines := strings.Split(m.RenderedContent, "\n")
 			m.MaxScroll = len(lines) - m.Viewport
 			if m.MaxScroll < 0 {
@@ -410,6 +382,88 @@ func (m ChangelogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.IsGenerating = false
 		return m, nil
+
+	case SaveCompleteMsg:
+		m.ShowingSaveInput = false
+		if msg.Error != nil {
+			m.SaveMessage = fmt.Sprintf("Error saving file: %v", msg.Error)
+		} else {
+			m.SaveMessage = fmt.Sprintf("Changelog saved to: %s", msg.Filename)
+		}
+		m.SaveMessageTime = 150 // Show message for ~3 seconds at 50fps
+		return m, nil
+
+	case tea.KeyMsg:
+		// Handle save input first
+		if m.ShowingSaveInput {
+			switch msg.String() {
+			case "enter":
+				filename := strings.TrimSpace(m.SaveInput.Value())
+				if filename == "" {
+					filename = "CHANGELOG.md" // Default filename
+				}
+				return m, m.saveToFile(filename)
+			case "esc":
+				m.ShowingSaveInput = false
+				return m, nil
+			default:
+				var cmd tea.Cmd
+				m.SaveInput, cmd = m.SaveInput.Update(msg)
+				return m, cmd
+			}
+		}
+
+		// Skip input handling during generation
+		if m.IsGenerating {
+			switch msg.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
+		// Normal navigation
+		switch msg.String() {
+		case "q", "esc":
+			return m, tea.Quit
+		case "up", "k":
+			if m.Scroll > 0 {
+				m.Scroll--
+			}
+		case "down", "j":
+			if m.Scroll < m.MaxScroll {
+				m.Scroll++
+			}
+		case "pgup":
+			m.Scroll -= 10
+			if m.Scroll < 0 {
+				m.Scroll = 0
+			}
+		case "pgdown":
+			m.Scroll += 10
+			if m.Scroll > m.MaxScroll {
+				m.Scroll = m.MaxScroll
+			}
+		case "home":
+			m.Scroll = 0
+		case "end":
+			m.Scroll = m.MaxScroll
+		case "h":
+			m.ShowHelp = !m.ShowHelp
+		case "c":
+			// Copy to clipboard
+			err := clipboard.WriteAll(m.Content)
+			if err != nil {
+				m.CopyMessage = "Failed to copy to clipboard"
+			} else {
+				m.CopyMessage = "Changelog copied to clipboard!"
+			}
+			m.CopyMessageTime = 150 // Show message for ~3 seconds at 50fps
+		case "s":
+			// Show save input
+			m.ShowingSaveInput = true
+			m.initSaveInput()
+		}
 
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
@@ -442,6 +496,7 @@ func (m ChangelogViewerModel) View() string {
 		}
 
 		s.WriteString(padding + styles.Normal.Render("Analyzing commits and generating changelog...") + "\n\n")
+
 		s.WriteString(padding + m.Progress.View() + "\n\n")
 		s.WriteString(padding + styles.Subtle.Render("This may take a moment for large repositories"))
 		s.WriteString("\n\n" + padding + styles.Subtle.Render("Ctrl+C: Cancel"))

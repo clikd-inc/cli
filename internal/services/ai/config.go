@@ -30,15 +30,15 @@ const (
 // ModelConfig represents configuration for a specific AI model
 // This is the ONLY ModelConfig structure used by the AI service
 type ModelConfig struct {
-	Provider       Provider `json:"provider" yaml:"provider"`
-	ModelID        string   `json:"model_id" yaml:"model_id"`
-	APIKey         string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
-	Endpoint       string   `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-	MaxTokens      int      `json:"max_tokens" yaml:"max_tokens"`
-	Temperature    float64  `json:"temperature" yaml:"temperature"`
-	TopP           float64  `json:"top_p" yaml:"top_p"`
-	ContextWindow  int      `json:"context_window" yaml:"context_window"`
-	StreamResponse bool     `json:"stream_response" yaml:"stream_response"`
+	Provider       Provider `json:"provider" toml:"provider"`
+	ModelID        string   `json:"model_id" toml:"model_id"`
+	APIKey         string   `json:"api_key,omitempty" toml:"api_key,omitempty"`
+	Endpoint       string   `json:"endpoint,omitempty" toml:"endpoint,omitempty"`
+	MaxTokens      int      `json:"max_tokens" toml:"max_tokens"`
+	Temperature    float64  `json:"temperature" toml:"temperature"`
+	TopP           float64  `json:"top_p" toml:"top_p"`
+	ContextWindow  int      `json:"context_window" toml:"context_window"`
+	StreamResponse bool     `json:"stream_response" toml:"stream_response"`
 }
 
 // CreateModelConfig creates a ModelConfig from global configuration values
@@ -96,18 +96,6 @@ func CreateModelConfig(provider, model, apiKey, endpoint string, tokensMaxInput,
 	}
 
 	return modelConfig, nil
-}
-
-// Helper functions
-
-// getEndpointEnvVar returns the environment variable name for the endpoint
-func getEndpointEnvVar(provider Provider) string {
-	switch provider {
-	case ProviderLocal:
-		return "CLIKD_OLLAMA_BASE_URL"
-	default:
-		return "CLIKD_API_URL"
-	}
 }
 
 // getProviderWebsite returns the website URL for the provider

@@ -21,20 +21,21 @@ func NewGollmClient(ctx context.Context, config ModelConfig) (Client, error) {
 	// Map our provider to gollm provider
 	providerName := mapProviderToGollm(config.Provider)
 
+	// Map model name to gollm-compatible model name
+	modelName := mapModelToGollm(config.Provider, config.ModelID)
+
 	// Create configuration options
 	options := []gollm.ConfigOption{
 		gollm.SetProvider(providerName),
-		gollm.SetModel(config.ModelID),
+		gollm.SetModel(modelName),
 		gollm.SetMaxTokens(config.MaxTokens),
 		gollm.SetTemperature(config.Temperature),
 		gollm.SetTopP(config.TopP),
 		gollm.SetAPIKey(config.APIKey),
 	}
 
-	// Set debug level if verbose is enabled
-	if config.StreamResponse {
-		options = append(options, gollm.SetLogLevel(gollm.LogLevelDebug))
-	}
+	// Set debug level to error to reduce log pollution
+	options = append(options, gollm.SetLogLevel(gollm.LogLevelError))
 
 	// Add support for memory if needed
 	if config.ContextWindow > 0 {
@@ -73,7 +74,7 @@ func NewGollmClient(ctx context.Context, config ModelConfig) (Client, error) {
 	return &GollmClient{
 		llm:      llm,
 		provider: config.Provider,
-		modelID:  config.ModelID,
+		modelID:  config.ModelID, // Keep original model ID for reference
 		config:   config,
 	}, nil
 }
@@ -213,5 +214,49 @@ func mapProviderToGollm(provider Provider) string {
 		return "openrouter"
 	default:
 		return string(provider)
+	}
+}
+
+// mapModelToGollm maps our model enum to gollm's compatible model name
+func mapModelToGollm(provider Provider, modelID string) string {
+	switch provider {
+	case ProviderMistral:
+		// Map Mistral model names to Gollm-compatible names
+		// Based on Gollm documentation and common Mistral API model names
+		switch modelID {
+		case "mistral-medium":
+			// Use the original mapping that works despite the warning
+			return "mistral-medium-latest"
+		case "mistral-small":
+			return "mistral-small-latest"
+		case "mistral-large":
+			return "mistral-large-latest"
+		case "mistral-tiny":
+			return "open-mistral-7b"
+		case "mistral-7b":
+			return "open-mistral-7b"
+		case "mixtral-8x7b":
+			return "open-mixtral-8x7b"
+		default:
+			// For unknown Mistral models, try the original name first
+			return modelID
+		}
+	case ProviderOpenAI:
+		// OpenAI models are usually correctly named
+		return modelID
+	case ProviderLocal:
+		// Local models (Ollama) use their original names
+		return modelID
+	case ProviderAnthropic:
+		// Anthropic models are usually correctly named
+		return modelID
+	case ProviderGroq:
+		// Groq models are usually correctly named
+		return modelID
+	case ProviderOpenRouter:
+		// OpenRouter models are usually correctly named
+		return modelID
+	default:
+		return modelID
 	}
 }

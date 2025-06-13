@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // Client interface needed for the changelog usecase
@@ -54,23 +55,60 @@ func WithJSONResponse() ChatOption {
 	}
 }
 
-// EnhanceChangelog improves a generated changelog
+// EnhanceChangelogOptions contains configuration for changelog enhancement
+type EnhanceChangelogOptions struct {
+	MaxTokens   int     // Maximum tokens for the response (from config.toml)
+	Temperature float64 // Temperature for AI generation (from config.toml)
+	TopP        float64 // TopP for AI generation (from config.toml)
+}
+
+// EnhanceChangelog improves a generated changelog by splitting complex commits and enhancing readability
+// Deprecated: Use EnhanceChangelogWithOptions instead for configurable parameters from config.toml
+// This function uses hardcoded default values and should not be used in production
 func EnhanceChangelog(client Client, ctx context.Context, changelog string) (string, error) {
-	prompt := `You are an expert in writing clear, concise, and informative changelogs.
-Please enhance the following changelog to make it more professional and readable.
-Maintain the same structure and format, but improve clarity, fix grammar issues,
-and ensure consistent style throughout.
+	return EnhanceChangelogWithOptions(client, ctx, changelog, EnhanceChangelogOptions{
+		MaxTokens:   3072, // Hardcoded fallback - use EnhanceChangelogWithOptions instead
+		Temperature: 0.3,  // Hardcoded fallback - use EnhanceChangelogWithOptions instead
+		TopP:        0.9,  // Hardcoded fallback - use EnhanceChangelogWithOptions instead
+	})
+}
 
-CHANGELOG:
-%s
+// EnhanceChangelogWithOptions improves a generated changelog with configurable options
+func EnhanceChangelogWithOptions(client Client, ctx context.Context, changelog string, options EnhanceChangelogOptions) (string, error) {
+	prompt := `You are an expert in writing clear, professional changelogs following industry standards.
 
-ENHANCED CHANGELOG:`
+Your task is to enhance the following changelog to make it more readable and professional while maintaining the exact structure and format.
+
+CRITICAL RULES:
+1. PRESERVE the exact markdown structure (headers, sections, links, version numbers, dates)
+2. SPLIT complex bullet points that contain multiple changes into separate, individual bullet points
+3. Each bullet point should describe ONE specific change only
+4. Use clear, concise language suitable for end users
+5. Remove redundant information and technical jargon
+6. Start each entry with an action verb (add, fix, improve, enhance, etc.)
+7. Keep entries short and scannable
+8. Maintain the same categorization (Features, Bug Fixes, Code Refactoring, etc.)
+9. Remove internal references like "chore:", "feat:", "fix:" prefixes from the final output
+10. Focus on user-facing benefits and changes
+
+IMPORTANT: Return ONLY the enhanced changelog content. Do not add any explanatory text, introductions, or improvement notes.
+
+EXAMPLE OF SPLITTING:
+BAD: "- **ai:** remove unused methods from Service interface to simplify code and improve maintainability chore(ai): delete corresponding tests for removed methods to keep test suite clean refactor(usecases): remove unused types and functions related to commit categorization and enhancement to streamline codebase"
+
+GOOD: 
+"- **ai:** remove unused methods from Service interface to simplify code and improve maintainability
+- **ai:** delete corresponding tests for removed methods to keep test suite clean  
+- **ai:** remove unused types and functions related to commit categorization to streamline codebase"
+
+CHANGELOG TO ENHANCE:
+%s`
 
 	req := &CompletionRequest{
 		Prompt:      fmt.Sprintf(prompt, changelog),
-		MaxTokens:   1024,
-		Temperature: 0.7,
-		TopP:        0.9,
+		MaxTokens:   options.MaxTokens,
+		Temperature: options.Temperature,
+		TopP:        options.TopP,
 	}
 
 	resp, err := client.Complete(ctx, req)
@@ -78,5 +116,44 @@ ENHANCED CHANGELOG:`
 		return changelog, fmt.Errorf("failed to enhance changelog: %w", err)
 	}
 
-	return resp.Text, nil
+	// Clean up the response to remove any potential AI-added text
+	result := resp.Text
+
+	// Remove common AI response patterns
+	if strings.HasPrefix(result, "Here's the enhanced changelog") {
+		// Find the start of the actual changelog content
+		lines := strings.Split(result, "\n")
+		var cleanLines []string
+		foundStart := false
+
+		for _, line := range lines {
+			// Look for the start of actual changelog content
+			if !foundStart {
+				if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "<a name=") || strings.HasPrefix(line, "##") {
+					foundStart = true
+					cleanLines = append(cleanLines, line)
+				}
+			} else {
+				// Skip improvement notes at the end
+				if strings.HasPrefix(line, "Key improvements made:") {
+					break
+				}
+				cleanLines = append(cleanLines, line)
+			}
+		}
+
+		if len(cleanLines) > 0 {
+			result = strings.Join(cleanLines, "\n")
+		}
+	}
+
+	// Remove trailing improvement notes if they exist
+	if idx := strings.Index(result, "Key improvements made:"); idx != -1 {
+		result = result[:idx]
+	}
+
+	// Clean up any trailing whitespace
+	result = strings.TrimSpace(result)
+
+	return result, nil
 }
