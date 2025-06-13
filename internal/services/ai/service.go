@@ -48,8 +48,8 @@ func NewService(ctx context.Context, provider, model, apiKey, endpoint string, t
 		provider:    provider,
 		model:       model,
 		maxTokens:   tokensMaxInput, // Use input tokens as max tokens for generation
-		temperature: 0.3,            // Default temperature for changelog enhancement
-		topP:        0.9,            // Default topP for changelog enhancement
+		temperature: 0.1,            // Very low temperature for fastest, most deterministic responses
+		topP:        0.7,            // Lower topP for faster token selection and more focused output
 	}, nil
 }
 

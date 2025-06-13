@@ -304,7 +304,7 @@ func findRepositoryRoot() (string, error) {
 
 // tickProgress returns a command that ticks the progress bar
 func (m ChangelogViewerModel) tickProgress() tea.Cmd {
-	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*30, func(t time.Time) tea.Msg {
 		return ProgressTickMsg(t)
 	})
 }
@@ -314,13 +314,13 @@ func (m ChangelogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ProgressTickMsg:
 		if m.IsGenerating {
-			// Increment progress smoothly
-			m.ProgressPercent += 0.005 // Slower increment for smoother animation
+			// Increment progress aggressively for maximum responsiveness
+			m.ProgressPercent += 0.015 // Even faster increment for ultra-responsive feel
 			if m.ProgressPercent > 0.95 {
 				m.ProgressPercent = 0.95 // Cap at 95% until generation completes
 			}
 
-			// Update progress bar and continue ticking
+			// Update progress bar and continue ticking (even at 95% for visual feedback)
 			progressCmd := m.Progress.SetPercent(m.ProgressPercent)
 			return m, tea.Batch(progressCmd, m.tickProgress())
 		}
@@ -495,10 +495,36 @@ func (m ChangelogViewerModel) View() string {
 			s.WriteString(padding + styles.H2.Render(m.Title) + "\n\n")
 		}
 
-		s.WriteString(padding + styles.Normal.Render("Analyzing commits and generating changelog...") + "\n\n")
+		// Dynamic status message based on progress
+		var statusMessage string
+		if m.ProgressPercent < 0.3 {
+			statusMessage = "Analyzing git history and commits..."
+		} else if m.ProgressPercent < 0.7 {
+			statusMessage = "Processing commit messages and grouping changes..."
+		} else if m.ProgressPercent < 0.95 {
+			statusMessage = "Generating changelog structure..."
+		} else {
+			statusMessage = "AI enhancing changelog for better readability..."
+		}
+
+		s.WriteString(padding + styles.Normal.Render(statusMessage) + "\n\n")
 
 		s.WriteString(padding + m.Progress.View() + "\n\n")
-		s.WriteString(padding + styles.Subtle.Render("This may take a moment for large repositories"))
+
+		// Dynamic help text based on progress
+		if m.ProgressPercent >= 0.95 {
+			// Add a subtle animation indicator for AI processing
+			dots := ""
+			tickCount := int(time.Now().UnixMilli()/500) % 4 // Change every 500ms
+			for i := 0; i < tickCount; i++ {
+				dots += "."
+			}
+			aiMessage := "AI is improving the changelog quality" + dots
+			s.WriteString(padding + styles.Subtle.Render(aiMessage))
+		} else {
+			s.WriteString(padding + styles.Subtle.Render("This may take a moment for large repositories"))
+		}
+
 		s.WriteString("\n\n" + padding + styles.Subtle.Render("Ctrl+C: Cancel"))
 
 		return s.String()
