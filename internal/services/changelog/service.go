@@ -24,9 +24,10 @@ type ServiceFactoryInterface interface {
 	GetConfigForChangelog() ConfigInterface
 }
 
-// AIServiceInterface defines the interface for AI services
+// AIServiceInterface defines the interface for AI operations in changelog generation
 type AIServiceInterface interface {
-	EnhanceChangelog(changelog string) (string, error)
+	// Batch processing only - more efficient than individual calls
+	EnhanceCommitMessagesBatch(commitMessages []string) (map[string][]string, error)
 }
 
 // ConfigInterface defines the interface for configuration
@@ -53,6 +54,7 @@ type GenerationOptions struct {
 	NoColor         bool
 	NoEmoji         bool
 	NoCaseSensitive bool
+	NoAI            bool
 
 	// Integration options
 	JiraURL      string
@@ -109,6 +111,7 @@ func (s *Service) PrepareGeneration(ctx context.Context, options *GenerationOpti
 		NoColor:          options.NoColor,
 		NoEmoji:          options.NoEmoji,
 		NoCaseSensitive:  options.NoCaseSensitive,
+		NoAI:             options.NoAI,
 		Query:            options.Query,
 		NextTag:          options.NextTag,
 		TagFilterPattern: options.TagFilterPattern,
@@ -165,8 +168,9 @@ type aiServiceToGeneratorAdapter struct {
 	aiService AIServiceInterface
 }
 
-func (a *aiServiceToGeneratorAdapter) EnhanceChangelog(changelog string) (string, error) {
-	return a.aiService.EnhanceChangelog(changelog)
+// EnhanceCommitMessagesBatch implements ai.Service interface for batch processing
+func (a *aiServiceToGeneratorAdapter) EnhanceCommitMessagesBatch(commitMessages []string) (map[string][]string, error) {
+	return a.aiService.EnhanceCommitMessagesBatch(commitMessages)
 }
 
 // generateDirect handles file output or no-color terminal output
@@ -181,8 +185,8 @@ func (s *Service) generateDirect(logger utils.Logger, cmdConfig *CommandConfig, 
 	// Create generator
 	generator := NewGenerator(logger, config)
 
-	// Try to inject AI service if factory is available
-	if s.factory != nil {
+	// Try to inject AI service if factory is available and NoAI is not set
+	if s.factory != nil && !cmdConfig.NoAI {
 		aiService, err := s.factory.CreateAIServiceForChangelog()
 		if err != nil {
 			logger.Debug("Could not create AI service, generator will work without AI enhancement: %v", err)
@@ -192,6 +196,8 @@ func (s *Service) generateDirect(logger utils.Logger, cmdConfig *CommandConfig, 
 			adapter := &aiServiceToGeneratorAdapter{aiService: aiService}
 			generator.SetAIService(adapter)
 		}
+	} else if cmdConfig.NoAI {
+		logger.Debug("AI enhancement disabled via --no-ai flag")
 	} else {
 		logger.Debug("No service factory available, generator will work without AI enhancement")
 	}

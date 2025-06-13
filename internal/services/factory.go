@@ -233,8 +233,8 @@ type aiServiceAdapter struct {
 	service ai.Service
 }
 
-func (a *aiServiceAdapter) EnhanceChangelog(changelog string) (string, error) {
-	return a.service.EnhanceChangelog(changelog)
+func (a *aiServiceAdapter) EnhanceCommitMessagesBatch(commitMessages []string) (map[string][]string, error) {
+	return a.service.EnhanceCommitMessagesBatch(commitMessages)
 }
 
 // configAdapter adapts config.Config to changelog.ConfigInterface

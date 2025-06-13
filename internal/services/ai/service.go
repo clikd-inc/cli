@@ -13,8 +13,8 @@ var logService = utils.NewLogger("error", true)
 
 // Service defines the interface for AI operations
 type Service interface {
-	// Changelog-related operations
-	EnhanceChangelog(changelog string) (string, error)
+	// Commit-related operations - batch processing only
+	EnhanceCommitMessagesBatch(commitMessages []string) (map[string][]string, error)
 }
 
 // ServiceImpl implements the Service interface
@@ -53,15 +53,15 @@ func NewService(ctx context.Context, provider, model, apiKey, endpoint string, t
 	}, nil
 }
 
-// EnhanceChangelog implements the Service interface
-func (s *ServiceImpl) EnhanceChangelog(changelog string) (string, error) {
-	logService.Debug("Enhancing changelog with AI using config values: maxTokens=%d, temperature=%.2f, topP=%.2f",
-		s.maxTokens, s.temperature, s.topP)
+// EnhanceCommitMessagesBatch implements the Service interface for batch processing
+func (s *ServiceImpl) EnhanceCommitMessagesBatch(commitMessages []string) (map[string][]string, error) {
+	logService.Debug("Enhancing %d commit messages in batch with AI using config values: maxTokens=%d, temperature=%.2f, topP=%.2f",
+		len(commitMessages), s.maxTokens, s.temperature, s.topP)
 
 	// Create client adapter for usecase
 	clientAdapter := &usecaseClientAdapter{client: s.client}
 
-	// Use configuration values from service instead of hardcoded values
+	// Use configuration values from service
 	options := usecases.EnhanceChangelogOptions{
 		MaxTokens:   s.maxTokens,
 		Temperature: s.temperature,
@@ -70,14 +70,19 @@ func (s *ServiceImpl) EnhanceChangelog(changelog string) (string, error) {
 
 	// Delegate to the usecase implementation with configuration
 	ctx := context.Background()
-	enhancedChangelog, err := usecases.EnhanceChangelogWithOptions(clientAdapter, ctx, changelog, options)
+	enhancedMap, err := usecases.EnhanceCommitMessagesBatch(clientAdapter, ctx, commitMessages, options)
 	if err != nil {
-		logService.Error("Failed to enhance changelog: %v", err)
-		return changelog, err
+		logService.Debug("Failed to enhance commit messages batch: %v", err)
+		// Return original messages on error
+		result := make(map[string][]string)
+		for _, msg := range commitMessages {
+			result[msg] = []string{msg}
+		}
+		return result, nil
 	}
 
-	logService.Debug("Changelog enhanced successfully")
-	return enhancedChangelog, nil
+	logService.Debug("Successfully enhanced %d commit messages in batch", len(commitMessages))
+	return enhancedMap, nil
 }
 
 // usecaseClientAdapter adapts our Client to the usecases.Client interface

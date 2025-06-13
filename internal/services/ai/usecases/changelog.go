@@ -57,103 +57,130 @@ func WithJSONResponse() ChatOption {
 
 // EnhanceChangelogOptions contains configuration for changelog enhancement
 type EnhanceChangelogOptions struct {
-	MaxTokens   int     // Maximum tokens for the response (from config.toml)
-	Temperature float64 // Temperature for AI generation (from config.toml)
-	TopP        float64 // TopP for AI generation (from config.toml)
+	MaxTokens   int
+	Temperature float64
+	TopP        float64
 }
 
-// EnhanceChangelog improves a generated changelog by splitting complex commits and enhancing readability
-// Deprecated: Use EnhanceChangelogWithOptions instead for configurable parameters from config.toml
-// This function uses hardcoded default values and should not be used in production
-func EnhanceChangelog(client Client, ctx context.Context, changelog string) (string, error) {
-	return EnhanceChangelogWithOptions(client, ctx, changelog, EnhanceChangelogOptions{
-		MaxTokens:   3072, // Hardcoded fallback - use EnhanceChangelogWithOptions instead
-		Temperature: 0.3,  // Hardcoded fallback - use EnhanceChangelogWithOptions instead
-		TopP:        0.9,  // Hardcoded fallback - use EnhanceChangelogWithOptions instead
-	})
-}
+// EnhanceCommitMessagesBatch improves multiple commit messages in a single AI call for better performance
+func EnhanceCommitMessagesBatch(client Client, ctx context.Context, commitMessages []string, options EnhanceChangelogOptions) (map[string][]string, error) {
+	if len(commitMessages) == 0 {
+		return make(map[string][]string), nil
+	}
 
-// EnhanceChangelogWithOptions improves a generated changelog with configurable options
-func EnhanceChangelogWithOptions(client Client, ctx context.Context, changelog string, options EnhanceChangelogOptions) (string, error) {
-	prompt := `You are an expert in writing clear, professional changelogs following industry standards.
+	// Filter out very short messages and build the batch
+	var validMessages []string
+	var messageMap = make(map[string]bool)
 
-Your task is to enhance the following changelog to make it more readable and professional while maintaining the exact structure and format.
+	for _, msg := range commitMessages {
+		if len(msg) >= 30 && !messageMap[msg] { // Skip duplicates and short messages
+			validMessages = append(validMessages, msg)
+			messageMap[msg] = true
+		}
+	}
 
-CRITICAL RULES:
-1. PRESERVE the exact markdown structure (headers, sections, links, version numbers, dates)
-2. SPLIT complex bullet points that contain multiple changes into separate, individual bullet points
-3. Each bullet point should describe ONE specific change only
-4. Use clear, concise language suitable for end users
-5. Remove redundant information and technical jargon
-6. Start each entry with an action verb (add, fix, improve, enhance, etc.)
-7. Keep entries short and scannable
-8. Maintain the same categorization (Features, Bug Fixes, Code Refactoring, etc.)
-9. Remove internal references like "chore:", "feat:", "fix:" prefixes from the final output
-10. Focus on user-facing benefits and changes
+	if len(validMessages) == 0 {
+		// Return original messages if none are suitable for enhancement
+		result := make(map[string][]string)
+		for _, msg := range commitMessages {
+			result[msg] = []string{msg}
+		}
+		return result, nil
+	}
 
-IMPORTANT: Return ONLY the enhanced changelog content. Do not add any explanatory text, introductions, or improvement notes.
+	// Build batch prompt
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString(`You are a technical documentation expert specializing in changelog generation.
 
-EXAMPLE OF SPLITTING:
-BAD: "- **ai:** remove unused methods from Service interface to simplify code and improve maintainability chore(ai): delete corresponding tests for removed methods to keep test suite clean refactor(usecases): remove unused types and functions related to commit categorization and enhancement to streamline codebase"
+Your task: Process multiple commit messages and split complex ones into clear, individual changelog entries.
 
-GOOD: 
-"- **ai:** remove unused methods from Service interface to simplify code and improve maintainability
-- **ai:** delete corresponding tests for removed methods to keep test suite clean  
-- **ai:** remove unused types and functions related to commit categorization to streamline codebase"
+STRICT REQUIREMENTS:
+1. PRESERVE ALL TECHNICAL DETAILS - do not lose any information
+2. If multiple changes are described in one commit, create separate entries for each
+3. Keep the original technical language and specificity
+4. Each entry should be 1 clear, complete sentence
+5. Maintain conventional commit format when present
+6. If it's already a single clear change, return it unchanged
+7. Process each commit separately and maintain the order
 
-CHANGELOG TO ENHANCE:
-%s`
+RESPONSE FORMAT:
+For each input commit, return the enhanced entries on separate lines, followed by "---" as a separator.
 
-	req := &CompletionRequest{
-		Prompt:      fmt.Sprintf(prompt, changelog),
-		MaxTokens:   options.MaxTokens,
+INPUT COMMITS:
+`)
+
+	for i, msg := range validMessages {
+		promptBuilder.WriteString(fmt.Sprintf("%d. %s\n", i+1, msg))
+	}
+
+	promptBuilder.WriteString(`
+EXAMPLE OUTPUT FORMAT:
+feat(auth): add JWT authentication with refresh tokens
+---
+refactor(config): replace ConfigData with Config structure to simplify configuration and improve clarity
+refactor(config): remove unnecessary conversion functions and streamline configuration handling
+---
+
+Now process the input commits:`)
+
+	response, err := client.Complete(ctx, &CompletionRequest{
+		Prompt:      promptBuilder.String(),
+		MaxTokens:   options.MaxTokens * 2, // Increase token limit for batch processing
 		Temperature: options.Temperature,
 		TopP:        options.TopP,
-	}
-
-	resp, err := client.Complete(ctx, req)
+	})
 	if err != nil {
-		return changelog, fmt.Errorf("failed to enhance changelog: %w", err)
+		// Fallback: return original messages on batch failure
+		result := make(map[string][]string)
+		for _, msg := range commitMessages {
+			result[msg] = []string{msg}
+		}
+		return result, nil
 	}
 
-	// Clean up the response to remove any potential AI-added text
-	result := resp.Text
+	// Parse batch response
+	result := make(map[string][]string)
+	sections := strings.Split(response.Text, "---")
 
-	// Remove common AI response patterns
-	if strings.HasPrefix(result, "Here's the enhanced changelog") {
-		// Find the start of the actual changelog content
-		lines := strings.Split(result, "\n")
-		var cleanLines []string
-		foundStart := false
+	for i, msg := range validMessages {
+		if i < len(sections) {
+			section := strings.TrimSpace(sections[i])
+			lines := strings.Split(section, "\n")
+			var enhancedMessages []string
 
-		for _, line := range lines {
-			// Look for the start of actual changelog content
-			if !foundStart {
-				if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "<a name=") || strings.HasPrefix(line, "##") {
-					foundStart = true
-					cleanLines = append(cleanLines, line)
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				// Remove bullet points, dashes, or numbering
+				line = strings.TrimPrefix(line, "- ")
+				line = strings.TrimPrefix(line, "* ")
+				line = strings.TrimPrefix(line, "• ")
+				// Remove numbering like "1. ", "2. ", etc.
+				if len(line) > 3 && line[1] == '.' && line[2] == ' ' {
+					line = line[3:]
 				}
-			} else {
-				// Skip improvement notes at the end
-				if strings.HasPrefix(line, "Key improvements made:") {
-					break
+				line = strings.TrimSpace(line)
+
+				if line != "" && len(line) > 10 {
+					enhancedMessages = append(enhancedMessages, line)
 				}
-				cleanLines = append(cleanLines, line)
 			}
-		}
 
-		if len(cleanLines) > 0 {
-			result = strings.Join(cleanLines, "\n")
+			if len(enhancedMessages) > 0 {
+				result[msg] = enhancedMessages
+			} else {
+				result[msg] = []string{msg}
+			}
+		} else {
+			result[msg] = []string{msg}
 		}
 	}
 
-	// Remove trailing improvement notes if they exist
-	if idx := strings.Index(result, "Key improvements made:"); idx != -1 {
-		result = result[:idx]
+	// Add back short messages that were skipped
+	for _, msg := range commitMessages {
+		if _, exists := result[msg]; !exists {
+			result[msg] = []string{msg}
+		}
 	}
-
-	// Clean up any trailing whitespace
-	result = strings.TrimSpace(result)
 
 	return result, nil
 }

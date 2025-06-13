@@ -69,6 +69,9 @@ Use it to automate workflows and enhance productivity.`,
 				appConfig.General.LogLevel = level
 			}
 
+			// Set log level as environment variable so Bubble Tea UI can access it
+			os.Setenv("CLIKD_LOG_LEVEL", appConfig.General.LogLevel)
+
 			// AI is now always enabled, no need for flag override
 			// Set environment variable so subcommands can detect that AI is enabled
 			os.Setenv("CLIKD_AI_FLAG_SET", "true")
@@ -242,15 +245,26 @@ PowerShell:
 				return fmt.Errorf("Error creating AI service: %w", err)
 			}
 
-			// Test the service
-			result, err := aiService.EnhanceChangelog(prompt)
+			// Test the service using batch processing (with single message)
+			batchResult, err := aiService.EnhanceCommitMessagesBatch([]string{prompt})
 			if err != nil {
 				return fmt.Errorf("Error testing AI service: %w", err)
 			}
 
 			// Output result
 			fmt.Println("AI Response:")
-			fmt.Println(result)
+			if result, exists := batchResult[prompt]; exists {
+				if len(result) > 1 {
+					fmt.Println("Split into multiple messages:")
+					for i, msg := range result {
+						fmt.Printf("%d. %s\n", i+1, msg)
+					}
+				} else {
+					fmt.Println(result[0])
+				}
+			} else {
+				fmt.Println("No result returned")
+			}
 
 			return nil
 		},

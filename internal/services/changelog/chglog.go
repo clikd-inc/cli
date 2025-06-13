@@ -14,8 +14,6 @@ import (
 	"text/template"
 	"time"
 
-	"bytes"
-
 	"github.com/Masterminds/sprig/v3"
 	"github.com/tsuyoshiwada/go-gitcmd"
 )
@@ -167,6 +165,7 @@ func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*ChangelogV
 	versions := []*ChangelogVersion{}
 
 	for i, tag := range tags {
+
 		var (
 			isNext = next == tag.Name
 			rev    string
@@ -232,6 +231,8 @@ func (gen *Generator) readVersions(tags []*git.Tag, first string) ([]*ChangelogV
 			for k, commit := range group.Commits {
 				groupCommits[k] = &ChangelogCommit{Commit: commit}
 			}
+
+			// AI enhancement will be done later for all groups at once
 
 			clCommitGroups[j] = &ChangelogCommitGroup{
 				RawTitle: group.RawTitle,
@@ -308,6 +309,8 @@ func (gen *Generator) readUnreleased(tags []*git.Tag) (*ChangelogUnreleased, err
 		for j, commit := range group.Commits {
 			groupCommits[j] = &ChangelogCommit{Commit: commit}
 		}
+
+		// AI enhancement will be done later for all groups at once
 
 		clCommitGroups[i] = &ChangelogCommitGroup{
 			RawTitle: group.RawTitle,
@@ -394,9 +397,147 @@ func (gen *Generator) workdir() (func() error, error) {
 	}, nil
 }
 
+// enhanceAllCommitsIndividually enhances commits efficiently using optimized batch processing
+func (gen *Generator) enhanceAllCommitsIndividually(unreleased *ChangelogUnreleased, versions []*ChangelogVersion) error {
+	// Collect all commits for batch processing
+	var allCommits []*ChangelogCommit
+	var commitGroupMap = make(map[*ChangelogCommit]*ChangelogCommitGroup)
+
+	// Collect unreleased commits
+	for _, group := range unreleased.CommitGroups {
+		for _, commit := range group.Commits {
+			if commit.Subject != "" {
+				allCommits = append(allCommits, commit)
+				commitGroupMap[commit] = group
+			}
+		}
+	}
+
+	// Collect version commits
+	for _, version := range versions {
+		for _, group := range version.CommitGroups {
+			for _, commit := range group.Commits {
+				if commit.Subject != "" {
+					allCommits = append(allCommits, commit)
+					commitGroupMap[commit] = group
+				}
+			}
+		}
+	}
+
+	if len(allCommits) == 0 {
+		return nil
+	}
+
+	// Process commits in large batches for maximum performance
+	batchSize := 50 // Maximum batch size for optimal performance
+	for i := 0; i < len(allCommits); i += batchSize {
+		end := i + batchSize
+		if end > len(allCommits) {
+			end = len(allCommits)
+		}
+
+		batch := allCommits[i:end]
+		if err := gen.enhanceCommitBatch(batch, commitGroupMap); err != nil {
+			gen.logger.Warn("Failed to enhance commit batch %d-%d: %v", i+1, end, err)
+			// Continue with next batch on error
+		}
+	}
+
+	return nil
+}
+
+// enhanceCommitBatch enhances a batch of commits efficiently using the batch API
+func (gen *Generator) enhanceCommitBatch(commits []*ChangelogCommit, commitGroupMap map[*ChangelogCommit]*ChangelogCommitGroup) error {
+	if len(commits) == 0 {
+		return nil
+	}
+
+	// Collect commit messages for batch processing
+	var commitMessages []string
+	var messageToCommitMap = make(map[string]*ChangelogCommit)
+
+	for _, commit := range commits {
+		if commit.Subject != "" {
+			commitMessages = append(commitMessages, commit.Subject)
+			messageToCommitMap[commit.Subject] = commit
+		}
+	}
+
+	if len(commitMessages) == 0 {
+		return nil
+	}
+
+	// Use the batch enhancement method for better performance
+	enhancedBatch, err := gen.aiService.EnhanceCommitMessagesBatch(commitMessages)
+	if err != nil {
+		gen.logger.Debug("Failed to enhance commit batch: %v", err)
+		return err
+	}
+
+	// Process the enhanced results
+	for originalMessage, enhancedMessages := range enhancedBatch {
+		commit := messageToCommitMap[originalMessage]
+		if commit == nil {
+			continue
+		}
+
+		// Find the group this commit belongs to
+		group := commitGroupMap[commit]
+		if group == nil {
+			continue
+		}
+
+		// If AI returned multiple messages, we need to update the group
+		if len(enhancedMessages) > 1 {
+			// Find the commit in the group and replace it with multiple commits
+			for i, groupCommit := range group.Commits {
+				if groupCommit == commit {
+					// Create new commits for all enhanced messages
+					var newCommits []*ChangelogCommit
+					for j, enhancedMsg := range enhancedMessages {
+						if j == 0 {
+							// Update the original commit
+							commit.Subject = enhancedMsg
+							newCommits = append(newCommits, commit)
+						} else {
+							// Create new commits for additional messages
+							newCommit := &ChangelogCommit{
+								Commit: &git.Commit{
+									Hash:    commit.Hash,   // Same hash
+									Author:  commit.Author, // Same author
+									Subject: enhancedMsg,   // New subject
+									Body:    commit.Body,   // Same body
+								},
+							}
+							newCommits = append(newCommits, newCommit)
+						}
+					}
+
+					// Replace the single commit with multiple commits in the group
+					group.Commits = append(group.Commits[:i], append(newCommits, group.Commits[i+1:]...)...)
+					break
+				}
+			}
+		} else if len(enhancedMessages) == 1 {
+			// Simple case: just update the commit subject
+			commit.Subject = enhancedMessages[0]
+		}
+	}
+
+	return nil
+}
+
 func (gen *Generator) render(w io.Writer, unreleased *ChangelogUnreleased, versions []*ChangelogVersion) error {
 	if _, err := os.Stat(gen.config.Template); err != nil {
 		return err
+	}
+
+	// Enhance commits individually to preserve context and split complex commits
+	if gen.aiService != nil {
+		if err := gen.enhanceAllCommitsIndividually(unreleased, versions); err != nil {
+			gen.logger.Warn("AI enhancement failed: %v", err)
+		}
 	}
 
 	fmap := template.FuncMap{
@@ -432,45 +573,16 @@ func (gen *Generator) render(w io.Writer, unreleased *ChangelogUnreleased, versi
 
 	t := template.Must(template.New(fname).Funcs(sprig.TxtFuncMap()).Funcs(fmap).ParseFiles(gen.config.Template))
 
-	// If AI service is available, render to buffer first for enhancement
-	if gen.aiService != nil {
-		gen.logger.Debug("AI service available, rendering changelog for enhancement")
-
-		// Render to buffer first
-		var buffer bytes.Buffer
-		err := t.Execute(&buffer, &RenderData{
-			Info:       gen.config.Info,
-			Unreleased: unreleased,
-			Versions:   versions,
-		})
-		if err != nil {
-			return err
-		}
-
-		// Get the raw changelog content
-		rawChangelog := buffer.String()
-
-		// Enhance with AI
-		gen.logger.Debug("Enhancing changelog with AI")
-		enhancedChangelog, err := gen.aiService.EnhanceChangelog(rawChangelog)
-		if err != nil {
-			// If AI enhancement fails, log warning and use original
-			gen.logger.Warn("AI enhancement failed, using original changelog: %v", err)
-			enhancedChangelog = rawChangelog
-		} else {
-			gen.logger.Debug("Changelog enhanced successfully with AI")
-		}
-
-		// Write enhanced changelog to final output
-		_, err = w.Write([]byte(enhancedChangelog))
-		return err
-	}
-
-	// No AI service available, render directly to output
-	gen.logger.Debug("No AI service available, rendering changelog directly")
-	return t.Execute(w, &RenderData{
+	// Render directly to output (commits are already enhanced)
+	err := t.Execute(w, &RenderData{
 		Info:       gen.config.Info,
 		Unreleased: unreleased,
 		Versions:   versions,
 	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -23,6 +23,7 @@ var (
 	noColorFlag          bool
 	noEmojiFlag          bool
 	noCaseFlag           bool
+	noAIFlag             bool
 	tagFilterPatternFlag string
 	jiraURLFlag          string
 	jiraUsernameFlag     string
@@ -135,6 +136,7 @@ Examples:
 	cmd.Flags().BoolVar(&noColorFlag, "no-color", false, "disable color output")
 	cmd.Flags().BoolVar(&noEmojiFlag, "no-emoji", false, "disable emoji output")
 	cmd.Flags().BoolVar(&noCaseFlag, "no-case", false, "disable case sensitive filters")
+	cmd.Flags().BoolVar(&noAIFlag, "no-ai", false, "disable AI enhancement")
 	cmd.Flags().StringVar(&tagFilterPatternFlag, "tag-filter-pattern", "", "Regular expression of tag filter. Is specified, only matched tags will be picked")
 	cmd.Flags().StringVar(&jiraURLFlag, "jira-url", "", "Jira URL")
 	cmd.Flags().StringVar(&jiraUsernameFlag, "jira-username", "", "Jira username")
@@ -153,10 +155,17 @@ func runGenerator(query string) error {
 		return err
 	}
 
-	// Create changelog service with AI enhancement
-	service, err := factory.CreateChangelogServiceWithAI(configFlag)
-	if err != nil {
-		return err
+	// Create changelog service with or without AI enhancement based on flag
+	var service *changelog.Service
+	if noAIFlag {
+		// Create service without AI enhancement
+		service = changelog.NewService(configFlag)
+	} else {
+		// Create service with AI enhancement
+		service, err = factory.CreateChangelogServiceWithAI(configFlag)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Prepare generation options
@@ -173,6 +182,7 @@ func runGenerator(query string) error {
 		NoColor:          noColorFlag,
 		NoEmoji:          noEmojiFlag,
 		NoCaseSensitive:  noCaseFlag,
+		NoAI:             noAIFlag,
 		JiraURL:          jiraURLFlag,
 		JiraUsername:     jiraUsernameFlag,
 		JiraToken:        jiraTokenFlag,

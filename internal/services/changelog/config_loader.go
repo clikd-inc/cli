@@ -105,6 +105,7 @@ type CommandConfig struct {
 	NoColor          bool
 	NoEmoji          bool
 	NoCaseSensitive  bool
+	NoAI             bool
 	Query            string
 	NextTag          string
 	TagFilterPattern string

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 
@@ -39,8 +39,10 @@ type ChangelogViewerModel struct {
 	IsGenerating    bool
 	GeneratorConfig *changelog.CommandConfig
 	Query           string
-	Progress        progress.Model
-	ProgressPercent float64
+	Timer           timer.Model
+
+	// Real timing tracking
+	StartTime time.Time
 
 	// Save-to-File Felder
 	ShowingSaveInput bool
@@ -89,18 +91,21 @@ func NewChangelogViewerModel(title, content string) ChangelogViewerModel {
 
 // NewChangelogViewerModelWithGenerator creates a new changelog viewer model that generates content
 func NewChangelogViewerModelWithGenerator(title string, config *changelog.CommandConfig, query string) ChangelogViewerModel {
-	p := progress.New(
-		progress.WithDefaultGradient(),
-		progress.WithWidth(60),
-	)
+	// Create a countdown timer with more realistic duration based on AI usage
+	countdownTime := time.Second * 10 // Default countdown time (10s)
+	if !config.NoAI {
+		countdownTime = time.Second * 20 // Longer for AI processing (20s)
+	}
+
+	t := timer.NewWithInterval(countdownTime, time.Millisecond*100)
 
 	return ChangelogViewerModel{
 		Title:           title,
 		IsGenerating:    true,
 		GeneratorConfig: config,
 		Query:           query,
-		Progress:        p,
-		ProgressPercent: 0.10, // Start at 10%
+		Timer:           t,
+		StartTime:       time.Now(),
 		Viewport:        30,
 		ShowHelp:        false,
 	}
@@ -122,12 +127,10 @@ func (m *ChangelogViewerModel) initSaveInput() {
 // Init initializes the model
 func (m ChangelogViewerModel) Init() tea.Cmd {
 	if m.IsGenerating {
-		// Initialize progress bar with starting percentage and start both generation and animation
-		progressCmd := m.Progress.SetPercent(m.ProgressPercent)
+		// Start timer and generation immediately
 		return tea.Batch(
-			progressCmd,
+			m.Timer.Start(), // Start the timer immediately
 			m.generateChangelogAsync(),
-			m.tickProgress(),
 		)
 	}
 	return nil
@@ -157,7 +160,13 @@ func (m ChangelogViewerModel) generateChangelogAsync() tea.Cmd {
 			// Config-Pfad korrigieren
 			m.GeneratorConfig.ConfigPath = configPath
 
-			logger := utils.NewLogger("error", !m.GeneratorConfig.NoColor)
+			// Use the same log level as the main application
+			logLevel := "info" // default
+			if envLevel := os.Getenv("CLIKD_LOG_LEVEL"); envLevel != "" {
+				logLevel = envLevel
+			}
+			logger := utils.NewLogger(logLevel, !m.GeneratorConfig.NoColor)
+
 			config, err := changelog.LoadConfigFromCommand(m.GeneratorConfig)
 			if err != nil {
 				resultChan <- GenerateCompleteMsg{Error: err}
@@ -166,22 +175,26 @@ func (m ChangelogViewerModel) generateChangelogAsync() tea.Cmd {
 
 			generator := changelog.NewGenerator(logger, config)
 
-			// Try to create and inject AI service for enhancement using ServiceFactory
-			ctx := context.Background()
+			// Try to create and inject AI service for enhancement using ServiceFactory (unless NoAI is set)
+			if !m.GeneratorConfig.NoAI {
+				ctx := context.Background()
 
-			// Use ServiceFactory for proper AI service creation
-			factory, err := services.NewServiceFactory(ctx)
-			if err != nil {
-				logger.Debug("Could not create service factory, proceeding without AI enhancement: %v", err)
-			} else {
-				// Try to create AI service via factory
-				aiService, err := factory.CreateAIService()
+				// Use ServiceFactory for proper AI service creation
+				factory, err := services.NewServiceFactory(ctx)
 				if err != nil {
-					logger.Debug("Could not create AI service, proceeding without AI enhancement: %v", err)
+					logger.Debug("Could not create service factory, proceeding without AI enhancement: %v", err)
 				} else {
-					logger.Debug("AI service created successfully, changelog will be enhanced")
-					generator.SetAIService(aiService)
+					// Try to create AI service via factory
+					aiService, err := factory.CreateAIService()
+					if err != nil {
+						logger.Debug("Could not create AI service, proceeding without AI enhancement: %v", err)
+					} else {
+						logger.Debug("AI service created successfully, changelog will be enhanced")
+						generator.SetAIService(aiService)
+					}
 				}
+			} else {
+				logger.Debug("AI enhancement disabled via --no-ai flag")
 			}
 
 			buffer := &bytes.Buffer{}
@@ -192,12 +205,10 @@ func (m ChangelogViewerModel) generateChangelogAsync() tea.Cmd {
 				return
 			}
 
-			content := buffer.String()
-			resultChan <- GenerateCompleteMsg{Content: content}
+			resultChan <- GenerateCompleteMsg{Content: buffer.String()}
 		}()
 
-		// Wait for result - this will block this command but not the UI
-		// The progress bar will continue to animate in parallel
+		// Wait for the final result
 		return <-resultChan
 	}
 }
@@ -312,34 +323,16 @@ func (m ChangelogViewerModel) tickProgress() tea.Cmd {
 // Update updates the model
 func (m ChangelogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case ProgressTickMsg:
-		if m.IsGenerating {
-			// Increment progress aggressively for maximum responsiveness
-			m.ProgressPercent += 0.015 // Even faster increment for ultra-responsive feel
-			if m.ProgressPercent > 0.95 {
-				m.ProgressPercent = 0.95 // Cap at 95% until generation completes
-			}
-
-			// Update progress bar and continue ticking (even at 95% for visual feedback)
-			progressCmd := m.Progress.SetPercent(m.ProgressPercent)
-			return m, tea.Batch(progressCmd, m.tickProgress())
-		}
-		return m, nil
-
-	// FrameMsg is sent when the progress bar wants to animate itself
-	case progress.FrameMsg:
-		progressModel, cmd := m.Progress.Update(msg)
-		m.Progress = progressModel.(progress.Model)
-		return m, cmd
-
 	case GenerateCompleteMsg:
+		// Generation actually completed
 		if msg.Error != nil {
 			// Handle error case
 			m.Content = fmt.Sprintf("Error generating changelog: %v", msg.Error)
 			m.RenderedContent = m.Content
+			m.IsGenerating = false
+			return m, nil
 		} else {
-			// Set progress to 100% and process content
-			m.ProgressPercent = 1.0
+			// Process successful content
 			m.Content = msg.Content
 
 			// Separate main content from reference links to prevent Glamour from moving them
@@ -469,6 +462,22 @@ func (m ChangelogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		m.Height = msg.Height
 		return m, nil
+
+	// Timer messages
+	case timer.TickMsg:
+		var cmd tea.Cmd
+		m.Timer, cmd = m.Timer.Update(msg)
+		return m, cmd
+
+	case timer.StartStopMsg:
+		var cmd tea.Cmd
+		m.Timer, cmd = m.Timer.Update(msg)
+		return m, cmd
+
+	case timer.TimeoutMsg:
+		// Timer finished, but generation might still be running
+		// Just let it continue
+		return m, nil
 	}
 
 	// Message countdown
@@ -484,55 +493,35 @@ func (m ChangelogViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the model
 func (m ChangelogViewerModel) View() string {
+	var s strings.Builder
+	padding := "  "
+
 	if m.IsGenerating {
-		// Progress-Anzeige während der Generierung mit besserem Layout
-		var s strings.Builder
+		// Add extra top padding for better spacing
+		s.WriteString("\n\n")
+		s.WriteString(padding + styles.H2.Render("🔄 Generating Changelog") + "\n\n")
 
-		// Padding von links
-		padding := "  "
-
-		if m.Title != "" {
-			s.WriteString(padding + styles.H2.Render(m.Title) + "\n\n")
-		}
-
-		// Dynamic status message based on progress
-		var statusMessage string
-		if m.ProgressPercent < 0.3 {
-			statusMessage = "Analyzing git history and commits..."
-		} else if m.ProgressPercent < 0.7 {
-			statusMessage = "Processing commit messages and grouping changes..."
-		} else if m.ProgressPercent < 0.95 {
-			statusMessage = "Generating changelog structure..."
+		// Show timer or "still generating" message if timer has timed out
+		if !m.Timer.Timedout() {
+			// Timer still counting down
+			timerText := m.Timer.View()
+			s.WriteString(padding + styles.SuccessStyle.Render("⏱️  Generating will complete in: ") +
+				styles.InfoStyle.Render(timerText) + "\n\n")
 		} else {
-			statusMessage = "AI enhancing changelog for better readability..."
+			// Timer has reached zero but generation is still running
+			elapsed := time.Since(m.StartTime).Round(time.Second)
+			s.WriteString(padding + styles.SuccessStyle.Render("⏱️  Still generating... ") +
+				styles.InfoStyle.Render(fmt.Sprintf("(%s elapsed)", elapsed)) + "\n\n")
 		}
 
-		s.WriteString(padding + styles.Normal.Render(statusMessage) + "\n\n")
-
-		s.WriteString(padding + m.Progress.View() + "\n\n")
-
-		// Dynamic help text based on progress
-		if m.ProgressPercent >= 0.95 {
-			// Add a subtle animation indicator for AI processing
-			dots := ""
-			tickCount := int(time.Now().UnixMilli()/500) % 4 // Change every 500ms
-			for i := 0; i < tickCount; i++ {
-				dots += "."
-			}
-			aiMessage := "AI is improving the changelog quality" + dots
-			s.WriteString(padding + styles.Subtle.Render(aiMessage))
-		} else {
-			s.WriteString(padding + styles.Subtle.Render("This may take a moment for large repositories"))
-		}
-
-		s.WriteString("\n\n" + padding + styles.Subtle.Render("Ctrl+C: Cancel"))
+		// Simple status message with more space
+		s.WriteString(padding + styles.Subtle.Render("→ Processing commits and generating changelog...") + "\n")
 
 		return s.String()
 	}
 
 	// Save-Input-Dialog anzeigen
 	if m.ShowingSaveInput {
-		padding := "  "
 		var s strings.Builder
 
 		s.WriteString(padding + styles.H2.Render("Save Changelog") + "\n\n")
@@ -571,8 +560,7 @@ func (m ChangelogViewerModel) View() string {
 
 	visibleLines := lines[start:end]
 
-	// Padding zu jeder Zeile hinzufügen
-	padding := "  "
+	// Padding zu jeder Zeile hinzufügen (reuse existing padding variable)
 	paddedLines := make([]string, len(visibleLines))
 	for i, line := range visibleLines {
 		paddedLines[i] = padding + line
@@ -619,6 +607,23 @@ func RunChangelogViewerWithGenerator(title string, config *changelog.CommandConf
 	m := NewChangelogViewerModelWithGenerator(title, config, query)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	p.Run()
+}
+
+// truncateCommitMessage truncates a commit message to fit in the UI
+func truncateCommitMessage(message string, maxLength int) string {
+	if len(message) <= maxLength {
+		return message
+	}
+
+	// Try to truncate at word boundary
+	if maxLength > 3 {
+		truncated := message[:maxLength-3]
+		if lastSpace := strings.LastIndex(truncated, " "); lastSpace > maxLength/2 {
+			return message[:lastSpace] + "..."
+		}
+	}
+
+	return message[:maxLength-3] + "..."
 }
 
 // separateReferenceLinks separates markdown content into main content and reference links
