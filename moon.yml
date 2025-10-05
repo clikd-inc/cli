@@ -1,0 +1,80 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+id: 'cli'
+language: 'rust'
+type: 'application'
+
+# Task definitions
+tasks:
+  # Development build
+  build:
+    command: 'cargo build'
+    inputs:
+      - 'src/**/*'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+    outputs:
+      - 'target/**/*'
+
+  # Production build
+  build-release:
+    command: 'cargo build --release'
+    inputs:
+      - 'src/**/*'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+    outputs:
+      - 'target/**/*'
+
+  # Run CLI (for testing commands)
+  run:
+    command: 'cargo run'
+    local: true
+
+  # Install CLI globally
+  install:
+    command: 'cargo install --path .'
+    deps: ['build-release']
+
+  # Check compilation without building
+  check:
+    command: 'cargo check'
+    inputs:
+      - 'src/**/*'
+      - 'Cargo.toml'
+
+  # Run tests
+  test:
+    command: 'cargo test'
+    inputs:
+      - 'src/**/*'
+      - 'Cargo.toml'
+
+  # Linting with clippy
+  lint:
+    command: 'cargo clippy -- -D warnings'
+    inputs:
+      - 'src/**/*'
+      - 'Cargo.toml'
+
+  # Format code
+  format:
+    command: 'cargo fmt'
+    inputs:
+      - 'src/**/*'
+      - 'Cargo.toml'
+
+  # Format check
+  format-check:
+    command: 'cargo fmt --check'
+    inputs:
+      - 'src/**/*'
+      - 'Cargo.toml'
+
+# File groups for easier task configuration
+fileGroups:
+  sources:
+    - 'src/**/*'
+  configs:
+    - 'Cargo.toml'
+    - 'Cargo.lock'

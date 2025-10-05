@@ -1,0 +1,173 @@
+# Clikd Development CLI Configuration
+# Supabase-style: clikd init creates this, clikd start runs everything
+
+[project]
+name = "clikd"
+organization = "clikd-inc"
+
+[api]
+enabled = true
+port = 9080
+external_url = "http://localhost:9080"
+
+# =================== CORE SERVICES (Production Architecture) ===================
+
+[services.gate]
+enabled = true
+image = "ghcr.io/clikd-inc/gate"
+port = 3001
+grpc_port = 9001
+health_check = "/health"
+depends_on = []
+
+[services.api]
+enabled = true
+image = "ghcr.io/clikd-inc/api"
+port = 3002
+grpc_port = 9002
+health_check = "/health"
+depends_on = ["gate"]
+
+[services.realtime]
+enabled = true
+image = "ghcr.io/clikd-inc/realtime"
+port = 3003
+grpc_port = 9003
+health_check = "/health"
+depends_on = []
+
+[services.media]
+enabled = true
+image = "ghcr.io/clikd-inc/media"
+port = 3004
+grpc_port = 9004
+health_check = "/health"
+depends_on = []
+
+[services.studio]
+enabled = true
+image = "ghcr.io/clikd-inc/studio"
+port = 3000
+health_check = "/api/health"
+depends_on = ["api"]
+
+# =================== DATABASES ===================
+
+[database.postgres-auth]
+enabled = true
+port = 5433
+user = "postgres"
+password = "development"
+database = "clikd_auth"
+service = "gate"
+
+[database.postgres-shared]
+enabled = true
+port = 5434
+user = "postgres"
+password = "development"
+database = "clikd_main"
+services = ["api", "media"]
+
+[database.keydb]
+enabled = true
+port = 6380
+services = ["gate", "api", "realtime"]
+
+[database.scylladb]
+enabled = true
+port = 9043
+api_port = 10000
+keyspace_prefix = "clikd"
+services = ["api", "realtime"]
+
+# =================== INFRASTRUCTURE ===================
+
+[storage]
+enabled = true
+backend = "minio"
+port = 9000
+console_port = 9001
+
+[messaging]
+enabled = true
+backend = "nats"
+port = 4222
+http_port = 8222
+
+[gateway]
+enabled = true
+backend = "apisix"
+port = 9080
+admin_port = 9180
+
+[observability]
+enabled = true
+backend = "signoz"
+port = 3301
+otel_grpc_port = 4317
+otel_http_port = 4318
+
+# =================== ADMIN TOOLS (Optional for Backend Devs) ===================
+
+[admin]
+enabled = false
+
+[admin.postgres]
+port = 8090
+tool = "adminer"
+
+[admin.keydb]
+port = 8091
+tool = "redis-commander"
+
+[admin.scylla]
+port = 8092
+tool = "cassandra-web"
+
+[admin.swagger]
+port = 8093
+tool = "swagger-ui"
+
+# =================== CODE GENERATION ===================
+
+[codegen]
+openapi_url = "http://localhost:3002/api/openapi.json"
+
+[codegen.swift]
+enabled = true
+output_dir = "../clients/ios"
+package_name = "ClikdAPI"
+
+[codegen.kotlin]
+enabled = true
+output_dir = "../clients/android"
+package_name = "com.clikd.api"
+
+[codegen.typescript]
+enabled = true
+output_dir = "../clients/web"
+package_name = "@clikd/api"
+
+# =================== DEPLOYMENT ===================
+
+[deployment]
+kubernetes_context = "clikd-cluster"
+namespace_prefix = "clikd"
+
+[deployment.staging]
+auto_deploy_branches = ["develop", "staging/*"]
+
+[deployment.production]
+require_approval = true
+rollback_enabled = true
+
+# =================== DEVELOPMENT ===================
+
+[development]
+branch_isolation = true
+auto_migrate = true
+auto_seed = true
+hot_reload = true
+network = "clikd-network"
+startup_timeout = "2m"
