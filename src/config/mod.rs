@@ -1,7 +1,7 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClikdConfig {
@@ -123,8 +123,7 @@ impl ClikdConfig {
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
+        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
 
         std::fs::write(&path, content)
             .with_context(|| format!("Failed to write config file: {}", path.as_ref().display()))?;
@@ -151,19 +150,25 @@ impl ClikdConfig {
         let sanitized_branch = crate::git::sanitize_branch_name(branch);
         match db_type {
             "auth" => format!("clikd_auth_{}", sanitized_branch),
-            "main" => format!("clikd_main_{}", sanitized_branch),
+            "main" => format!("clikd_rig_{}", sanitized_branch),
             _ => format!("clikd_{}_{}", db_type, sanitized_branch),
         }
     }
 
     pub fn get_keyspace_name(&self, branch: &str) -> String {
         let sanitized_branch = crate::git::sanitize_branch_name(branch);
-        format!("{}_{}", self.databases.scylladb.keyspace_prefix, sanitized_branch)
+        format!(
+            "{}_{}",
+            self.databases.scylladb.keyspace_prefix, sanitized_branch
+        )
     }
 
     pub fn get_keydb_prefix(&self, branch: &str) -> String {
         let sanitized_branch = crate::git::sanitize_branch_name(branch);
-        format!("{}_{}", self.databases.keydb.database_prefix, sanitized_branch)
+        format!(
+            "{}_{}",
+            self.databases.keydb.database_prefix, sanitized_branch
+        )
     }
 }
 
@@ -171,45 +176,60 @@ impl Default for ClikdConfig {
     fn default() -> Self {
         let mut services = HashMap::new();
 
-        services.insert("gate".to_string(), ServiceConfig {
-            image: "ghcr.io/clikd-inc/gate".to_string(),
-            port: 3001,
-            grpc_port: Some(9001),
-            health_endpoint: Some("/health".to_string()),
-            dependencies: None,
-        });
+        services.insert(
+            "gate".to_string(),
+            ServiceConfig {
+                image: "ghcr.io/clikd-inc/gate".to_string(),
+                port: 3001,
+                grpc_port: Some(9001),
+                health_endpoint: Some("/health".to_string()),
+                dependencies: None,
+            },
+        );
 
-        services.insert("api".to_string(), ServiceConfig {
-            image: "ghcr.io/clikd-inc/api".to_string(),
-            port: 3002,
-            grpc_port: Some(9002),
-            health_endpoint: Some("/health".to_string()),
-            dependencies: Some(vec!["gate".to_string()]),
-        });
+        services.insert(
+            "api".to_string(),
+            ServiceConfig {
+                image: "ghcr.io/clikd-inc/api".to_string(),
+                port: 3002,
+                grpc_port: Some(9002),
+                health_endpoint: Some("/health".to_string()),
+                dependencies: Some(vec!["gate".to_string()]),
+            },
+        );
 
-        services.insert("realtime".to_string(), ServiceConfig {
-            image: "ghcr.io/clikd-inc/realtime".to_string(),
-            port: 3003,
-            grpc_port: Some(9003),
-            health_endpoint: Some("/health".to_string()),
-            dependencies: None,
-        });
+        services.insert(
+            "realtime".to_string(),
+            ServiceConfig {
+                image: "ghcr.io/clikd-inc/realtime".to_string(),
+                port: 3003,
+                grpc_port: Some(9003),
+                health_endpoint: Some("/health".to_string()),
+                dependencies: None,
+            },
+        );
 
-        services.insert("media".to_string(), ServiceConfig {
-            image: "ghcr.io/clikd-inc/media".to_string(),
-            port: 3004,
-            grpc_port: Some(9004),
-            health_endpoint: Some("/health".to_string()),
-            dependencies: None,
-        });
+        services.insert(
+            "media".to_string(),
+            ServiceConfig {
+                image: "ghcr.io/clikd-inc/media".to_string(),
+                port: 3004,
+                grpc_port: Some(9004),
+                health_endpoint: Some("/health".to_string()),
+                dependencies: None,
+            },
+        );
 
-        services.insert("studio".to_string(), ServiceConfig {
-            image: "ghcr.io/clikd-inc/studio".to_string(),
-            port: 3000,
-            grpc_port: None,
-            health_endpoint: Some("/api/health".to_string()),
-            dependencies: Some(vec!["api".to_string()]),
-        });
+        services.insert(
+            "studio".to_string(),
+            ServiceConfig {
+                image: "ghcr.io/clikd-inc/studio".to_string(),
+                port: 3000,
+                grpc_port: None,
+                health_endpoint: Some("/api/health".to_string()),
+                dependencies: Some(vec!["api".to_string()]),
+            },
+        );
 
         Self {
             project: ProjectConfig {

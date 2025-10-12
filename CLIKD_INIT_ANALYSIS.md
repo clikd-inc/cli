@@ -97,7 +97,7 @@ Templates in ~/.clikd/templates/:
 Variables:
 - {{BRANCH}}: Sanitized git branch name
 - {{POSTGRES_DB_AUTH}}: clikd_auth_{branch}
-- {{POSTGRES_DB_MAIN}}: clikd_main_{branch}
+- {{POSTGRES_DB_MAIN}}: clikd_rig_{branch}
 - {{SCYLLA_KEYSPACE}}: clikd_{branch}
 - {{KEYDB_PREFIX}}: clikd_{branch}
 - {{CONTAINER_PREFIX}}: clikd-{branch}

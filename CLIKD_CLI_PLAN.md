@@ -64,7 +64,7 @@ clikd-monorepo/
 
 #### **PostgreSQL** (Core Data)
 - **Auth Database**: `clikd_auth_{branch}`
-- **Main Database**: `clikd_main_{branch}`
+- **Main Database**: `clikd_rig_{branch}`
 - **Tables**: Users, Profiles, Drops, Crews, Payments, Admin
 
 #### **ScyllaDB** (Time-Series Data)
@@ -310,7 +310,7 @@ clikd --version               # Version with ASCII art
 │    📊 Tables: 8    📈 Size: 12.4MB           │ │    📊 Tables: 15   📈 Size: 245.7MB     │
 │    🔄 Migrations: 23/23 ✅                   │ │    🔄 Schema: v2.1.0 ✅                  │
 │                                              │ │                                          │
-│ ✅ clikd_main_feat_user_profiles             │ │ 📋 Tables:                               │
+│ ✅ clikd_rig_feat_user_profiles             │ │ 📋 Tables:                               │
 │    📊 Tables: 23   📈 Size: 89.2MB           │ │    • feed_events        (1.2M rows)     │
 │    🔄 Migrations: 45/45 ✅                   │ │    • user_activity      (892K rows)     │
 │                                              │ │    • chat_messages      (45K rows)      │
@@ -563,7 +563,7 @@ impl DatabaseManager {
     pub async fn setup_databases(&self) -> Result<()> {
         // PostgreSQL Databases:
         // - clikd_auth_{branch} (Auth Service)
-        // - clikd_main_{branch} (API Service)
+        // - clikd_rig_{branch} (API Service)
 
         // ScyllaDB Keyspace:
         // - clikd_{branch}
