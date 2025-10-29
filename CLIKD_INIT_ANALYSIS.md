@@ -123,7 +123,8 @@ Logs: Aggregated with service prefixes
    - Verify GHCR access for private repositories
 
 2. **Configuration Generation**
-   - Create `~/.clikd/` directory structure
+   - Create `~/clikd/` directory structure
+   - Create config.toml
    - Generate branch-specific configuration files
    - Template substitution with branch variables
 
