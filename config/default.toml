@@ -1,0 +1,27 @@
+[project]
+name = "clikd"
+organization = "clikd-inc"
+
+[github]
+org_name = "clikd-inc"
+oauth_client_id = "Ov23liNPpcjTMYaP841Y"
+
+[images]
+gate = "ghcr.io/clikd-inc/gate:0.1.0"
+rig = "ghcr.io/clikd-inc/rig:0.1.0"
+studio = "ghcr.io/clikd-inc/studio:0.1.0"
+postgres = "ghcr.io/clikd-inc/postgres:18.0"
+keydb = "ghcr.io/clikd-inc/keydb:6.3.4"
+scylladb = "ghcr.io/clikd-inc/scylladb:2025.1.9"
+minio = "ghcr.io/clikd-inc/minio:2025.10.15"
+nats = "ghcr.io/clikd-inc/nats:2.12.1"
+apisix = "ghcr.io/clikd-inc/apisix:3.11.0"
+signoz = "ghcr.io/clikd-inc/signoz:0.97.0"
+zookeeper = "ghcr.io/clikd-inc/zookeeper:3.7.1"
+clickhouse = "ghcr.io/clikd-inc/clickhouse:25.8.11"
+schema_migrator = "ghcr.io/clikd-inc/signoz-schema-migrator:0.129.4"
+otel_collector = "ghcr.io/clikd-inc/signoz-otel-collector:0.129.7"
+
+[dev]
+app_env = "development"
+rust_log = "debug"
