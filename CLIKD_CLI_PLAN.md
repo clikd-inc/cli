@@ -94,6 +94,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 owo-colors = { version = "4.2", features = ["supports-colors"] }
 indicatif = "0.17"
 dialoguer = "0.11"
+ratatui = "0.29"         # Interactive TUI for dashboard
+crossterm = "0.28"       # Terminal handling for ratatui
 
 # Configuration (config für layered support)
 config = "0.14"
@@ -604,14 +606,101 @@ fn test_start_help() {
 
 ## Implementierungs-Reihenfolge
 
+### Phase 1: Core Foundation
 1. **Grundgerüst** (Folder, Cargo.toml, main.rs, cli.rs, error.rs)
 2. **Config-System** (Layered loading mit config crate)
 3. **Utils** (terminal.rs mit owo-colors, retry.rs)
 4. **Git-Integration** (Branch detection)
 5. **Service-Definitionen** (Alle Services aus docker-compose.yml)
-6. **Docker Manager** (Bollard container creation)
-7. **Start Orchestration** (Dependency-aware, health checks)
-8. **Auth** (Device Flow, Keyring, Org check)
-9. **Commands** (start, stop, status, logs)
-10. **Completions** (clap_complete)
-11. **Testing** (trycmd + assert_cmd)
+
+### Phase 2: Docker & Orchestration
+6. **Auth** (Device Flow, Keyring, Org check) ✅ DONE
+7. **Docker Registry Auth** (GHCR authentication)
+8. **Docker Manager** (Bollard container creation, image pull)
+9. **Start Orchestration** (Dependency-aware, health checks)
+10. **Commands** (start, stop, status, logs)
+
+### Phase 3: Polish & Advanced Features
+11. **Shell Completions** (clap_complete)
+12. **Testing** (trycmd + assert_cmd)
+13. **ratatui Dashboard** (`clikd dashboard` oder `clikd status --watch`)
+
+---
+
+## 📊 ratatui Dashboard Feature
+
+### Command: `clikd dashboard` oder `clikd status --watch`
+
+**Interactive TUI Dashboard** für Live-Monitoring aller Services.
+
+#### Features
+
+**Core:**
+- ✅ Real-time service status (Echtzeit-Updates alle 2s)
+- ✅ Per-container CPU & Memory metrics
+- ✅ Health status mit Color-Coding (green/yellow/red)
+- ✅ Dependency tree visualization
+- ✅ Live log preview für selected service
+
+**Keyboard Navigation:**
+- `↑/↓` - Service selection
+- `Enter` - Show detailed logs
+- `r` - Restart selected service
+- `s` - Stop selected service
+- `l` - Toggle live logs
+- `q` - Quit dashboard
+
+**Layout (Split View):**
+```
+┌─ Services ──────────────────────────────┬─ Logs (gate) ────────────────┐
+│ ✓ gate          [healthy]  CPU: 2%     │ [INFO] Server started        │
+│ ✓ rig           [healthy]  CPU: 5%     │ [DEBUG] Database connected   │
+│ ⚠ postgres-auth [starting] CPU: 1%     │ [INFO] Listening on :8081    │
+│ ✗ studio        [error]    CPU: 0%     │                              │
+│ • minio         [stopped]              │                              │
+├────────────────────────────────────────┴──────────────────────────────┤
+│ [↑↓] Navigate | [Enter] Logs | [r] Restart | [s] Stop | [q] Quit     │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+#### Implementation Structure
+
+```rust
+// src/cmd/dashboard.rs
+pub async fn run() -> Result<()> {
+    let mut terminal = setup_terminal()?;
+    let mut app = DashboardApp::new().await?;
+
+    loop {
+        terminal.draw(|f| ui::render(f, &mut app))?;
+
+        if let Some(event) = poll_event()? {
+            if handle_event(&mut app, event).await? {
+                break; // quit
+            }
+        }
+
+        app.update().await?; // Poll Docker API
+    }
+
+    cleanup_terminal(terminal)?;
+    Ok(())
+}
+
+// src/core/dashboard/
+//   ├── app.rs          # Application state
+//   ├── ui.rs           # ratatui rendering
+//   ├── events.rs       # Keyboard event handling
+//   └── docker_stats.rs # Docker metrics polling
+```
+
+**Tech Stack:**
+- `ratatui` - TUI framework
+- `crossterm` - Terminal handling
+- `bollard` - Docker API (stats streaming)
+- `tokio::sync::mpsc` - Event channels
+
+**Inspiration:**
+- `k9s` (Kubernetes dashboard)
+- `lazydocker` (Docker TUI)
+- `bottom` (System monitoring)
