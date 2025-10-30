@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use crate::config::Config;
 
+#[derive(Clone)]
 pub struct ServiceDefinition {
     pub name: String,
     pub image: String,
@@ -11,8 +12,10 @@ pub struct ServiceDefinition {
     pub health_check: Option<HealthCheck>,
     pub depends_on: Vec<String>,
     pub command: Option<Vec<String>>,
+    pub platform: Option<String>,
 }
 
+#[derive(Clone)]
 pub struct HealthCheck {
     pub test: Vec<String>,
     pub interval: Duration,
@@ -79,6 +82,7 @@ fn gate_service(branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec!["postgres-auth".into(), "keydb".into()],
         command: None,
+        platform: None,
     }
 }
 
@@ -112,6 +116,7 @@ fn rig_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec!["postgres-rig".into(), "keydb".into(), "scylladb".into(), "nats".into(), "minio".into()],
         command: None,
+        platform: None,
     }
 }
 
@@ -144,6 +149,7 @@ fn studio_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec!["apisix".into()],
         command: None,
+        platform: None,
     }
 }
 
@@ -168,6 +174,7 @@ fn postgres_auth_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec![],
         command: None,
+        platform: None,
     }
 }
 
@@ -192,6 +199,7 @@ fn postgres_rig_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec![],
         command: None,
+        platform: None,
     }
 }
 
@@ -219,6 +227,7 @@ fn keydb_service(_branch: &str, config: &Config) -> ServiceDefinition {
             "--server-threads".into(),
             "4".into(),
         ]),
+        platform: None,
     }
 }
 
@@ -247,6 +256,7 @@ fn scylladb_service(_branch: &str, config: &Config) -> ServiceDefinition {
             "--api-address".into(),
             "0.0.0.0".into(),
         ]),
+        platform: None,
     }
 }
 
@@ -270,6 +280,7 @@ fn minio_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec![],
         command: Some(vec!["server".into(), "/data".into(), "--console-address".into(), ":9001".into()]),
+        platform: None,
     }
 }
 
@@ -290,6 +301,7 @@ fn nats_service(_branch: &str, config: &Config) -> ServiceDefinition {
             "4222".into(),
             "--store_dir=/data".into(),
         ]),
+        platform: None,
     }
 }
 
@@ -313,6 +325,7 @@ fn zookeeper_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec![],
         command: None,
+        platform: None,
     }
 }
 
@@ -343,6 +356,7 @@ fn clickhouse_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec!["zookeeper-1".into()],
         command: None,
+        platform: None,
     }
 }
 
@@ -360,6 +374,7 @@ fn schema_migrator_service(_branch: &str, config: &Config) -> ServiceDefinition 
             "--dsn=tcp://clickhouse:9000".into(),
             "--up=".into(),
         ]),
+        platform: None,
     }
 }
 
@@ -393,6 +408,7 @@ fn signoz_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec!["schema-migrator".into()],
         command: None,
+        platform: None,
     }
 }
 
@@ -409,6 +425,7 @@ fn otel_collector_service(_branch: &str, config: &Config) -> ServiceDefinition {
         health_check: None,
         depends_on: vec!["clickhouse".into()],
         command: None,
+        platform: None,
     }
 }
 
@@ -432,5 +449,6 @@ fn apisix_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec!["gate".into(), "rig".into()],
         command: None,
+        platform: None,
     }
 }
