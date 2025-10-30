@@ -3,6 +3,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::sleep;
+use tracing::debug;
 
 const DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
 const ACCESS_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
@@ -51,7 +52,7 @@ pub async fn request_device_code(client_id: &str) -> Result<DeviceCodeResponse> 
         .header("Accept", "application/json")
         .form(&DeviceCodeRequest {
             client_id: client_id.to_string(),
-            scope: "read:org user:email".to_string(),
+            scope: "read:org user:email read:packages".to_string(),
         })
         .send()
         .await
@@ -112,9 +113,16 @@ pub async fn poll_for_token(
         match result {
             AccessTokenResponse::Success {
                 access_token,
-                token_type: _,
-                scope: _,
+                token_type,
+                scope,
             } => {
+                if token_type != "bearer" {
+                    return Err(CliError::GitHubApi(
+                        format!("Unexpected token type: {}. Expected 'bearer'", token_type)
+                    ));
+                }
+
+                debug!("Token received with scope: {}", scope);
                 return Ok(access_token);
             }
             AccessTokenResponse::Error {

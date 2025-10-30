@@ -24,6 +24,7 @@ pub mod core {
         pub mod services;
         pub mod health;
         pub mod network;
+        pub mod registry;
     }
 
     pub mod git {
