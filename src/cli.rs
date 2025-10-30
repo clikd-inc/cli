@@ -53,11 +53,8 @@ pub enum AuthCommands {
 
 #[derive(Args)]
 pub struct StartArgs {
-    #[arg(long, value_delimiter = ',')]
+    #[arg(short = 'x', long, value_delimiter = ',')]
     pub exclude: Option<Vec<String>>,
-
-    #[arg(long)]
-    pub pull: bool,
 
     #[arg(long)]
     pub ignore_health_check: bool,
