@@ -62,7 +62,7 @@
         Id='*'
         Name='clikd-cli'
         UpgradeCode='4A39E689-B0D6-4AB9-8959-FE75CD47AE52'
-        Manufacturer='Clikd Team'
+        Manufacturer='Clikd, Inc'
         Language='1033'
         Codepage='1252'
         Version='$(var.Version)'>
@@ -70,7 +70,7 @@
         <Package Id='*'
             Keywords='Installer'
             Description='Local development environment management for Clikd'
-            Manufacturer='Clikd Team'
+            Manufacturer='Clikd, Inc'
             InstallerVersion='450'
             Languages='1033'
             Compressed='yes'
@@ -173,7 +173,7 @@
         <!--<Icon Id='ProductICO' SourceFile='wix\Product.ico'/>-->
         <!--<Property Id='ARPPRODUCTICON' Value='ProductICO' />-->
 
-        <Property Id='ARPHELPLINK' Value='https://github.com/clikd-inc/clikd'/>
+        <Property Id='ARPHELPLINK' Value='https://github.com/clikd-inc/cli'/>
         
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
