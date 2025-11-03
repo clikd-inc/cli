@@ -2,14 +2,14 @@
 /target/
 **/*.rs.bk
 Cargo.lock
-
+clikd
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
-
+data/
 # macOS
 .DS_Store
 
