@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "biomejs.biome",
+    "tamasfe.even-better-toml",
+    "bradlc.vscode-tailwindcss",
+    "ms-vscode.vscode-typescript-next",
+    "sswg.swift-lang",
+    "fwcd.kotlin",
+    "mathiasfrohlich.kotlin",
+    "redhat.java"
+  ]
+}

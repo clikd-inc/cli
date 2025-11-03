@@ -11,9 +11,9 @@ async fn main() -> Result<()> {
         owo_colors::set_override(false);
     }
 
-    let config = clikd_cli::config::load(cli.env.as_deref())?;
+    clikd_cli::core::root::pre_execute();
 
-    clikd_cli::execute(cli, config).await
+    clikd_cli::execute(cli).await
 }
 
 fn init_logging(verbosity: u8) {

@@ -1,14 +1,22 @@
 use super::types::Config;
 use config::{Config as ConfigBuilder, Environment, File, FileFormat};
 use crate::error::{CliError, Result};
+use std::env;
 
 const DEFAULT_CONFIG: &str = include_str!("../../../config/default.toml");
 
-pub fn load(env: Option<&str>) -> Result<Config> {
-    let env_name = env.unwrap_or("development");
+pub fn load(env_name: Option<&str>) -> Result<Config> {
+    let env_name = env_name.unwrap_or("development");
 
     let mut builder = ConfigBuilder::builder()
         .add_source(File::from_str(DEFAULT_CONFIG, FileFormat::Toml));
+
+    let project_root = env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let project_config = project_root.join("clikd/config.toml");
+
+    if project_config.exists() {
+        builder = builder.add_source(File::from(project_config).required(true));
+    }
 
     if let Some(config_dir) = dirs::config_dir() {
         let clikd_config = config_dir.join("clikd");
@@ -18,21 +26,18 @@ pub fn load(env: Option<&str>) -> Result<Config> {
             .add_source(File::from(clikd_config.join("local.toml")).required(false));
     }
 
-    if std::path::Path::new("config/default.toml").exists() {
-        builder = builder
-            .add_source(File::with_name("config/default").required(false))
-            .add_source(File::with_name(&format!("config/{}", env_name)).required(false))
-            .add_source(File::with_name("config/local").required(false));
-    }
-
-    let config = builder
+    let mut config: Config = builder
         .add_source(
             Environment::with_prefix("CLIKD")
                 .separator("_")
                 .try_parsing(true),
         )
         .build()
+        .map_err(CliError::Config)?
+        .try_deserialize()
         .map_err(CliError::Config)?;
 
-    config.try_deserialize().map_err(CliError::Config)
+    config.sanitize_project_id();
+
+    Ok(config)
 }

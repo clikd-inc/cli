@@ -40,6 +40,15 @@ pub enum CliError {
 
     #[error("No environment running")]
     NotRunning,
+
+    #[error("Project already initialized. Run 'clikd init --force' to overwrite.")]
+    AlreadyInitialized,
+
+    #[error("Dialog error: {0}")]
+    Dialog(#[from] dialoguer::Error),
+
+    #[error("Project not initialized. Run 'clikd init' to get started.")]
+    ProjectNotInitialized,
 }
 
 pub type Result<T> = std::result::Result<T, CliError>;

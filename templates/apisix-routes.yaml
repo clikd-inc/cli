@@ -1,0 +1,77 @@
+routes:
+  - id: health
+    uri: /
+    plugins:
+      mocking:
+        response_status: 200
+        content_type: "application/json"
+        response_example: '{"status":"healthy","service":"apisix"}'
+
+  - id: rig-roster
+    uri: /roster/*
+    upstream:
+      nodes:
+        "{{ rig_host }}:{{ rig_port }}": 1
+      type: roundrobin
+      timeout:
+        connect: 60
+        send: 60
+        read: 60
+
+  - id: gate-admin
+    uri: /admin/*
+    upstream:
+      nodes:
+        "{{ gate_host }}:{{ gate_port }}": 1
+      type: roundrobin
+      timeout:
+        connect: 60
+        send: 60
+        read: 60
+    priority: 1
+
+  - id: gate-api
+    uri: /api/*
+    upstream:
+      nodes:
+        "{{ gate_host }}:{{ gate_port }}": 1
+      type: roundrobin
+      timeout:
+        connect: 60
+        send: 60
+        read: 60
+
+  - id: gate-auth
+    uri: /auth/*
+    upstream:
+      nodes:
+        "{{ gate_host }}:{{ gate_port }}": 1
+      type: roundrobin
+      timeout:
+        connect: 60
+        send: 60
+        read: 60
+
+  - id: gate-wellknown
+    uri: /.well-known/*
+    upstream:
+      nodes:
+        "{{ gate_host }}:{{ gate_port }}": 1
+      type: roundrobin
+      timeout:
+        connect: 60
+        send: 60
+        read: 60
+
+  - id: rig-graphql
+    uri: /graphql
+    upstream:
+      nodes:
+        "{{ rig_host }}:{{ rig_port }}": 1
+      type: roundrobin
+      timeout:
+        connect: 60
+        send: 60
+        read: 60
+
+#END

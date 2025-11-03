@@ -1,12 +1,18 @@
 use crate::error::{CliError, Result};
 use bollard::Docker;
-use bollard::network::{CreateNetworkOptions, InspectNetworkOptions};
+use bollard::query_parameters::InspectNetworkOptionsBuilder;
+use bollard::models::NetworkCreateRequest;
 use tracing::{debug, info};
 
 pub async fn create_network(docker: &Docker, name: &str) -> Result<()> {
     debug!("Creating network: {}", name);
 
-    match docker.inspect_network(name, Some(InspectNetworkOptions { verbose: false, scope: String::new() })).await {
+    let inspect_options = InspectNetworkOptionsBuilder::default()
+        .verbose(false)
+        .scope("")
+        .build();
+
+    match docker.inspect_network(name, Some(inspect_options)).await {
         Ok(_) => {
             info!("Network '{}' already exists", name);
             return Ok(());
@@ -16,10 +22,9 @@ pub async fn create_network(docker: &Docker, name: &str) -> Result<()> {
         Err(e) => return Err(CliError::Docker(e)),
     }
 
-    let options = CreateNetworkOptions {
-        name,
-        check_duplicate: true,
-        driver: "bridge",
+    let options = NetworkCreateRequest {
+        name: name.to_string(),
+        driver: Some("bridge".to_string()),
         ..Default::default()
     };
 

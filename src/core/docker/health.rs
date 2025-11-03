@@ -1,6 +1,6 @@
 use crate::error::{CliError, Result};
 use bollard::Docker;
-use bollard::container::InspectContainerOptions;
+use bollard::query_parameters::InspectContainerOptionsBuilder;
 use bollard::models::HealthStatusEnum;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
@@ -15,8 +15,12 @@ pub async fn wait_healthy(
 
     let result = timeout(timeout_duration, async {
         loop {
+            let options = InspectContainerOptionsBuilder::default()
+                .size(false)
+                .build();
+
             let inspect = docker
-                .inspect_container(container_name, Some(InspectContainerOptions { size: false }))
+                .inspect_container(container_name, Some(options))
                 .await
                 .map_err(|e| CliError::Docker(e))?;
 

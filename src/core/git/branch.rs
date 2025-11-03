@@ -1,5 +1,24 @@
 use crate::error::{CliError, Result};
 use git2::Repository;
+use std::env;
+use std::fs;
+
+pub fn init_current_branch() -> Result<()> {
+    let cwd = env::current_dir().map_err(|e| CliError::Io(e))?;
+    let branch_file = cwd.join("clikd/.branches/_current_branch");
+
+    if branch_file.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = branch_file.parent() {
+        fs::create_dir_all(parent).map_err(|e| CliError::Io(e))?;
+    }
+
+    fs::write(&branch_file, "main").map_err(|e| CliError::Io(e))?;
+
+    Ok(())
+}
 
 pub fn current() -> Result<String> {
     let repo = find_repository()?;

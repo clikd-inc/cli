@@ -29,6 +29,8 @@ pub enum Commands {
     #[command(subcommand)]
     Auth(AuthCommands),
 
+    Init(InitArgs),
+
     Start(StartArgs),
 
     Stop(StopArgs),
@@ -44,6 +46,18 @@ pub enum Commands {
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
+}
+
+#[derive(Args)]
+pub struct InitArgs {
+    #[arg(long, help = "Generate VSCode settings")]
+    pub vscode: bool,
+
+    #[arg(long, help = "Generate IntelliJ/Android Studio settings")]
+    pub intellij: bool,
+
+    #[arg(long, help = "Custom working directory")]
+    pub workdir: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]

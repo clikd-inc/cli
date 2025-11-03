@@ -1,0 +1,54 @@
+# Clikd Project Configuration
+
+# Project ID for container isolation
+# Automatically generated from directory name, but editable
+project_id = "{{project_id}}"
+
+[services]
+# Which services should be started
+gate = true
+rig = true
+studio = true
+postgres_auth = true
+postgres_rig = true
+keydb = true
+scylladb = true
+minio = true
+nats = true
+apisix = true
+
+[ports]
+# Host ports (outside Docker)
+gate = 8081
+rig = 8082
+studio = 3001
+postgres_auth = 5433
+postgres_rig = 5434
+keydb = 6380
+scylladb = 9043
+minio = 9000
+minio_console = 9901
+nats = 4222
+apisix = 9080
+
+[images]
+# Image overrides (optional, uses CLI defaults if not set)
+# Uncomment to override specific service images
+# gate = "ghcr.io/clikd-inc/gate:custom-version"
+# rig = "ghcr.io/clikd-inc/rig:custom-version"
+# studio = "ghcr.io/clikd-inc/studio:custom-version"
+# postgres = "ghcr.io/clikd-inc/postgres:custom-version"
+# keydb = "ghcr.io/clikd-inc/keydb:custom-version"
+# scylladb = "ghcr.io/clikd-inc/scylladb:custom-version"
+# minio = "ghcr.io/clikd-inc/minio:custom-version"
+# nats = "ghcr.io/clikd-inc/nats:custom-version"
+# apisix = "ghcr.io/clikd-inc/apisix:custom-version"
+
+[dev]
+app_env = "development"
+rust_log = "info"
+
+[workdir]
+# Custom working directory (optional)
+# If set, the CLI will look for config here
+# path = "/absolute/path/to/project"
