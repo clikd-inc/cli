@@ -324,15 +324,88 @@ jobs:
           done
           git push
 
+  publish-scoop-manifest:
+    needs:
+      - plan
+      - host
+    runs-on: "ubuntu-22.04"
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PLAN: ${{ needs.plan.outputs.val }}
+      GITHUB_USER: "clikd-bot"
+      GITHUB_EMAIL: "bot@clikd.com"
+    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          repository: "clikd-inc/scoop-bucket"
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+      - name: Fetch artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: artifacts/
+          merge-multiple: true
+      - name: Update Scoop manifest
+        run: |
+          git config --global user.name "${GITHUB_USER}"
+          git config --global user.email "${GITHUB_EMAIL}"
+
+          for release in $(echo "$PLAN" | jq --compact-output '.releases[]'); do
+            app_name=$(echo "$release" | jq -r .app_name)
+            version=$(echo "$release" | jq -r .app_version)
+
+            windows_zip=$(echo "$release" | jq -r '.artifacts[] | select(contains("x86_64-pc-windows-msvc.zip") and (endswith(".zip")))')
+            if [ -n "$windows_zip" ]; then
+              url="https://github.com/clikd-inc/cli/releases/download/v${version}/${windows_zip}"
+              checksum_file="${windows_zip}.sha256"
+
+              if [ -f "artifacts/${checksum_file}" ]; then
+                hash=$(cat "artifacts/${checksum_file}" | cut -d' ' -f1)
+
+                cat > "${app_name}.json" <<EOF
+{
+  "version": "${version}",
+  "description": "Local development environment management for Clikd",
+  "homepage": "https://github.com/clikd-inc/cli",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "${url}",
+      "hash": "${hash}"
+    }
+  },
+  "bin": "clikd.exe",
+  "checkver": {
+    "github": "https://github.com/clikd-inc/cli"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/clikd-inc/cli/releases/download/v\$version/clikd-x86_64-pc-windows-msvc.zip"
+      }
+    }
+  }
+}
+EOF
+                git add "${app_name}.json"
+                git commit -m "chore: update ${app_name} to v${version}"
+              fi
+            fi
+          done
+          git push
+
   announce:
     needs:
       - plan
       - host
       - publish-homebrew-formula
+      - publish-scoop-manifest
     # use "always() && ..." to allow us to wait for all publish jobs while
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
-    if: ${{ always() && needs.host.result == 'success' && (needs.publish-homebrew-formula.result == 'skipped' || needs.publish-homebrew-formula.result == 'success') }}
+    if: ${{ always() && needs.host.result == 'success' && (needs.publish-homebrew-formula.result == 'skipped' || needs.publish-homebrew-formula.result == 'success') && (needs.publish-scoop-manifest.result == 'skipped' || needs.publish-scoop-manifest.result == 'success') }}
     runs-on: "ubuntu-22.04"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
