@@ -23,7 +23,7 @@ pub enum CliError {
     #[error("Service '{0}' not found")]
     ServiceNotFound(String),
 
-    #[error("Authentication required. Run 'clikd auth login'")]
+    #[error("Authentication required. Run 'clikd login'")]
     AuthenticationRequired,
 
     #[error("Not a member of organization '{0}'")]

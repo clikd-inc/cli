@@ -1,7 +1,7 @@
-use anyhow::Result;
 use crate::config::Config;
-use crate::core::auth::{github, token, org_check};
+use crate::core::auth::{github, org_check, token};
 use crate::utils::theme::*;
+use anyhow::Result;
 
 pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
     let device_response = github::request_device_code(&config.github.oauth_client_id).await?;
@@ -13,7 +13,10 @@ pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
         println!("  {}", url(&device_response.verification_uri));
 
         if let Err(e) = open::that(&device_response.verification_uri) {
-            eprintln!("{}", warning_message(&format!("Failed to open browser: {}", e)));
+            eprintln!(
+                "{}",
+                warning_message(&format!("Failed to open browser: {}", e))
+            );
             println!("{}", step_message("Please open the URL manually"));
         }
     } else {
@@ -33,11 +36,12 @@ pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
         device_response.interval,
         device_response.expires_in,
     )
-    .await {
+    .await
+    {
         Ok(token) => {
             sp.success("Authorized!");
             token
-        },
+        }
         Err(e) => {
             sp.fail("Authorization failed");
             return Err(e.into());
@@ -52,8 +56,20 @@ pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
 
     token::save_token(&access_token)?;
 
-    println!("\n{}", success_message(&format!("Successfully authenticated as {}", highlight(&username))));
-    println!("{}", success_message(&format!("Organization: {}", highlight(&config.github.org_name))));
+    println!(
+        "\n{}",
+        success_message(&format!(
+            "Successfully authenticated as {}",
+            highlight(&username)
+        ))
+    );
+    println!(
+        "{}",
+        success_message(&format!(
+            "Organization: {}",
+            highlight(&config.github.org_name)
+        ))
+    );
 
     Ok(())
 }
@@ -73,20 +89,21 @@ pub async fn logout() -> Result<()> {
 
 pub async fn status() -> Result<()> {
     match token::load_token() {
-        Ok(token) => {
-            match github::get_username(&token).await {
-                Ok(username) => {
-                    println!("{}", success_message(&format!("Logged in as {}", highlight(&username))));
-                }
-                Err(_) => {
-                    println!("{}", warning_message("Token exists but may be invalid"));
-                    println!("{}", step_message("Run 'clikd auth login' to re-authenticate"));
-                }
+        Ok(token) => match github::get_username(&token).await {
+            Ok(username) => {
+                println!(
+                    "{}",
+                    success_message(&format!("Logged in as {}", highlight(&username)))
+                );
             }
-        }
+            Err(_) => {
+                println!("{}", warning_message("Token exists but may be invalid"));
+                println!("{}", step_message("Run 'clikd login' to re-authenticate"));
+            }
+        },
         Err(_) => {
             println!("{}", info_message("Not logged in"));
-            println!("{}", step_message("Run 'clikd auth login' to authenticate"));
+            println!("{}", step_message("Run 'clikd login' to authenticate"));
         }
     }
     Ok(())
