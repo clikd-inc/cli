@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Package renamed from `clikd` to `clikd`**
+- **Package renamed from `clikd-cli` to `clikd`**
   - Simplified package name for standalone repository
-  - Homebrew formula now published as `clikd` instead of `clikd`
+  - Homebrew formula now published as `clikd` instead of `clikd-cli`
   - Installation: `brew install clikd-inc/tap/clikd`
 
 ## [0.2.0] - 2025-11-03
