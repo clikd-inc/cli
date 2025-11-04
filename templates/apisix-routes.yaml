@@ -63,6 +63,17 @@ routes:
         send: 60
         read: 60
 
+  - id: gate-docs
+    uri: /docs/*
+    upstream:
+      nodes:
+        "{{ gate_host }}:{{ gate_port }}": 1
+      type: roundrobin
+      timeout:
+        connect: 60
+        send: 60
+        read: 60
+
   - id: rig-graphql
     uri: /graphql
     upstream:
