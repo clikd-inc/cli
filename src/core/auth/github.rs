@@ -117,9 +117,10 @@ pub async fn poll_for_token(
                 scope,
             } => {
                 if token_type != "bearer" {
-                    return Err(CliError::GitHubApi(
-                        format!("Unexpected token type: {}. Expected 'bearer'", token_type)
-                    ));
+                    return Err(CliError::GitHubApi(format!(
+                        "Unexpected token type: {}. Expected 'bearer'",
+                        token_type
+                    )));
                 }
 
                 debug!("Token received with scope: {}", scope);
@@ -142,9 +143,7 @@ pub async fn poll_for_token(
                     ));
                 }
                 "access_denied" => {
-                    return Err(CliError::GitHubApi(
-                        "Authorization was denied.".to_string(),
-                    ));
+                    return Err(CliError::GitHubApi("Authorization was denied.".to_string()));
                 }
                 _ => {
                     return Err(CliError::GitHubApi(format!(
@@ -164,7 +163,7 @@ pub async fn get_username(token: &str) -> Result<String> {
         .get("https://api.github.com/user")
         .header("Authorization", format!("Bearer {}", token))
         .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "clikd-cli")
+        .header("User-Agent", "clikd")
         .send()
         .await
         .map_err(|e| CliError::GitHubApi(format!("Failed to get user info: {}", e)))?;

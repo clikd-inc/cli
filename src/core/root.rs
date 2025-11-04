@@ -40,7 +40,7 @@ pub fn check_for_updates() {
 
         let mut response = match agent
             .get("https://api.github.com/repos/clikd-inc/clikd/releases")
-            .header("User-Agent", &format!("clikd-cli/{}", current_version))
+            .header("User-Agent", &format!("clikd/{}", current_version))
             .header("Authorization", &format!("Bearer {}", token))
             .call()
         {
@@ -53,9 +53,7 @@ pub fn check_for_updates() {
             Err(_) => return,
         };
 
-        let cli_release = releases
-            .iter()
-            .find(|r| r.tag_name.starts_with("cli-v"));
+        let cli_release = releases.iter().find(|r| r.tag_name.starts_with("cli-v"));
 
         if let Some(latest) = cli_release {
             let latest_version = latest.tag_name.trim_start_matches("cli-v");
