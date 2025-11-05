@@ -1,0 +1,62 @@
+name: Update Scoop Bucket
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update-scoop:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout scoop-bucket
+        uses: actions/checkout@v4
+        with:
+          repository: clikd-inc/scoop-bucket
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+
+      - name: Update Scoop manifest
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git config --global user.name "clikd-bot"
+          git config --global user.email "bot@clikd.com"
+
+          VERSION="${RELEASE_TAG#v}"
+          WINDOWS_ZIP="clikd-x86_64-pc-windows-msvc.zip"
+          URL="https://github.com/clikd-inc/cli/releases/download/${RELEASE_TAG}/${WINDOWS_ZIP}"
+
+          CHECKSUM_URL="${URL}.sha256"
+          HASH=$(curl -sL "${CHECKSUM_URL}" | cut -d' ' -f1)
+
+          cat > clikd.json <<EOF
+          {
+            "version": "${VERSION}",
+            "description": "Local development environment management for Clikd",
+            "homepage": "https://github.com/clikd-inc/cli",
+            "license": "MIT",
+            "architecture": {
+              "64bit": {
+                "url": "${URL}",
+                "hash": "${HASH}"
+              }
+            },
+            "bin": "clikd.exe",
+            "checkver": {
+              "github": "https://github.com/clikd-inc/cli"
+            },
+            "autoupdate": {
+              "architecture": {
+                "64bit": {
+                  "url": "https://github.com/clikd-inc/cli/releases/download/v\$version/clikd-x86_64-pc-windows-msvc.zip"
+                }
+              }
+            }
+          }
+          EOF
+
+          git add clikd.json
+          git commit -m "chore: update clikd to v${VERSION}"
+          git push
