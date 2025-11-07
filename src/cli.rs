@@ -42,6 +42,8 @@ pub enum Commands {
     #[command(subcommand)]
     Db(DbCommands),
 
+    Update(UpdateArgs),
+
     Completions {
         #[arg(value_enum)]
         shell: clap_complete::Shell,
@@ -118,4 +120,10 @@ pub enum DbCommands {
     },
 
     Seed,
+}
+
+#[derive(Args)]
+pub struct UpdateArgs {
+    #[arg(long, help = "Skip confirmation prompts")]
+    pub yes: bool,
 }

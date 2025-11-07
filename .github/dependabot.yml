@@ -1,0 +1,55 @@
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /config
+    schedule:
+      interval: daily
+      time: "09:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    reviewers:
+      - nyxb
+    labels:
+      - dependencies
+      - docker
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: daily
+      time: "09:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    reviewers:
+      - nyxb
+    labels:
+      - dependencies
+      - rust
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
+    reviewers:
+      - nyxb
+    labels:
+      - dependencies
+      - github-actions

@@ -1,6 +1,6 @@
 [package]
 name = "clikd"
-version = "0.2.3"
+version = "0.2.4"
 description = "Local development environment management for Clikd"
 authors = ["Clikd, Inc <team@clikd.com>"]
 edition = "2021"
@@ -43,6 +43,8 @@ minijinja = "2.5"
 
 bollard = "0.19.3"
 git2 = "0.20.2"
+regex = "1.11"
+once_cell = "1.20"
 
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "linux-native"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }

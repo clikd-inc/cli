@@ -10,6 +10,7 @@ pub mod cmd {
     pub mod status;
     pub mod logs;
     pub mod db;
+    pub mod update;
     pub mod completions;
 }
 
@@ -55,6 +56,8 @@ pub mod core {
     pub mod config {
         pub mod loader;
         pub mod types;
+        pub mod images;
+        pub mod version_manager;
     }
 }
 
@@ -102,6 +105,7 @@ pub async fn execute(cli: Cli) -> Result<()> {
                 cli::DbCommands::Seed => cmd::db::seed(config).await,
             }
         }
+        Commands::Update(args) => cmd::update::run(args).await,
         Commands::Completions { shell } => {
             cmd::completions::generate(shell);
             Ok(())

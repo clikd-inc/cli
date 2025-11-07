@@ -1,4 +1,5 @@
 use crate::cli::InitArgs;
+use crate::core::config::{images, version_manager::VersionManager};
 use crate::core::git::{branch, gitignore};
 use crate::core::ide::{intellij, vscode};
 use crate::error::{CliError, Result};
@@ -6,6 +7,7 @@ use crate::utils::theme::*;
 use dialoguer::Confirm;
 use std::env;
 use std::fs;
+use std::path::Path;
 
 const CONFIG_TEMPLATE: &str = include_str!("../../templates/config.toml");
 
@@ -33,6 +35,9 @@ pub async fn run(args: InitArgs) -> Result<()> {
     println!("{}", step_message("Generating configuration..."));
     let config = CONFIG_TEMPLATE.replace("{{project_id}}", &project_id);
     fs::write(&config_path, config)?;
+
+    println!("{}", step_message("Pinning image versions..."));
+    pin_image_versions(&project_root)?;
 
     println!("{}", step_message("Initializing git branch..."));
     branch::init_current_branch()?;
@@ -78,4 +83,14 @@ fn sanitize_project_id(id: &str) -> String {
         .collect::<String>()
         .trim_start_matches(|c| c == '_' || c == '-' || c == '.')
         .to_string()
+}
+
+fn pin_image_versions(project_root: &Path) -> Result<()> {
+    let version_mgr = VersionManager::new(Some(project_root));
+    let all_images = images::get_all_images();
+
+    version_mgr.save_image_versions(&all_images)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+
+    Ok(())
 }

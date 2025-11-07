@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2025-11-07
+
+### Added
+
+- **Per-Project Docker Image Version Pinning**
+  - Automatically pins Docker image versions at project initialization
+  - Stores versions in `clikd/.temp/*-version` files
+  - Prevents breaking changes when updating CLI
+  - Each project maintains its own image versions independently
+
+- **Automatic Version Update Detection**
+  - Warning displayed at startup when newer service versions are available
+  - Compares local pinned versions with latest CLI defaults
+  - Non-intrusive notifications for outdated services
+
+- **Version Update Command** (`clikd update`)
+  - Interactive upgrade command for service image versions
+  - Shows detailed comparison of current vs. latest versions
+  - Confirmation prompt before applying updates (skip with `--yes`)
+  - Safe upgrade path without breaking existing projects
+
+- **Automated Dependency Management**
+  - Dependabot configuration for Docker image updates
+  - Daily checks for Docker and Cargo dependency updates
+  - Grouped minor/patch updates for easier review
+  - Weekly GitHub Actions workflow updates
+
+- **Single Source of Truth for Docker Images**
+  - Centralized image version management in `config/images.Dockerfile`
+  - Automatic parsing at runtime with zero overhead
+  - Fallback to hardcoded defaults for safety
+  - Simplifies version updates and maintenance
+
+### Changed
+
+- Refactored image configuration system for better maintainability
+- Config loader now supports version override from project-specific files
+
 ## [0.2.3] - 2025-11-04
 
 ### Added

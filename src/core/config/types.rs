@@ -48,16 +48,74 @@ pub struct ImagesConfig {
 
 impl Default for ImagesConfig {
     fn default() -> Self {
+        use super::{images, version_manager::VersionManager};
+
+        let version_mgr = VersionManager::new(None);
+
+        let gate = if let Some(version) = version_mgr.load_image_version("gate") {
+            format!("ghcr.io/clikd-inc/gate:{}", version)
+        } else {
+            images::get_image("gate").unwrap_or_else(|| "ghcr.io/clikd-inc/gate:1.0.0".to_string())
+        };
+
+        let rig = if let Some(version) = version_mgr.load_image_version("rig") {
+            format!("ghcr.io/clikd-inc/rig:{}", version)
+        } else {
+            images::get_image("rig").unwrap_or_else(|| "ghcr.io/clikd-inc/rig:0.5.0".to_string())
+        };
+
+        let studio = if let Some(version) = version_mgr.load_image_version("studio") {
+            format!("ghcr.io/clikd-inc/studio:{}", version)
+        } else {
+            images::get_image("studio").unwrap_or_else(|| "ghcr.io/clikd-inc/studio:0.5.0".to_string())
+        };
+
+        let postgres = if let Some(version) = version_mgr.load_image_version("postgres") {
+            format!("ghcr.io/clikd-inc/postgres:{}", version)
+        } else {
+            images::get_image("postgres").unwrap_or_else(|| "ghcr.io/clikd-inc/postgres:18.0".to_string())
+        };
+
+        let keydb = if let Some(version) = version_mgr.load_image_version("keydb") {
+            format!("ghcr.io/clikd-inc/keydb:{}", version)
+        } else {
+            images::get_image("keydb").unwrap_or_else(|| "ghcr.io/clikd-inc/keydb:6.3.4".to_string())
+        };
+
+        let scylladb = if let Some(version) = version_mgr.load_image_version("scylladb") {
+            format!("ghcr.io/clikd-inc/scylladb:{}", version)
+        } else {
+            images::get_image("scylladb").unwrap_or_else(|| "ghcr.io/clikd-inc/scylladb:2025.1.9".to_string())
+        };
+
+        let minio = if let Some(version) = version_mgr.load_image_version("minio") {
+            format!("ghcr.io/clikd-inc/minio:{}", version)
+        } else {
+            images::get_image("minio").unwrap_or_else(|| "ghcr.io/clikd-inc/minio:2025.10.15".to_string())
+        };
+
+        let nats = if let Some(version) = version_mgr.load_image_version("nats") {
+            format!("ghcr.io/clikd-inc/nats:{}", version)
+        } else {
+            images::get_image("nats").unwrap_or_else(|| "ghcr.io/clikd-inc/nats:2.12.1".to_string())
+        };
+
+        let apisix = if let Some(version) = version_mgr.load_image_version("apisix") {
+            format!("ghcr.io/clikd-inc/apisix:{}", version)
+        } else {
+            images::get_image("apisix").unwrap_or_else(|| "ghcr.io/clikd-inc/apisix:3.11.0".to_string())
+        };
+
         Self {
-            gate: "ghcr.io/clikd-inc/gate:1.0.0".to_string(),
-            rig: "ghcr.io/clikd-inc/rig:0.5.0".to_string(),
-            studio: "ghcr.io/clikd-inc/studio:0.5.0".to_string(),
-            postgres: "ghcr.io/clikd-inc/postgres:18.0".to_string(),
-            keydb: "ghcr.io/clikd-inc/keydb:6.3.4".to_string(),
-            scylladb: "ghcr.io/clikd-inc/scylladb:2025.1.9".to_string(),
-            minio: "ghcr.io/clikd-inc/minio:2025.10.15".to_string(),
-            nats: "ghcr.io/clikd-inc/nats:2.12.1".to_string(),
-            apisix: "ghcr.io/clikd-inc/apisix:3.11.0".to_string(),
+            gate,
+            rig,
+            studio,
+            postgres,
+            keydb,
+            scylladb,
+            minio,
+            nats,
+            apisix,
         }
     }
 }
