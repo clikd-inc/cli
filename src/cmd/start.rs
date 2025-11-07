@@ -19,6 +19,8 @@ fn check_version_diff() {
     let version_mgr = VersionManager::new(None);
 
     if !version_mgr.has_pinned_versions() {
+        let dockerfile_images = images::get_all_images();
+        let _ = version_mgr.save_image_versions(&dockerfile_images);
         return;
     }
 
