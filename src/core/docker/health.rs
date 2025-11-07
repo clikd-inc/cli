@@ -1,7 +1,7 @@
 use crate::error::{CliError, Result};
-use bollard::Docker;
-use bollard::query_parameters::InspectContainerOptionsBuilder;
 use bollard::models::HealthStatusEnum;
+use bollard::query_parameters::InspectContainerOptionsBuilder;
+use bollard::Docker;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 use tracing::{debug, info, warn};
@@ -11,7 +11,10 @@ pub async fn wait_healthy(
     container_name: &str,
     timeout_duration: Duration,
 ) -> Result<()> {
-    info!("Waiting for container '{}' to become healthy", container_name);
+    info!(
+        "Waiting for container '{}' to become healthy",
+        container_name
+    );
 
     let result = timeout(timeout_duration, async {
         loop {
@@ -37,12 +40,18 @@ pub async fn wait_healthy(
                                 return Err(CliError::Docker(
                                     bollard::errors::Error::DockerResponseServerError {
                                         status_code: 500,
-                                        message: format!("Container '{}' became unhealthy", container_name),
-                                    }
+                                        message: format!(
+                                            "Container '{}' became unhealthy",
+                                            container_name
+                                        ),
+                                    },
                                 ));
                             }
                             _ => {
-                                debug!("Container '{}' health status: {:?}", container_name, status);
+                                debug!(
+                                    "Container '{}' health status: {:?}",
+                                    container_name, status
+                                );
                             }
                         }
                     }
@@ -52,10 +61,13 @@ pub async fn wait_healthy(
                             bollard::errors::Error::DockerResponseServerError {
                                 status_code: 500,
                                 message: format!("Container '{}' is not running", container_name),
-                            }
+                            },
                         ));
                     } else {
-                        info!("Container '{}' has no health check, assuming healthy", container_name);
+                        info!(
+                            "Container '{}' has no health check, assuming healthy",
+                            container_name
+                        );
                         return Ok(());
                     }
                 }
@@ -63,15 +75,19 @@ pub async fn wait_healthy(
 
             sleep(Duration::from_secs(2)).await;
         }
-    }).await;
+    })
+    .await;
 
     match result {
         Ok(inner_result) => inner_result,
         Err(_) => Err(CliError::Docker(
             bollard::errors::Error::DockerResponseServerError {
                 status_code: 500,
-                message: format!("Timeout waiting for container '{}' to become healthy", container_name),
-            }
+                message: format!(
+                    "Timeout waiting for container '{}' to become healthy",
+                    container_name
+                ),
+            },
         )),
     }
 }

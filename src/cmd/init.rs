@@ -47,10 +47,22 @@ pub async fn run(args: InitArgs) -> Result<()> {
 
     if args.vscode {
         vscode::create_settings(&project_root)?;
-        println!("{}", success_message(&format!("Generated VS Code settings in {}", highlight(".vscode/settings.json"))));
+        println!(
+            "{}",
+            success_message(&format!(
+                "Generated VS Code settings in {}",
+                highlight(".vscode/settings.json")
+            ))
+        );
     } else if args.intellij {
         intellij::create_settings(&project_root)?;
-        println!("{}", success_message(&format!("Generated IntelliJ settings in {}", highlight(".idea/clikd.xml"))));
+        println!(
+            "{}",
+            success_message(&format!(
+                "Generated IntelliJ settings in {}",
+                highlight(".idea/clikd.xml")
+            ))
+        );
     } else {
         if Confirm::new()
             .with_prompt("Generate VS Code settings?")
@@ -58,7 +70,13 @@ pub async fn run(args: InitArgs) -> Result<()> {
             .interact()?
         {
             vscode::create_settings(&project_root)?;
-            println!("{}", success_message(&format!("Generated VS Code settings in {}", highlight(".vscode/settings.json"))));
+            println!(
+                "{}",
+                success_message(&format!(
+                    "Generated VS Code settings in {}",
+                    highlight(".vscode/settings.json")
+                ))
+            );
         }
 
         if Confirm::new()
@@ -67,11 +85,20 @@ pub async fn run(args: InitArgs) -> Result<()> {
             .interact()?
         {
             intellij::create_settings(&project_root)?;
-            println!("{}", success_message(&format!("Generated IntelliJ settings in {}", highlight(".idea/clikd.xml"))));
+            println!(
+                "{}",
+                success_message(&format!(
+                    "Generated IntelliJ settings in {}",
+                    highlight(".idea/clikd.xml")
+                ))
+            );
         }
     }
 
-    println!("\n{}\n", success_message(&format!("Finished {} init", highlight("clikd"))));
+    println!(
+        "\n{}\n",
+        success_message(&format!("Finished {} init", highlight("clikd")))
+    );
 
     Ok(())
 }
@@ -89,7 +116,8 @@ fn pin_image_versions(project_root: &Path) -> Result<()> {
     let version_mgr = VersionManager::new(Some(project_root));
     let all_images = images::get_all_images();
 
-    version_mgr.save_image_versions(&all_images)
+    version_mgr
+        .save_image_versions(&all_images)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     Ok(())

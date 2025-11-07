@@ -1,4 +1,4 @@
-use crate::core::auth::{token, github};
+use crate::core::auth::{github, token};
 use crate::error::Result;
 use bollard::auth::DockerCredentials;
 use tracing::debug;

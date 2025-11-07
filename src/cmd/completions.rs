@@ -1,6 +1,6 @@
-use clap_complete::{generate as gen_completions, Shell};
 use crate::cli::Cli;
 use clap::CommandFactory;
+use clap_complete::{generate as gen_completions, Shell};
 
 pub fn generate(shell: Shell) {
     let mut cmd = Cli::command();

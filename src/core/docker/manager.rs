@@ -1,10 +1,18 @@
-use crate::error::{CliError, Result};
 use crate::core::docker::registry;
 use crate::core::docker::services::ServiceDefinition;
+use crate::error::{CliError, Result};
 use crate::utils::theme::*;
+use bollard::models::{
+    ContainerCreateBody, EndpointSettings, HealthConfig, HostConfig, NetworkingConfig, PortBinding,
+    RestartPolicy, RestartPolicyNameEnum, VolumeCreateOptions,
+};
+use bollard::query_parameters::{
+    CreateContainerOptionsBuilder, CreateImageOptionsBuilder, InspectContainerOptionsBuilder,
+    ListContainersOptionsBuilder, PruneContainersOptionsBuilder, PruneNetworksOptionsBuilder,
+    PruneVolumesOptionsBuilder, RemoveContainerOptionsBuilder, StartContainerOptionsBuilder,
+    StopContainerOptionsBuilder,
+};
 use bollard::Docker;
-use bollard::query_parameters::{CreateImageOptionsBuilder, CreateContainerOptionsBuilder, InspectContainerOptionsBuilder, RemoveContainerOptionsBuilder, StartContainerOptionsBuilder, ListContainersOptionsBuilder, StopContainerOptionsBuilder, PruneContainersOptionsBuilder, PruneNetworksOptionsBuilder, PruneVolumesOptionsBuilder};
-use bollard::models::{ContainerCreateBody, HostConfig, PortBinding, HealthConfig, RestartPolicy, RestartPolicyNameEnum, EndpointSettings, NetworkingConfig, VolumeCreateOptions};
 use futures::StreamExt;
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -15,8 +23,7 @@ pub struct DockerManager {
 
 impl DockerManager {
     pub fn new() -> Result<Self> {
-        let client = Docker::connect_with_local_defaults()
-            .map_err(CliError::Docker)?;
+        let client = Docker::connect_with_local_defaults().map_err(CliError::Docker)?;
 
         Ok(Self { client })
     }
@@ -40,11 +47,7 @@ impl DockerManager {
         }
         let options = options_builder.build();
 
-        let mut stream = self.client.create_image(
-            Some(options),
-            None,
-            credentials,
-        );
+        let mut stream = self.client.create_image(Some(options), None, credentials);
 
         let mut shown_layers: StdHashMap<String, bool> = StdHashMap::new();
         let mut pb = create_progress_bar();
@@ -59,7 +62,7 @@ impl DockerManager {
                             bollard::errors::Error::DockerResponseServerError {
                                 status_code: 500,
                                 message: error,
-                            }
+                            },
                         ));
                     }
 
@@ -74,7 +77,7 @@ impl DockerManager {
                             } else if status_lower.contains("downloading") {
                                 if let (Some(current), Some(total)) = (
                                     info.progress_detail.as_ref().and_then(|p| p.current),
-                                    info.progress_detail.as_ref().and_then(|p| p.total)
+                                    info.progress_detail.as_ref().and_then(|p| p.total),
                                 ) {
                                     pb.set_length(total as u64);
                                     pb.set_position(current as u64);
@@ -83,7 +86,7 @@ impl DockerManager {
                             } else if status_lower.contains("extracting") {
                                 if let (Some(current), Some(total)) = (
                                     info.progress_detail.as_ref().and_then(|p| p.current),
-                                    info.progress_detail.as_ref().and_then(|p| p.total)
+                                    info.progress_detail.as_ref().and_then(|p| p.total),
                                 ) {
                                     pb.set_length(total as u64);
                                     pb.set_position(current as u64);
@@ -94,9 +97,10 @@ impl DockerManager {
                                     shown_layers.insert(id.clone(), true);
                                 }
                             } else if status_lower.contains("pull complete")
-                                && shown_layers.get(&id) == Some(&false) {
-                                    shown_layers.insert(id.clone(), true);
-                                }
+                                && shown_layers.get(&id) == Some(&false)
+                            {
+                                shown_layers.insert(id.clone(), true);
+                            }
                         }
                     } else if let Some(status) = info.status {
                         if status.starts_with("Status:") {
@@ -118,7 +122,11 @@ impl DockerManager {
         Ok(())
     }
 
-    pub async fn pull_image_if_not_cached(&self, image: &str, platform: Option<&str>) -> Result<()> {
+    pub async fn pull_image_if_not_cached(
+        &self,
+        image: &str,
+        platform: Option<&str>,
+    ) -> Result<()> {
         if self.image_exists(image).await? {
             return Ok(());
         }
@@ -128,9 +136,20 @@ impl DockerManager {
         let tag = parts.get(1).unwrap_or(&"latest");
 
         if let Some(plat) = platform {
-            println!("{}: {} {} ({})", highlight(tag), dimmed("Pulling from"), image_name, dimmed(plat));
+            println!(
+                "{}: {} {} ({})",
+                highlight(tag),
+                dimmed("Pulling from"),
+                image_name,
+                dimmed(plat)
+            );
         } else {
-            println!("{}: {} {}", highlight(tag), dimmed("Pulling from"), image_name);
+            println!(
+                "{}: {} {}",
+                highlight(tag),
+                dimmed("Pulling from"),
+                image_name
+            );
         }
 
         self.pull_image(image, platform).await
@@ -141,7 +160,9 @@ impl DockerManager {
 
         match self.client.inspect_image(image).await {
             Ok(_) => Ok(true),
-            Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(false),
+            Err(bollard::errors::Error::DockerResponseServerError {
+                status_code: 404, ..
+            }) => Ok(false),
             Err(e) => Err(CliError::Docker(e)),
         }
     }
@@ -155,7 +176,9 @@ impl DockerManager {
 
         match self.client.inspect_container(name, Some(options)).await {
             Ok(_) => Ok(true),
-            Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(false),
+            Err(bollard::errors::Error::DockerResponseServerError {
+                status_code: 404, ..
+            }) => Ok(false),
             Err(e) => Err(CliError::Docker(e)),
         }
     }
@@ -175,7 +198,9 @@ impl DockerManager {
                     Ok(false)
                 }
             }
-            Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(false),
+            Err(bollard::errors::Error::DockerResponseServerError {
+                status_code: 404, ..
+            }) => Ok(false),
             Err(e) => Err(CliError::Docker(e)),
         }
     }
@@ -229,7 +254,9 @@ impl DockerManager {
             );
         }
 
-        let env: Vec<String> = service.env.iter()
+        let env: Vec<String> = service
+            .env
+            .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect();
 
@@ -269,7 +296,10 @@ impl DockerManager {
         };
 
         let mut labels = HashMap::new();
-        labels.insert("com.docker.compose.project".to_string(), project_id.to_string());
+        labels.insert(
+            "com.docker.compose.project".to_string(),
+            project_id.to_string(),
+        );
         labels.insert("com.clikd.cli.project".to_string(), project_id.to_string());
 
         for volume_bind in &service.volumes {
@@ -339,17 +369,15 @@ impl DockerManager {
         info!("Stopping all containers for project: {}", project_id);
 
         let label_filter = format!("com.clikd.cli.project={}", project_id);
-        let filters = HashMap::from([(
-            "label".to_string(),
-            vec![label_filter.clone()],
-        )]);
+        let filters = HashMap::from([("label".to_string(), vec![label_filter.clone()])]);
 
         let list_options = ListContainersOptionsBuilder::default()
             .all(true)
             .filters(&filters)
             .build();
 
-        let containers = self.client
+        let containers = self
+            .client
             .list_containers(Some(list_options))
             .await
             .map_err(CliError::Docker)?;
@@ -374,16 +402,14 @@ impl DockerManager {
                 .map_err(CliError::Docker)?;
         }
 
-        let prune_filters = HashMap::from([(
-            "label".to_string(),
-            vec![label_filter.clone()],
-        )]);
+        let prune_filters = HashMap::from([("label".to_string(), vec![label_filter.clone()])]);
 
         let prune_options = PruneContainersOptionsBuilder::default()
             .filters(&prune_filters)
             .build();
 
-        let report = self.client
+        let report = self
+            .client
             .prune_containers(Some(prune_options))
             .await
             .map_err(CliError::Docker)?;
@@ -391,16 +417,14 @@ impl DockerManager {
         info!("Pruned containers: {:?}", report.containers_deleted);
 
         if !keep_volumes {
-            let volume_filters = HashMap::from([(
-                "label".to_string(),
-                vec![label_filter.clone()],
-            )]);
+            let volume_filters = HashMap::from([("label".to_string(), vec![label_filter.clone()])]);
 
             let volume_prune_options = PruneVolumesOptionsBuilder::default()
                 .filters(&volume_filters)
                 .build();
 
-            let volume_report = self.client
+            let volume_report = self
+                .client
                 .prune_volumes(Some(volume_prune_options))
                 .await
                 .map_err(CliError::Docker)?;
@@ -408,16 +432,14 @@ impl DockerManager {
             info!("Pruned volumes: {:?}", volume_report.volumes_deleted);
         }
 
-        let network_filters = HashMap::from([(
-            "label".to_string(),
-            vec![label_filter],
-        )]);
+        let network_filters = HashMap::from([("label".to_string(), vec![label_filter])]);
 
         let network_prune_options = PruneNetworksOptionsBuilder::default()
             .filters(&network_filters)
             .build();
 
-        let network_report = self.client
+        let network_report = self
+            .client
             .prune_networks(Some(network_prune_options))
             .await
             .map_err(CliError::Docker)?;
@@ -427,4 +449,3 @@ impl DockerManager {
         Ok(())
     }
 }
-

@@ -1,6 +1,6 @@
+use crate::error::Result;
 use std::fs;
 use std::path::Path;
-use crate::error::Result;
 
 const VSCODE_SETTINGS: &str = include_str!("../../../templates/vscode-settings.json");
 const VSCODE_EXTENSIONS: &str = include_str!("../../../templates/vscode-extensions.json");

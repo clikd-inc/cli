@@ -1,17 +1,17 @@
 pub mod cli;
-pub mod error;
 pub mod config;
+pub mod error;
 
 pub mod cmd {
     pub mod auth;
-    pub mod init;
-    pub mod start;
-    pub mod stop;
-    pub mod status;
-    pub mod logs;
-    pub mod db;
-    pub mod update;
     pub mod completions;
+    pub mod db;
+    pub mod init;
+    pub mod logs;
+    pub mod start;
+    pub mod status;
+    pub mod stop;
+    pub mod update;
 }
 
 pub mod core {
@@ -19,16 +19,16 @@ pub mod core {
 
     pub mod auth {
         pub mod github;
-        pub mod token;
         pub mod org_check;
+        pub mod token;
     }
 
     pub mod docker {
-        pub mod manager;
-        pub mod services;
         pub mod health;
+        pub mod manager;
         pub mod network;
         pub mod registry;
+        pub mod services;
     }
 
     pub mod git {
@@ -37,8 +37,8 @@ pub mod core {
     }
 
     pub mod ide {
-        pub mod vscode;
         pub mod intellij;
+        pub mod vscode;
     }
 
     pub mod start {
@@ -54,16 +54,16 @@ pub mod core {
     }
 
     pub mod config {
+        pub mod images;
         pub mod loader;
         pub mod types;
-        pub mod images;
         pub mod version_manager;
     }
 }
 
 pub mod utils {
-    pub mod terminal;
     pub mod retry;
+    pub mod terminal;
     pub mod theme;
 }
 

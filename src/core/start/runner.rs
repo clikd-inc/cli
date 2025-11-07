@@ -1,7 +1,7 @@
-use crate::error::Result;
 use crate::config::Config;
-use crate::core::docker::{manager::DockerManager, services, network, health};
+use crate::core::docker::{health, manager::DockerManager, network, services};
 use crate::core::git::branch;
+use crate::error::Result;
 use crate::utils::theme::*;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -31,7 +31,9 @@ pub async fn run(config: &Config, exclude: Vec<String>, ignore_health_check: boo
 
     println!("\n{}", step_message("Pulling Docker images..."));
     for service in &ordered_services {
-        docker.pull_image_if_not_cached(&service.image, service.platform.as_deref()).await?;
+        docker
+            .pull_image_if_not_cached(&service.image, service.platform.as_deref())
+            .await?;
     }
 
     println!("\n{}", step_message("Starting containers..."));
@@ -57,8 +59,14 @@ pub async fn run(config: &Config, exclude: Vec<String>, ignore_health_check: boo
             let mut sp = create_spinner("Waiting for health checks...");
 
             for container_name in &containers_with_health {
-                match health::wait_healthy(docker.client(), container_name, Duration::from_secs(120)).await {
-                    Ok(_) => {},
+                match health::wait_healthy(
+                    docker.client(),
+                    container_name,
+                    Duration::from_secs(120),
+                )
+                .await
+                {
+                    Ok(_) => {}
                     Err(e) => {
                         let service_name = container_name
                             .strip_prefix("clikd_")
@@ -77,43 +85,103 @@ pub async fn run(config: &Config, exclude: Vec<String>, ignore_health_check: boo
 
     branch::init_current_branch()?;
 
-    println!("\n{}\n", success_message(&format!("Started {} local development setup", highlight("clikd"))));
+    println!(
+        "\n{}\n",
+        success_message(&format!(
+            "Started {} local development setup",
+            highlight("clikd")
+        ))
+    );
 
     let service_map: HashMap<String, &services::ServiceDefinition> = ordered_services
         .iter()
         .map(|s| (s.name.clone(), s))
         .collect();
 
-    println!("    {}: {}", highlight("Rig API URL"), url("http://127.0.0.1:9080/graphql"));
-    println!("   {}: {}", highlight("Gate Auth URL"), url("http://127.0.0.1:9080/auth"));
+    println!(
+        "    {}: {}",
+        highlight("Rig API URL"),
+        url("http://127.0.0.1:9080/graphql")
+    );
+    println!(
+        "   {}: {}",
+        highlight("Gate Auth URL"),
+        url("http://127.0.0.1:9080/auth")
+    );
     if let Some(studio) = service_map.get("studio") {
         if !studio.ports.is_empty() {
             let (port, _) = studio.ports[0];
-            println!("      {}: {}", highlight("Studio URL"), url(&format!("http://127.0.0.1:{}", port)));
+            println!(
+                "      {}: {}",
+                highlight("Studio URL"),
+                url(&format!("http://127.0.0.1:{}", port))
+            );
         }
     }
     if let Some(postgres_auth) = service_map.get("postgres-auth") {
         if !postgres_auth.ports.is_empty() {
             let (port, _) = postgres_auth.ports[0];
-            let user = postgres_auth.env.get("POSTGRES_USER").map(|s| s.as_str()).unwrap_or("postgres");
-            let pass = postgres_auth.env.get("POSTGRES_PASSWORD").map(|s| s.as_str()).unwrap_or("development");
-            let db = postgres_auth.env.get("POSTGRES_DB").map(|s| s.as_str()).unwrap_or("clikd_auth");
-            println!("  {}: {}", highlight("Database (Auth)"), dimmed(&format!("postgresql://{}:{}@127.0.0.1:{}/{}", user, pass, port, db)));
+            let user = postgres_auth
+                .env
+                .get("POSTGRES_USER")
+                .map(|s| s.as_str())
+                .unwrap_or("postgres");
+            let pass = postgres_auth
+                .env
+                .get("POSTGRES_PASSWORD")
+                .map(|s| s.as_str())
+                .unwrap_or("development");
+            let db = postgres_auth
+                .env
+                .get("POSTGRES_DB")
+                .map(|s| s.as_str())
+                .unwrap_or("clikd_auth");
+            println!(
+                "  {}: {}",
+                highlight("Database (Auth)"),
+                dimmed(&format!(
+                    "postgresql://{}:{}@127.0.0.1:{}/{}",
+                    user, pass, port, db
+                ))
+            );
         }
     }
     if let Some(postgres_rig) = service_map.get("postgres-rig") {
         if !postgres_rig.ports.is_empty() {
             let (port, _) = postgres_rig.ports[0];
-            let user = postgres_rig.env.get("POSTGRES_USER").map(|s| s.as_str()).unwrap_or("postgres");
-            let pass = postgres_rig.env.get("POSTGRES_PASSWORD").map(|s| s.as_str()).unwrap_or("development");
-            let db = postgres_rig.env.get("POSTGRES_DB").map(|s| s.as_str()).unwrap_or("clikd_rig");
-            println!("   {}: {}", highlight("Database (Rig)"), dimmed(&format!("postgresql://{}:{}@127.0.0.1:{}/{}", user, pass, port, db)));
+            let user = postgres_rig
+                .env
+                .get("POSTGRES_USER")
+                .map(|s| s.as_str())
+                .unwrap_or("postgres");
+            let pass = postgres_rig
+                .env
+                .get("POSTGRES_PASSWORD")
+                .map(|s| s.as_str())
+                .unwrap_or("development");
+            let db = postgres_rig
+                .env
+                .get("POSTGRES_DB")
+                .map(|s| s.as_str())
+                .unwrap_or("clikd_rig");
+            println!(
+                "   {}: {}",
+                highlight("Database (Rig)"),
+                dimmed(&format!(
+                    "postgresql://{}:{}@127.0.0.1:{}/{}",
+                    user, pass, port, db
+                ))
+            );
         }
     }
     if let Some(scylla) = service_map.get("scylladb") {
         if !scylla.ports.is_empty() {
             let (port, _) = scylla.ports[0];
-            println!("       {}: {}", highlight("ScyllaDB"), dimmed(&format!("127.0.0.1:{}", port)));
+            println!(
+                "       {}: {}",
+                highlight("ScyllaDB"),
+                dimmed(&format!("127.0.0.1:{}", port))
+            );
         }
     }
     if let Some(gate) = service_map.get("gate") {
@@ -127,14 +195,14 @@ pub async fn run(config: &Config, exclude: Vec<String>, ignore_health_check: boo
     Ok(())
 }
 
-fn resolve_dependencies(services: &[services::ServiceDefinition]) -> Result<Vec<services::ServiceDefinition>> {
+fn resolve_dependencies(
+    services: &[services::ServiceDefinition],
+) -> Result<Vec<services::ServiceDefinition>> {
     let mut ordered = Vec::new();
     let mut visited = HashSet::new();
     let mut visiting = HashSet::new();
 
-    let service_map: HashMap<_, _> = services.iter()
-        .map(|s| (s.name.clone(), s))
-        .collect();
+    let service_map: HashMap<_, _> = services.iter().map(|s| (s.name.clone(), s)).collect();
 
     fn visit(
         name: &str,
@@ -167,7 +235,13 @@ fn resolve_dependencies(services: &[services::ServiceDefinition]) -> Result<Vec<
     }
 
     for service in services {
-        visit(&service.name, &service_map, &mut visited, &mut visiting, &mut ordered)?;
+        visit(
+            &service.name,
+            &service_map,
+            &mut visited,
+            &mut visiting,
+            &mut ordered,
+        )?;
     }
 
     Ok(ordered)

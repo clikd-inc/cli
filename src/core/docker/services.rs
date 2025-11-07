@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use std::time::Duration;
 use crate::config::Config;
 use minijinja::Environment;
+use std::collections::HashMap;
+use std::time::Duration;
 
 const APISIX_ROUTES_TEMPLATE: &str = include_str!("../../../templates/apisix-routes.yaml");
 
@@ -51,17 +51,35 @@ fn gate_service(_branch: &str, config: &Config) -> ServiceDefinition {
     env.insert("GATE_PUBLIC_URL".into(), "http://localhost:8081".into());
     env.insert("GATE_ISSUER".into(), "http://localhost:8081".into());
 
-    env.insert("GATE_DATABASE_URL".into(), "postgresql://postgres:development@postgres-auth:5432/clikd_auth".into());
+    env.insert(
+        "GATE_DATABASE_URL".into(),
+        "postgresql://postgres:development@postgres-auth:5432/clikd_auth".into(),
+    );
     env.insert("KEYDB_URL".into(), "redis://keydb:6379".into());
 
-    env.insert("GATE_JWT_SECRET".into(), "dev-jwt-secret-32-bytes-long-enough-for-testing-abc123".into());
-    env.insert("GATE_ENC_KEYS".into(), "wMGZCL5U/xmWwY9qyy2cu9PGJ1iokwGX4z16v9mhD8M=".into());
-    env.insert("GATE_COOKIE_SECRET".into(), "dev-cookie-secret-32-bytes-long-enough-for-testing-def456".into());
-    env.insert("GATE_INTERNAL_API_SECRET".into(), "dev-internal-api-secret-change-this".into());
+    env.insert(
+        "GATE_JWT_SECRET".into(),
+        "dev-jwt-secret-32-bytes-long-enough-for-testing-abc123".into(),
+    );
+    env.insert(
+        "GATE_ENC_KEYS".into(),
+        "wMGZCL5U/xmWwY9qyy2cu9PGJ1iokwGX4z16v9mhD8M=".into(),
+    );
+    env.insert(
+        "GATE_COOKIE_SECRET".into(),
+        "dev-cookie-secret-32-bytes-long-enough-for-testing-def456".into(),
+    );
+    env.insert(
+        "GATE_INTERNAL_API_SECRET".into(),
+        "dev-internal-api-secret-change-this".into(),
+    );
 
     env.insert("GATE_NATS_URL".into(), "nats://nats:4222".into());
     env.insert("GATE_NATS_JETSTREAM_DOMAIN".into(), "default".into());
-    env.insert("GATE_OTEL_ENDPOINT".into(), "http://otel-collector:4317".into());
+    env.insert(
+        "GATE_OTEL_ENDPOINT".into(),
+        "http://otel-collector:4317".into(),
+    );
 
     env.insert("GATE_PROXY_MODE".into(), "false".into());
     env.insert("GATE_TRUSTED_PROXIES".into(), "".into());
@@ -69,7 +87,10 @@ fn gate_service(_branch: &str, config: &Config) -> ServiceDefinition {
     env.insert("APP_ENV".into(), config.dev.app_env.clone());
 
     env.insert("RIG_INTERNAL_URL".into(), "http://rig:8082".into());
-    env.insert("BACKEND_API_KEY".into(), "gt_secret_dev_S3rv1c3R0l3K3yForAdm1nAccess".into());
+    env.insert(
+        "BACKEND_API_KEY".into(),
+        "gt_secret_dev_S3rv1c3R0l3K3yForAdm1nAccess".into(),
+    );
 
     env.insert("RUST_LOG".into(), config.dev.rust_log.clone());
 
@@ -80,7 +101,12 @@ fn gate_service(_branch: &str, config: &Config) -> ServiceDefinition {
         env,
         volumes: vec![],
         health_check: Some(HealthCheck {
-            test: vec!["CMD".into(), "curl".into(), "-f".into(), "http://localhost:8081/health".into()],
+            test: vec![
+                "CMD".into(),
+                "curl".into(),
+                "-f".into(),
+                "http://localhost:8081/health".into(),
+            ],
             interval: Duration::from_secs(30),
             timeout: Duration::from_secs(10),
             retries: 3,
@@ -111,17 +137,29 @@ fn rig_service(_branch: &str, config: &Config) -> ServiceDefinition {
     env.insert("RIG_OBSERVABILITY_METRICS_ENABLED".into(), "true".into());
     env.insert("RIG_OBSERVABILITY_TRACING_ENABLED".into(), "true".into());
 
-    env.insert("RIG_DATABASE_URL".into(), "postgresql://postgres:development@postgres-rig:5432/clikd_rig".into());
+    env.insert(
+        "RIG_DATABASE_URL".into(),
+        "postgresql://postgres:development@postgres-rig:5432/clikd_rig".into(),
+    );
     env.insert("KEYDB_URL".into(), "redis://keydb:6379".into());
     env.insert("SCYLLADB_HOSTS".into(), "scylladb:9042".into());
     env.insert("NATS_URL".into(), "nats://nats:4222".into());
     env.insert("MINIO_ENDPOINT".into(), "http://minio:9000".into());
     env.insert("MINIO_ROOT_USER".into(), "minioadmin".into());
     env.insert("MINIO_ROOT_PASSWORD".into(), "minioadmin".into());
-    env.insert("OTEL_EXPORTER_OTLP_ENDPOINT".into(), "http://otel-collector:4317".into());
+    env.insert(
+        "OTEL_EXPORTER_OTLP_ENDPOINT".into(),
+        "http://otel-collector:4317".into(),
+    );
 
-    env.insert("JWT_SECRET".into(), "dev-jwt-secret-32-bytes-long-enough-for-testing-abc123".into());
-    env.insert("BACKEND_API_KEY".into(), "gt_secret_dev_S3rv1c3R0l3K3yForAdm1nAccess".into());
+    env.insert(
+        "JWT_SECRET".into(),
+        "dev-jwt-secret-32-bytes-long-enough-for-testing-abc123".into(),
+    );
+    env.insert(
+        "BACKEND_API_KEY".into(),
+        "gt_secret_dev_S3rv1c3R0l3K3yForAdm1nAccess".into(),
+    );
 
     env.insert("APP_ENV".into(), config.dev.app_env.clone());
     env.insert("RUST_LOG".into(), config.dev.rust_log.clone());
@@ -133,13 +171,24 @@ fn rig_service(_branch: &str, config: &Config) -> ServiceDefinition {
         env,
         volumes: vec![],
         health_check: Some(HealthCheck {
-            test: vec!["CMD".into(), "curl".into(), "-f".into(), "http://localhost:8082/health".into()],
+            test: vec![
+                "CMD".into(),
+                "curl".into(),
+                "-f".into(),
+                "http://localhost:8082/health".into(),
+            ],
             interval: Duration::from_secs(30),
             timeout: Duration::from_secs(10),
             retries: 3,
             start_period: None,
         }),
-        depends_on: vec!["postgres-rig".into(), "keydb".into(), "scylladb".into(), "nats".into(), "minio".into()],
+        depends_on: vec![
+            "postgres-rig".into(),
+            "keydb".into(),
+            "scylladb".into(),
+            "nats".into(),
+            "minio".into(),
+        ],
         entrypoint: None,
         command: None,
         platform: None,
@@ -152,8 +201,14 @@ fn studio_service(_branch: &str, config: &Config) -> ServiceDefinition {
     env.insert("NODE_ENV".into(), "development".into());
     env.insert("APP_ENV".into(), config.dev.app_env.clone());
     env.insert("CLIKD_URL".into(), "http://apisix:9080".into());
-    env.insert("CLIKD_KEY".into(), "gt_secret_dev_S3rv1c3R0l3K3yForAdm1nAccess".into());
-    env.insert("NEXT_PUBLIC_STUDIO_URL".into(), "http://localhost:3001".into());
+    env.insert(
+        "CLIKD_KEY".into(),
+        "gt_secret_dev_S3rv1c3R0l3K3yForAdm1nAccess".into(),
+    );
+    env.insert(
+        "NEXT_PUBLIC_STUDIO_URL".into(),
+        "http://localhost:3001".into(),
+    );
     env.insert("NEXT_PUBLIC_APP_ENV".into(), config.dev.app_env.clone());
 
     ServiceDefinition {
@@ -163,7 +218,12 @@ fn studio_service(_branch: &str, config: &Config) -> ServiceDefinition {
         env,
         volumes: vec![],
         health_check: Some(HealthCheck {
-            test: vec!["CMD".into(), "curl".into(), "-f".into(), "http://localhost:3001/api/health".into()],
+            test: vec![
+                "CMD".into(),
+                "curl".into(),
+                "-f".into(),
+                "http://localhost:3001/api/health".into(),
+            ],
             interval: Duration::from_secs(30),
             timeout: Duration::from_secs(10),
             retries: 3,
@@ -265,7 +325,12 @@ fn scylladb_service(_branch: &str, config: &Config) -> ServiceDefinition {
         env: HashMap::new(),
         volumes: vec!["clikd_scylladb_data:/var/lib/scylla".into()],
         health_check: Some(HealthCheck {
-            test: vec!["CMD".into(), "cqlsh".into(), "-e".into(), "describe keyspaces".into()],
+            test: vec![
+                "CMD".into(),
+                "cqlsh".into(),
+                "-e".into(),
+                "describe keyspaces".into(),
+            ],
             interval: Duration::from_secs(30),
             timeout: Duration::from_secs(10),
             retries: 10,
@@ -299,7 +364,13 @@ fn minio_service(_branch: &str, config: &Config) -> ServiceDefinition {
         env,
         volumes: vec!["clikd_minio_data:/data".into()],
         health_check: Some(HealthCheck {
-            test: vec!["CMD".into(), "wget".into(), "--spider".into(), "-q".into(), "http://localhost:9000/minio/health/live".into()],
+            test: vec![
+                "CMD".into(),
+                "wget".into(),
+                "--spider".into(),
+                "-q".into(),
+                "http://localhost:9000/minio/health/live".into(),
+            ],
             interval: Duration::from_secs(30),
             timeout: Duration::from_secs(20),
             retries: 3,
@@ -307,7 +378,12 @@ fn minio_service(_branch: &str, config: &Config) -> ServiceDefinition {
         }),
         depends_on: vec![],
         entrypoint: None,
-        command: Some(vec!["server".into(), "/data".into(), "--console-address".into(), ":9001".into()]),
+        command: Some(vec![
+            "server".into(),
+            "/data".into(),
+            "--console-address".into(),
+            ":9001".into(),
+        ]),
         platform: None,
     }
 }
@@ -334,18 +410,19 @@ fn nats_service(_branch: &str, config: &Config) -> ServiceDefinition {
     }
 }
 
-
 fn render_apisix_routes() -> String {
     let mut env = Environment::new();
     env.add_template("routes", APISIX_ROUTES_TEMPLATE).unwrap();
 
     let template = env.get_template("routes").unwrap();
-    template.render(minijinja::context! {
-        gate_host => "gate",
-        gate_port => 8081,
-        rig_host => "rig",
-        rig_port => 8082,
-    }).unwrap()
+    template
+        .render(minijinja::context! {
+            gate_host => "gate",
+            gate_port => 8081,
+            rig_host => "rig",
+            rig_port => 8082,
+        })
+        .unwrap()
 }
 
 fn apisix_service(_branch: &str, config: &Config) -> ServiceDefinition {
@@ -362,7 +439,12 @@ fn apisix_service(_branch: &str, config: &Config) -> ServiceDefinition {
         env: HashMap::new(),
         volumes: vec![],
         health_check: Some(HealthCheck {
-            test: vec!["CMD".into(), "curl".into(), "-f".into(), "http://localhost:9080/".into()],
+            test: vec![
+                "CMD".into(),
+                "curl".into(),
+                "-f".into(),
+                "http://localhost:9080/".into(),
+            ],
             interval: Duration::from_secs(10),
             timeout: Duration::from_secs(5),
             retries: 3,

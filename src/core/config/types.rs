@@ -67,31 +67,36 @@ impl Default for ImagesConfig {
         let studio = if let Some(version) = version_mgr.load_image_version("studio") {
             format!("ghcr.io/clikd-inc/studio:{}", version)
         } else {
-            images::get_image("studio").unwrap_or_else(|| "ghcr.io/clikd-inc/studio:0.5.0".to_string())
+            images::get_image("studio")
+                .unwrap_or_else(|| "ghcr.io/clikd-inc/studio:0.5.0".to_string())
         };
 
         let postgres = if let Some(version) = version_mgr.load_image_version("postgres") {
             format!("ghcr.io/clikd-inc/postgres:{}", version)
         } else {
-            images::get_image("postgres").unwrap_or_else(|| "ghcr.io/clikd-inc/postgres:18.0".to_string())
+            images::get_image("postgres")
+                .unwrap_or_else(|| "ghcr.io/clikd-inc/postgres:18.0".to_string())
         };
 
         let keydb = if let Some(version) = version_mgr.load_image_version("keydb") {
             format!("ghcr.io/clikd-inc/keydb:{}", version)
         } else {
-            images::get_image("keydb").unwrap_or_else(|| "ghcr.io/clikd-inc/keydb:6.3.4".to_string())
+            images::get_image("keydb")
+                .unwrap_or_else(|| "ghcr.io/clikd-inc/keydb:6.3.4".to_string())
         };
 
         let scylladb = if let Some(version) = version_mgr.load_image_version("scylladb") {
             format!("ghcr.io/clikd-inc/scylladb:{}", version)
         } else {
-            images::get_image("scylladb").unwrap_or_else(|| "ghcr.io/clikd-inc/scylladb:2025.1.9".to_string())
+            images::get_image("scylladb")
+                .unwrap_or_else(|| "ghcr.io/clikd-inc/scylladb:2025.1.9".to_string())
         };
 
         let minio = if let Some(version) = version_mgr.load_image_version("minio") {
             format!("ghcr.io/clikd-inc/minio:{}", version)
         } else {
-            images::get_image("minio").unwrap_or_else(|| "ghcr.io/clikd-inc/minio:2025.10.15".to_string())
+            images::get_image("minio")
+                .unwrap_or_else(|| "ghcr.io/clikd-inc/minio:2025.10.15".to_string())
         };
 
         let nats = if let Some(version) = version_mgr.load_image_version("nats") {
@@ -103,7 +108,8 @@ impl Default for ImagesConfig {
         let apisix = if let Some(version) = version_mgr.load_image_version("apisix") {
             format!("ghcr.io/clikd-inc/apisix:{}", version)
         } else {
-            images::get_image("apisix").unwrap_or_else(|| "ghcr.io/clikd-inc/apisix:3.11.0".to_string())
+            images::get_image("apisix")
+                .unwrap_or_else(|| "ghcr.io/clikd-inc/apisix:3.11.0".to_string())
         };
 
         Self {
@@ -337,7 +343,8 @@ impl Config {
             }
         }
 
-        self.project_id = self.project_id
+        self.project_id = self
+            .project_id
             .chars()
             .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
             .take(40)

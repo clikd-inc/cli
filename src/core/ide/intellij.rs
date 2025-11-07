@@ -1,6 +1,6 @@
+use crate::error::Result;
 use std::fs;
 use std::path::Path;
-use crate::error::Result;
 
 const INTELLIJ_SETTINGS: &str = include_str!("../../../templates/intellij-clikd.xml");
 

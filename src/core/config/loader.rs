@@ -1,6 +1,6 @@
 use super::types::Config;
-use config::{Config as ConfigBuilder, Environment, File, FileFormat};
 use crate::error::{CliError, Result};
+use config::{Config as ConfigBuilder, Environment, File, FileFormat};
 use std::env;
 
 const DEFAULT_CONFIG: &str = include_str!("../../../config/default.toml");
@@ -8,8 +8,8 @@ const DEFAULT_CONFIG: &str = include_str!("../../../config/default.toml");
 pub fn load(env_name: Option<&str>) -> Result<Config> {
     let env_name = env_name.unwrap_or("development");
 
-    let mut builder = ConfigBuilder::builder()
-        .add_source(File::from_str(DEFAULT_CONFIG, FileFormat::Toml));
+    let mut builder =
+        ConfigBuilder::builder().add_source(File::from_str(DEFAULT_CONFIG, FileFormat::Toml));
 
     let project_root = env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let project_config = project_root.join("clikd/config.toml");

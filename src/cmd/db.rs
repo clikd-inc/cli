@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::config::Config;
 use crate::utils::theme::*;
+use anyhow::Result;
 
 pub async fn migrate(_config: Config) -> Result<()> {
     println!("{}", info_message("DB migrate - not yet implemented"));

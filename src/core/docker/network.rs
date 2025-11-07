@@ -1,7 +1,7 @@
 use crate::error::{CliError, Result};
-use bollard::Docker;
-use bollard::query_parameters::InspectNetworkOptionsBuilder;
 use bollard::models::NetworkCreateRequest;
+use bollard::query_parameters::InspectNetworkOptionsBuilder;
+use bollard::Docker;
 use tracing::{debug, info};
 
 pub async fn create_network(docker: &Docker, name: &str) -> Result<()> {
@@ -17,8 +17,9 @@ pub async fn create_network(docker: &Docker, name: &str) -> Result<()> {
             info!("Network '{}' already exists", name);
             return Ok(());
         }
-        Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {
-        }
+        Err(bollard::errors::Error::DockerResponseServerError {
+            status_code: 404, ..
+        }) => {}
         Err(e) => return Err(CliError::Docker(e)),
     }
 
@@ -28,7 +29,8 @@ pub async fn create_network(docker: &Docker, name: &str) -> Result<()> {
         ..Default::default()
     };
 
-    docker.create_network(options)
+    docker
+        .create_network(options)
         .await
         .map_err(CliError::Docker)?;
 

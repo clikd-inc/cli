@@ -1,7 +1,10 @@
-use anyhow::Result;
 use crate::cli::UpdateArgs;
-use crate::core::config::{images, version_manager::{VersionManager, compare_versions}};
+use crate::core::config::{
+    images,
+    version_manager::{compare_versions, VersionManager},
+};
 use crate::utils::theme::*;
+use anyhow::Result;
 use dialoguer::Confirm;
 
 pub async fn run(args: UpdateArgs) -> Result<()> {
@@ -34,7 +37,8 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
 
     println!("\n{}", step_message("Available updates:"));
     for diff in &outdated {
-        println!("  {} {} → {}",
+        println!(
+            "  {} {} → {}",
             highlight(&diff.service),
             dimmed(&diff.local_version),
             highlight(&diff.latest_version)
@@ -59,7 +63,10 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
 
     version_mgr.save_image_versions(&dockerfile_images)?;
 
-    println!("\n{}", success_message("Successfully updated all services!"));
+    println!(
+        "\n{}",
+        success_message("Successfully updated all services!")
+    );
     println!("\n{}", dimmed("Run `clikd start` to use the new versions."));
 
     Ok(())

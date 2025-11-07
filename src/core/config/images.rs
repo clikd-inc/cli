@@ -3,9 +3,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 
-static DOCKERFILE_IMAGES: Lazy<HashMap<String, String>> = Lazy::new(|| {
-    parse_dockerfile().unwrap_or_default()
-});
+static DOCKERFILE_IMAGES: Lazy<HashMap<String, String>> =
+    Lazy::new(|| parse_dockerfile().unwrap_or_default());
 
 pub fn get_image(service: &str) -> Option<String> {
     DOCKERFILE_IMAGES.get(service).cloned()
@@ -21,11 +20,13 @@ fn parse_dockerfile() -> Result<HashMap<String, String>> {
     let mut images = HashMap::new();
 
     for cap in FROM_PATTERN.captures_iter(dockerfile_content) {
-        let image = cap.get(1)
+        let image = cap
+            .get(1)
             .context("Missing image in FROM statement")?
             .as_str()
             .to_string();
-        let alias = cap.get(2)
+        let alias = cap
+            .get(2)
             .context("Missing alias in FROM statement")?
             .as_str()
             .to_string();

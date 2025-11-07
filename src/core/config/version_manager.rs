@@ -20,16 +20,14 @@ impl VersionManager {
     }
 
     pub fn ensure_temp_dir(&self) -> Result<()> {
-        fs::create_dir_all(&self.temp_dir)
-            .context("Failed to create .temp directory")?;
+        fs::create_dir_all(&self.temp_dir).context("Failed to create .temp directory")?;
         Ok(())
     }
 
     pub fn save_cli_version(&self) -> Result<()> {
         let version = env!("CARGO_PKG_VERSION");
         let path = self.temp_dir.join("cli-version");
-        fs::write(path, version)
-            .context("Failed to write CLI version")?;
+        fs::write(path, version).context("Failed to write CLI version")?;
         Ok(())
     }
 
@@ -53,7 +51,9 @@ impl VersionManager {
     }
 
     pub fn load_all_image_versions(&self) -> HashMap<String, String> {
-        let services = ["gate", "rig", "studio", "postgres", "keydb", "scylladb", "minio", "nats", "apisix"];
+        let services = [
+            "gate", "rig", "studio", "postgres", "keydb", "scylladb", "minio", "nats", "apisix",
+        ];
         let mut versions = HashMap::new();
 
         for service in services {
@@ -77,7 +77,10 @@ impl VersionManager {
     }
 }
 
-pub fn compare_versions(local: &HashMap<String, String>, dockerfile: &HashMap<String, String>) -> Vec<VersionDiff> {
+pub fn compare_versions(
+    local: &HashMap<String, String>,
+    dockerfile: &HashMap<String, String>,
+) -> Vec<VersionDiff> {
     let mut diffs = Vec::new();
 
     for (service, dockerfile_image) in dockerfile {
@@ -115,8 +118,14 @@ fn version_compare(v1: &str, v2: &str) -> i32 {
     let parts2: Vec<&str> = v2.split('.').collect();
 
     for i in 0..parts1.len().max(parts2.len()) {
-        let p1 = parts1.get(i).and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
-        let p2 = parts2.get(i).and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+        let p1 = parts1
+            .get(i)
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        let p2 = parts2
+            .get(i)
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
 
         if p1 < p2 {
             return -1;
