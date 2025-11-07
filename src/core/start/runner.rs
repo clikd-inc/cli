@@ -136,9 +136,9 @@ fn resolve_dependencies(services: &[services::ServiceDefinition]) -> Result<Vec<
         .map(|s| (s.name.clone(), s))
         .collect();
 
-    fn visit<'a>(
+    fn visit(
         name: &str,
-        service_map: &HashMap<String, &'a services::ServiceDefinition>,
+        service_map: &HashMap<String, &services::ServiceDefinition>,
         visited: &mut HashSet<String>,
         visiting: &mut HashSet<String>,
         ordered: &mut Vec<services::ServiceDefinition>,

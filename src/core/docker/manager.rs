@@ -16,7 +16,7 @@ pub struct DockerManager {
 impl DockerManager {
     pub fn new() -> Result<Self> {
         let client = Docker::connect_with_local_defaults()
-            .map_err(|e| CliError::Docker(e))?;
+            .map_err(CliError::Docker)?;
 
         Ok(Self { client })
     }
@@ -93,11 +93,10 @@ impl DockerManager {
                                 if shown_layers.get(&id) == Some(&false) {
                                     shown_layers.insert(id.clone(), true);
                                 }
-                            } else if status_lower.contains("pull complete") {
-                                if shown_layers.get(&id) == Some(&false) {
+                            } else if status_lower.contains("pull complete")
+                                && shown_layers.get(&id) == Some(&false) {
                                     shown_layers.insert(id.clone(), true);
                                 }
-                            }
                         }
                     } else if let Some(status) = info.status {
                         if status.starts_with("Status:") {
@@ -125,7 +124,7 @@ impl DockerManager {
         }
 
         let parts: Vec<&str> = image.split(':').collect();
-        let image_name = parts.get(0).unwrap_or(&image);
+        let image_name = parts.first().unwrap_or(&image);
         let tag = parts.get(1).unwrap_or(&"latest");
 
         if let Some(plat) = platform {
@@ -191,7 +190,7 @@ impl DockerManager {
         self.client
             .remove_container(name, Some(options))
             .await
-            .map_err(|e| CliError::Docker(e))?;
+            .map_err(CliError::Docker)?;
 
         info!("Removed container '{}'", name);
         Ok(())
@@ -257,8 +256,10 @@ impl DockerManager {
             ..Default::default()
         });
 
-        let mut endpoint = EndpointSettings::default();
-        endpoint.aliases = Some(vec![service.name.clone()]);
+        let endpoint = EndpointSettings {
+            aliases: Some(vec![service.name.clone()]),
+            ..Default::default()
+        };
 
         let mut endpoints_config: HashMap<String, EndpointSettings> = HashMap::new();
         endpoints_config.insert(network_name.to_string(), endpoint);
@@ -318,7 +319,7 @@ impl DockerManager {
         self.client
             .create_container(Some(create_options), config)
             .await
-            .map_err(|e| CliError::Docker(e))?;
+            .map_err(CliError::Docker)?;
 
         info!("Starting container '{}'", container_name);
 
@@ -327,7 +328,7 @@ impl DockerManager {
         self.client
             .start_container(&container_name, Some(start_options))
             .await
-            .map_err(|e| CliError::Docker(e))?;
+            .map_err(CliError::Docker)?;
 
         Ok(container_name)
     }
@@ -351,7 +352,7 @@ impl DockerManager {
         let containers = self.client
             .list_containers(Some(list_options))
             .await
-            .map_err(|e| CliError::Docker(e))?;
+            .map_err(CliError::Docker)?;
 
         let mut running_ids = Vec::new();
         for container in &containers {
@@ -370,7 +371,7 @@ impl DockerManager {
             self.client
                 .stop_container(&id, Some(stop_options))
                 .await
-                .map_err(|e| CliError::Docker(e))?;
+                .map_err(CliError::Docker)?;
         }
 
         let prune_filters = HashMap::from([(
@@ -385,7 +386,7 @@ impl DockerManager {
         let report = self.client
             .prune_containers(Some(prune_options))
             .await
-            .map_err(|e| CliError::Docker(e))?;
+            .map_err(CliError::Docker)?;
 
         info!("Pruned containers: {:?}", report.containers_deleted);
 
@@ -402,7 +403,7 @@ impl DockerManager {
             let volume_report = self.client
                 .prune_volumes(Some(volume_prune_options))
                 .await
-                .map_err(|e| CliError::Docker(e))?;
+                .map_err(CliError::Docker)?;
 
             info!("Pruned volumes: {:?}", volume_report.volumes_deleted);
         }
@@ -419,7 +420,7 @@ impl DockerManager {
         let network_report = self.client
             .prune_networks(Some(network_prune_options))
             .await
-            .map_err(|e| CliError::Docker(e))?;
+            .map_err(CliError::Docker)?;
 
         info!("Pruned networks: {:?}", network_report.networks_deleted);
 

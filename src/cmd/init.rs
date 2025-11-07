@@ -81,7 +81,7 @@ fn sanitize_project_id(id: &str) -> String {
         .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
         .take(40)
         .collect::<String>()
-        .trim_start_matches(|c| c == '_' || c == '-' || c == '.')
+        .trim_start_matches(['_', '-', '.'])
         .to_string()
 }
 
@@ -90,7 +90,7 @@ fn pin_image_versions(project_root: &Path) -> Result<()> {
     let all_images = images::get_all_images();
 
     version_mgr.save_image_versions(&all_images)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     Ok(())
 }

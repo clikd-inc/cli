@@ -22,7 +22,7 @@ pub async fn wait_healthy(
             let inspect = docker
                 .inspect_container(container_name, Some(options))
                 .await
-                .map_err(|e| CliError::Docker(e))?;
+                .map_err(CliError::Docker)?;
 
             if let Some(state) = inspect.state {
                 if let Some(health) = state.health {

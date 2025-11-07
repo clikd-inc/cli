@@ -28,9 +28,8 @@ fn check_version_diff() {
         let outdated: Vec<_> = diffs.iter().filter(|d| d.is_outdated()).collect();
 
         if !outdated.is_empty() {
-            eprintln!("\n{} {}\n",
-                warning_message("WARNING:"),
-                "You are running different service versions locally than the latest CLI:"
+            eprintln!("\n{} You are running different service versions locally than the latest CLI:\n",
+                warning_message("WARNING:")
             );
 
             for diff in &outdated {

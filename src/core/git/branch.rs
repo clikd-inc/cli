@@ -4,7 +4,7 @@ use std::env;
 use std::fs;
 
 pub fn init_current_branch() -> Result<()> {
-    let cwd = env::current_dir().map_err(|e| CliError::Io(e))?;
+    let cwd = env::current_dir().map_err(CliError::Io)?;
     let branch_file = cwd.join("clikd/.branches/_current_branch");
 
     if branch_file.exists() {
@@ -12,10 +12,10 @@ pub fn init_current_branch() -> Result<()> {
     }
 
     if let Some(parent) = branch_file.parent() {
-        fs::create_dir_all(parent).map_err(|e| CliError::Io(e))?;
+        fs::create_dir_all(parent).map_err(CliError::Io)?;
     }
 
-    fs::write(&branch_file, "main").map_err(|e| CliError::Io(e))?;
+    fs::write(&branch_file, "main").map_err(CliError::Io)?;
 
     Ok(())
 }
@@ -24,7 +24,7 @@ pub fn current() -> Result<String> {
     let repo = find_repository()?;
 
     let head = repo.head()
-        .map_err(|e| CliError::Git(e))?;
+        .map_err(CliError::Git)?;
 
     if head.is_branch() {
         let branch_name = head.shorthand()
@@ -37,19 +37,17 @@ pub fn current() -> Result<String> {
 
 pub fn sanitize(branch: &str) -> String {
     branch
-        .replace('/', "_")
-        .replace('-', "_")
-        .replace('.', "_")
+        .replace(['/', '-', '.'], "_")
         .to_lowercase()
 }
 
 fn find_repository() -> Result<Repository> {
     let current_dir = std::env::current_dir()
-        .map_err(|e| CliError::Io(e))?;
+        .map_err(CliError::Io)?;
 
     Repository::discover(&current_dir)
         .or_else(|_| Repository::open(&current_dir))
-        .map_err(|e| CliError::Git(e))
+        .map_err(CliError::Git)
 }
 
 #[cfg(test)]

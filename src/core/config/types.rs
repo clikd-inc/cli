@@ -342,7 +342,7 @@ impl Config {
             .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
             .take(40)
             .collect::<String>()
-            .trim_start_matches(|c| c == '_' || c == '-' || c == '.')
+            .trim_start_matches(['_', '-', '.'])
             .to_string();
     }
 }

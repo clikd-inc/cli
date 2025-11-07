@@ -30,7 +30,7 @@ pub async fn create_network(docker: &Docker, name: &str) -> Result<()> {
 
     docker.create_network(options)
         .await
-        .map_err(|e| CliError::Docker(e))?;
+        .map_err(CliError::Docker)?;
 
     info!("Created network '{}'", name);
     Ok(())

@@ -43,6 +43,12 @@ pub struct DockerProgressBar {
     progress: RichProgress,
 }
 
+impl Default for DockerProgressBar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DockerProgressBar {
     pub fn new() -> Self {
         use std::io::{stderr, IsTerminal};
