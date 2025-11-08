@@ -1,8 +1,8 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
-#[command(name = "clikd", version, about = "Development CLI for Clikd platform")]
-#[command(propagate_version = true)]
+#[command(name = "clikd", about = "Development CLI for Clikd platform")]
+#[command(disable_version_flag = true)]
 pub struct Cli {
     #[arg(short, long, action = clap::ArgAction::Count, global = true)]
     pub verbose: u8,
@@ -13,8 +13,11 @@ pub struct Cli {
     #[arg(short, long, global = true, env = "CLIKD_ENV")]
     pub env: Option<String>,
 
+    #[arg(short = 'V', long)]
+    pub version: bool,
+
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]

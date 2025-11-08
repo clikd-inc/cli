@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2025-11-08
+
+### Added
+
+- **CLI Self-Update Notifications**
+  - Automatic update check after every command execution
+  - Notifies users when newer CLI version is available on GitHub
+  - `--version` flag always fetches latest release information
+  - Regular commands use 10-hour cache to minimize API calls
+  - Non-blocking notifications with upgrade instructions
+
+### Changed
+
+- Custom `--version` implementation (replaces clap's default handler)
+  - Provides consistent update checking behavior
+  - Ensures notifications appear regardless of command success/failure
+
 ## [0.2.5] - 2025-11-08
 
 ### Changed

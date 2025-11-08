@@ -11,10 +11,10 @@ struct GithubRelease {
     tag_name: String,
 }
 
-pub fn check_for_updates(current_version: &str) {
+pub fn check_for_updates(current_version: &str, force_fetch: bool) {
     let cache_path = get_cache_path();
 
-    if let Some(latest_version) = get_latest_version(&cache_path) {
+    if let Some(latest_version) = get_latest_version(&cache_path, force_fetch) {
         if is_newer_version(&latest_version, current_version) {
             print_update_message(&latest_version, current_version);
         }
@@ -34,7 +34,11 @@ fn get_cache_path() -> PathBuf {
     path
 }
 
-fn should_fetch_latest(cache_path: &PathBuf) -> bool {
+fn should_fetch_latest(cache_path: &PathBuf, force_fetch: bool) -> bool {
+    if force_fetch {
+        return true;
+    }
+
     if let Ok(metadata) = fs::metadata(cache_path) {
         if let Ok(modified) = metadata.modified() {
             if let Ok(elapsed) = SystemTime::now().duration_since(modified) {
@@ -45,8 +49,8 @@ fn should_fetch_latest(cache_path: &PathBuf) -> bool {
     true
 }
 
-fn get_latest_version(cache_path: &PathBuf) -> Option<String> {
-    if should_fetch_latest(cache_path) {
+fn get_latest_version(cache_path: &PathBuf, force_fetch: bool) -> Option<String> {
+    if should_fetch_latest(cache_path, force_fetch) {
         if let Some(version) = fetch_latest_from_github() {
             let _ = fs::write(cache_path, &version);
             return Some(version);
