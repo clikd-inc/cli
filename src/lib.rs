@@ -65,13 +65,15 @@ pub mod utils {
     pub mod retry;
     pub mod terminal;
     pub mod theme;
+    pub mod version_check;
 }
 
 use anyhow::Result;
 use cli::{Cli, Commands};
 
 pub async fn execute(cli: Cli) -> Result<()> {
-    match cli.command {
+    let command = cli.command.expect("Command must be present");
+    match command {
         Commands::Login { no_browser } => {
             let config = config::load(cli.env.as_deref())?;
             cmd::auth::login(no_browser, &config).await
