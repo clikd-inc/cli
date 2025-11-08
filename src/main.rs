@@ -13,7 +13,11 @@ async fn main() -> Result<()> {
 
     clikd::core::root::pre_execute();
 
-    clikd::execute(cli).await
+    let result = clikd::execute(cli).await;
+
+    clikd::utils::version_check::check_for_updates(env!("CARGO_PKG_VERSION"));
+
+    result
 }
 
 fn init_logging(verbosity: u8) {

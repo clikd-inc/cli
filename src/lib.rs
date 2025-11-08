@@ -65,6 +65,7 @@ pub mod utils {
     pub mod retry;
     pub mod terminal;
     pub mod theme;
+    pub mod version_check;
 }
 
 use anyhow::Result;
