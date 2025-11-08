@@ -26,7 +26,8 @@ async fn main() -> Result<()> {
             env: cli.env,
             version: false,
             command: Some(command),
-        }).await;
+        })
+        .await;
 
         let code = if res.is_err() { 1 } else { 0 };
         (res, code)
