@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/clikd-inc/cli/compare/v0.2.7...v0.3.0) (2025-11-08)
+
+
+### Features
+
+* **ci:** add CHANGELOG.md generation for releases ([e29a715](https://github.com/clikd-inc/cli/commit/e29a7152ff130e3dee868c1e50488f1b9400c04e))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
