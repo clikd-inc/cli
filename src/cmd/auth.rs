@@ -4,7 +4,7 @@ use crate::utils::theme::*;
 use anyhow::Result;
 
 pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
-    let device_response = github::request_device_code(&config.github.oauth_client_id).await?;
+    let device_response = github::request_device_code(&config.github_oauth_client_id).await?;
 
     println!("{}", header("GitHub Authentication"));
 
@@ -31,7 +31,7 @@ pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
     let mut sp = create_spinner("Waiting for authorization...");
 
     let access_token = match github::poll_for_token(
-        &config.github.oauth_client_id,
+        &config.github_oauth_client_id,
         &device_response.device_code,
         device_response.interval,
         device_response.expires_in,
@@ -52,7 +52,7 @@ pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
     let username = github::get_username(&access_token).await?;
 
     println!("{}", step_message("Verifying organization membership..."));
-    org_check::verify_membership(&access_token, &config.github.org_name).await?;
+    org_check::verify_membership(&access_token, &config.github_org_name).await?;
 
     token::save_token(&access_token)?;
 
@@ -67,7 +67,7 @@ pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
         "{}",
         success_message(&format!(
             "Organization: {}",
-            highlight(&config.github.org_name)
+            highlight(&config.github_org_name)
         ))
     );
 
