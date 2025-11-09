@@ -8,6 +8,12 @@ pub async fn run(args: StopArgs, config: Config) -> Result<()> {
 
     let docker = DockerManager::new()?;
 
+    if !docker.is_docker_running().await {
+        let socket = std::env::var("DOCKER_HOST")
+            .unwrap_or_else(|_| "unix:///var/run/docker.sock".to_string());
+        return Err(crate::error::CliError::DockerNotRunning(socket).into());
+    }
+
     let mut sp = create_spinner("Stopping containers...");
 
     let keep_volumes = !args.purge;

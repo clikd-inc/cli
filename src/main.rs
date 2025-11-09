@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use owo_colors::OwoColorize;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -17,7 +18,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let (result, exit_code) = if let Some(command) = cli.command {
+    if let Some(command) = cli.command {
         clikd::core::root::pre_execute();
 
         let res = clikd::execute(clikd::cli::Cli {
@@ -29,20 +30,41 @@ async fn main() -> Result<()> {
         })
         .await;
 
-        let code = if res.is_err() { 1 } else { 0 };
-        (res, code)
+        clikd::utils::version_check::check_for_updates(env!("CARGO_PKG_VERSION"), false);
+
+        if let Err(e) = res {
+            print_error(&e);
+            std::process::exit(1);
+        }
     } else {
         eprintln!("Error: No command provided. Use --help for usage information.");
-        (Ok(()), 1)
-    };
-
-    clikd::utils::version_check::check_for_updates(env!("CARGO_PKG_VERSION"), false);
-
-    if exit_code != 0 {
-        std::process::exit(exit_code);
+        std::process::exit(1);
     }
 
-    result
+    Ok(())
+}
+
+fn print_error(error: &anyhow::Error) {
+    if let Some(cli_err) = error.downcast_ref::<clikd::error::CliError>() {
+        match cli_err {
+            clikd::error::CliError::DockerNotRunning(socket) => {
+                eprintln!(
+                    "{} Cannot connect to the Docker daemon at {}. Is the docker daemon running?",
+                    "failed to connect to docker:".yellow(),
+                    socket.bright_cyan()
+                );
+                eprintln!(
+                    "Try running {} or install Docker Desktop: {}",
+                    "orbstack".bright_green(),
+                    "https://docs.docker.com/desktop".bright_blue()
+                );
+                return;
+            }
+            _ => {}
+        }
+    }
+
+    eprintln!("{} {}", "Error:".red().bold(), error);
 }
 
 fn init_logging(verbosity: u8) {
