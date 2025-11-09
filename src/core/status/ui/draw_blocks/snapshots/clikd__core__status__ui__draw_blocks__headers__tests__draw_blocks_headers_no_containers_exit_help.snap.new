@@ -1,0 +1,6 @@
+---
+source: src/core/status/ui/draw_blocks/headers.rs
+assertion_line: 289
+expression: setup.terminal.backend()
+---
+"                                                                                                                          ( h ) exit help   "

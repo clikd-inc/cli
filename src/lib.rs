@@ -49,9 +49,7 @@ pub mod core {
         pub mod runner;
     }
 
-    pub mod status {
-        pub mod reporter;
-    }
+    pub mod status;
 
     pub mod config {
         pub mod images;
@@ -93,7 +91,7 @@ pub async fn execute(cli: Cli) -> Result<()> {
         }
         Commands::Status(args) => {
             let config = config::load(cli.env.as_deref())?;
-            cmd::status::run(args, config).await
+            cmd::status::run(args, config).await.map_err(Into::into)
         }
         Commands::Logs(args) => {
             let config = config::load(cli.env.as_deref())?;

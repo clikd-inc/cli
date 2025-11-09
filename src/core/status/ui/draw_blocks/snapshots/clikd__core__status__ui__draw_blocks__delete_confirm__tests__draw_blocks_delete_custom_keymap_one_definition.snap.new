@@ -1,0 +1,15 @@
+---
+source: src/core/status/ui/draw_blocks/delete_confirm.rs
+assertion_line: 285
+expression: setup.terminal.backend()
+---
+"                                                                                  "
+"        ╭──────────────────────── Confirm Delete ────────────────────────╮        "
+"        │                                                                │        "
+"        │     Are you sure you want to delete container: container_1     │        "
+"        │                                                                │        "
+"        │      ╭─────────────────────╮      ╭─────────────────────╮      │        "
+"        │      │     ( End ) no      │      │     ( F10 ) yes     │      │        "
+"        │      ╰─────────────────────╯      ╰─────────────────────╯      │        "
+"        ╰────────────────────────────────────────────────────────────────╯        "
+"                                                                                  "

@@ -1,0 +1,11 @@
+---
+source: src/core/status/ui/draw_blocks/commands.rs
+assertion_line: 192
+expression: setup.terminal.backend()
+---
+"╭──────────╮"
+"│  resume  │"
+"│▶ stop    │"
+"│  delete  │"
+"│          │"
+"╰──────────╯"

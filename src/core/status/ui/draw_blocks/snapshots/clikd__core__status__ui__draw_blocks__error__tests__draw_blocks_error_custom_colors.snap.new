@@ -1,0 +1,16 @@
+---
+source: src/core/status/ui/draw_blocks/error.rs
+assertion_line: 190
+expression: setup.terminal.backend()
+---
+"                                       "
+" ╭────────────── Error ──────────────╮ "
+" │                                   │ "
+" │   Unable to exec into container   │ "
+" │                                   │ "
+" │         ( c ) clear error         │ "
+" │                                   │ "
+" │         ( q ) quit clikd          │ "
+" │                                   │ "
+" ╰───────────────────────────────────╯ "
+"                                       "
