@@ -501,6 +501,12 @@ pub struct AppColors {
     pub popup_info: PopupInfo,
 }
 
+impl Default for AppColors {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppColors {
     pub const fn new() -> Self {
         Self {

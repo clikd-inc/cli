@@ -2,17 +2,17 @@ use std::{rc::Rc, sync::Arc};
 
 use parking_lot::Mutex;
 use ratatui::{
-    Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Paragraph},
+    Frame,
 };
 
 use super::{CONSTRAINT_100, MARGIN};
 use crate::core::status::{
     app_data::{Header, SortedOrder},
     config::{AppColors, Keymap},
-    ui::{FrameData, GuiState, Status, gui_state::Region},
+    ui::{gui_state::Region, FrameData, GuiState, Status},
 };
 
 /// Generate a header paragraph with it's width
@@ -228,8 +228,8 @@ mod tests {
         app_data::{Header, SortedOrder, StatefulList},
         config::{AppColors, Keymap},
         ui::{
+            draw_blocks::tests::{get_result, test_setup, TuiTestSetup},
             FrameData, Status,
-            draw_blocks::tests::{TuiTestSetup, get_result, test_setup},
         },
     };
 

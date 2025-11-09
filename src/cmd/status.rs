@@ -17,16 +17,16 @@ pub async fn run(_args: StatusArgs, _config: Config) -> Result<()> {
         Ok(docker) => docker,
         Err(e) => {
             if let Some(socket_path) = extract_docker_socket_error(&e) {
-                return Err(crate::error::CliError::DockerNotRunning(socket_path).into());
+                return Err(crate::error::CliError::DockerNotRunning(socket_path));
             }
-            return Err(e.into());
+            return Err(e);
         }
     };
 
     if !docker_manager.is_docker_running().await {
         let socket = std::env::var("DOCKER_HOST")
             .unwrap_or_else(|_| "unix:///var/run/docker.sock".to_string());
-        return Err(crate::error::CliError::DockerNotRunning(socket).into());
+        return Err(crate::error::CliError::DockerNotRunning(socket));
     }
 
     let docker = docker_manager.client().clone();

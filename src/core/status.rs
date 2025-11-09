@@ -18,8 +18,6 @@ pub const ENV_VALUE: &str = "container";
 
 #[cfg(test)]
 pub mod tests {
-    use std::{str::FromStr, sync::Arc};
-    use bollard::service::{ContainerSummary, Port};
     use crate::core::status::{
         app_data::{
             AppData, ContainerId, ContainerItem, ContainerPorts, ContainerStatus, Filter,
@@ -28,6 +26,8 @@ pub mod tests {
         config::{AppColors, Config, Keymap},
         ui::Rerender,
     };
+    use bollard::service::{ContainerSummary, Port};
+    use std::{str::FromStr, sync::Arc};
 
     pub fn gen_config() -> Config {
         Config {

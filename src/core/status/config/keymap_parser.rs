@@ -106,6 +106,12 @@ config_struct!(
     toggle_mouse_capture
 );
 
+impl Default for Keymap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Keymap {
     pub const fn new() -> Self {
         Self {

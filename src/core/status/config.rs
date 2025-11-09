@@ -86,6 +86,12 @@ impl From<ConfigFile> for Config {
     }
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Config {
     /// A basic timestampt format parser, will only take 32 chars, and checks if the parsed timestamp isn't identical to the given formatter
     fn parse_timestamp_format(input: Option<String>) -> String {

@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 use ratatui::{
-    Frame,
     layout::{Alignment, Rect},
     style::{Modifier, Style, Stylize},
     widgets::{List, Paragraph},
+    Frame,
 };
 
 use crate::core::status::{
@@ -14,7 +14,7 @@ use crate::core::status::{
     ui::{FrameData, GuiState, SelectablePanel, Status},
 };
 
-use super::{RIGHT_ARROW, generate_block};
+use super::{generate_block, RIGHT_ARROW};
 
 /// Draw the logs panel
 pub fn draw(
@@ -84,8 +84,8 @@ mod tests {
         app_data::{ContainerImage, ContainerName, ScrollDirection},
         config::AppColors,
         ui::{
+            draw_blocks::tests::{get_result, insert_logs, test_setup, BORDER_CHARS},
             FrameData, Status,
-            draw_blocks::tests::{BORDER_CHARS, get_result, insert_logs, test_setup},
         },
     };
 

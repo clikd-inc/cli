@@ -45,23 +45,20 @@ async fn main() -> Result<()> {
 }
 
 fn print_error(error: &anyhow::Error) {
-    if let Some(cli_err) = error.downcast_ref::<clikd::error::CliError>() {
-        match cli_err {
-            clikd::error::CliError::DockerNotRunning(socket) => {
-                eprintln!(
-                    "{} Cannot connect to the Docker daemon at {}. Is the docker daemon running?",
-                    "failed to connect to docker:".yellow(),
-                    socket.bright_cyan()
-                );
-                eprintln!(
-                    "Try running {} or install Docker Desktop: {}",
-                    "orbstack".bright_green(),
-                    "https://docs.docker.com/desktop".bright_blue()
-                );
-                return;
-            }
-            _ => {}
-        }
+    if let Some(clikd::error::CliError::DockerNotRunning(socket)) =
+        error.downcast_ref::<clikd::error::CliError>()
+    {
+        eprintln!(
+            "{} Cannot connect to the Docker daemon at {}. Is the docker daemon running?",
+            "failed to connect to docker:".yellow(),
+            socket.bright_cyan()
+        );
+        eprintln!(
+            "Try running {} or install Docker Desktop: {}",
+            "orbstack".bright_green(),
+            "https://docs.docker.com/desktop".bright_blue()
+        );
+        return;
     }
 
     eprintln!("{} {}", "Error:".red().bold(), error);

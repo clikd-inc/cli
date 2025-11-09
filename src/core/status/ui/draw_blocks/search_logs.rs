@@ -1,10 +1,10 @@
 use crossterm::event::KeyCode;
 use ratatui::{
-    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
+    Frame,
 };
 
 use crate::core::status::{
@@ -127,8 +127,8 @@ mod tests {
     use crate::core::status::{
         config::{AppColors, Keymap},
         ui::{
-            FrameData,
             draw_blocks::tests::{get_result, insert_logs, test_setup},
+            FrameData,
         },
     };
 

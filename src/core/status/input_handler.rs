@@ -1,7 +1,7 @@
 use std::{
     fs::OpenOptions,
     io::{BufWriter, Write},
-    sync::{Arc, atomic::AtomicBool},
+    sync::{atomic::AtomicBool, Arc},
     time::SystemTime,
 };
 
@@ -23,7 +23,7 @@ use crate::core::status::{
     app_error::AppError,
     config,
     docker_data::DockerMessage,
-    exec::{ExecMode, tty_readable},
+    exec::{tty_readable, ExecMode},
     ui::{DeleteButton, GuiState, SelectablePanel, Status, Ui},
 };
 pub use message::InputMessages;

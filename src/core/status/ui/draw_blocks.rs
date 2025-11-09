@@ -9,7 +9,7 @@ use ratatui::{
 
 use crate::core::status::config::AppColors;
 
-use super::{FrameData, GuiState, SelectablePanel, Status, gui_state::Region};
+use super::{gui_state::Region, FrameData, GuiState, SelectablePanel, Status};
 
 pub mod charts;
 pub mod commands;
@@ -128,13 +128,13 @@ pub mod tests {
 
     use insta::assert_snapshot;
     use parking_lot::Mutex;
-    use ratatui::{Terminal, backend::TestBackend, layout::Rect, style::Color};
+    use ratatui::{backend::TestBackend, layout::Rect, style::Color, Terminal};
 
     use crate::core::status::{
         app_data::{AppData, ContainerId, ContainerImage, ContainerName, ContainerPorts},
         app_error::AppError,
         tests::{gen_appdata, gen_containers},
-        ui::{GuiState, Rerender, Status, draw_frame},
+        ui::{draw_frame, GuiState, Rerender, Status},
     };
 
     use super::FrameData;

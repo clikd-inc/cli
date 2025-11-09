@@ -3,11 +3,11 @@ use std::sync::Arc;
 use super::MARGIN;
 use parking_lot::Mutex;
 use ratatui::{
-    Frame,
     layout::{Alignment, Rect},
     style::{Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph},
+    Frame,
 };
 
 use crate::core::status::{
@@ -16,7 +16,7 @@ use crate::core::status::{
     ui::{FrameData, GuiState, SelectablePanel},
 };
 
-use super::{CIRCLE, generate_block};
+use super::{generate_block, CIRCLE};
 
 /// Format the container data to display nicely on the screen
 fn format_containers<'a>(colors: AppColors, i: &ContainerItem, widths: &Columns) -> Line<'a> {
@@ -143,11 +143,11 @@ mod tests {
         app_data::{ContainerImage, ContainerName, ContainerStatus, State, StatefulList},
         config::AppColors,
         ui::{
-            FrameData,
             draw_blocks::tests::{
-                BORDER_CHARS, COLOR_ORANGE, COLOR_RX, COLOR_TX, TuiTestSetup, get_result,
-                test_setup,
+                get_result, test_setup, TuiTestSetup, BORDER_CHARS, COLOR_ORANGE, COLOR_RX,
+                COLOR_TX,
             },
+            FrameData,
         },
     };
 

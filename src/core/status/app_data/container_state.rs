@@ -6,7 +6,7 @@ use std::{
 };
 
 use bollard::service::Port;
-use jiff::{Timestamp, tz::TimeZone};
+use jiff::{tz::TimeZone, Timestamp};
 use ratatui::{
     layout::Size,
     style::Color,
@@ -192,24 +192,25 @@ impl<T> StatefulList<T> {
 
     fn next(&mut self) {
         if !self.items.is_empty() {
-            self.state.select(Some(
-                self.state.selected().map_or(
-                    0,
-                    |i| {
-                        if i < self.items.len() - 1 { i + 1 } else { i }
-                    },
-                ),
-            ));
+            self.state.select(Some(self.state.selected().map_or(0, |i| {
+                if i < self.items.len() - 1 {
+                    i + 1
+                } else {
+                    i
+                }
+            })));
         }
     }
 
     fn previous(&mut self) {
         if !self.items.is_empty() {
-            self.state.select(Some(
-                self.state
-                    .selected()
-                    .map_or(0, |i| if i == 0 { 0 } else { i - 1 }),
-            ));
+            self.state.select(Some(self.state.selected().map_or(0, |i| {
+                if i == 0 {
+                    0
+                } else {
+                    i - 1
+                }
+            })));
         }
     }
 
@@ -922,10 +923,11 @@ impl Logs {
     /// Add a padding so one char will always be visilbe?
     pub fn forward(&mut self, width: u16) {
         let offset = usize::from(self.offset);
-        if self.horizontal_scroll_able(width) {
-            if self.adjusted_max_width > 0 && offset < self.adjusted_max_width {
-                self.offset = self.offset.saturating_add(1);
-            }
+        if self.horizontal_scroll_able(width)
+            && self.adjusted_max_width > 0
+            && offset < self.adjusted_max_width
+        {
+            self.offset = self.offset.saturating_add(1);
         }
     }
 
@@ -957,6 +959,11 @@ impl Logs {
     /// Get total number of log lines
     pub const fn len(&self) -> usize {
         self.lines.items.len()
+    }
+
+    /// Check if there are no log lines
+    pub const fn is_empty(&self) -> bool {
+        self.lines.items.is_empty()
     }
 
     pub const fn state(&mut self) -> &mut ListState {
@@ -1057,7 +1064,7 @@ impl ContainerItem {
         self.cpu_stats
             .iter()
             .enumerate()
-            .map(|i| (i.0 as f64, i.1.0))
+            .map(|i| (i.0 as f64, i.1 .0))
             .collect::<Vec<_>>()
     }
 
@@ -1067,7 +1074,7 @@ impl ContainerItem {
         self.mem_stats
             .iter()
             .enumerate()
-            .map(|i| (i.0 as f64, i.1.0 as f64))
+            .map(|i| (i.0 as f64, i.1 .0 as f64))
             .collect::<Vec<_>>()
     }
 
@@ -1100,6 +1107,12 @@ pub struct Columns {
     pub image: (Header, u8),
     pub net_rx: (Header, u8),
     pub net_tx: (Header, u8),
+}
+
+impl Default for Columns {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Columns {

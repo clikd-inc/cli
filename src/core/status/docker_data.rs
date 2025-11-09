@@ -1,17 +1,17 @@
 use bollard::{
-    Docker,
     query_parameters::{
         ListContainersOptions, LogsOptions, RemoveContainerOptions, RestartContainerOptions,
         StartContainerOptions, StatsOptions, StopContainerOptions,
     },
     secret::ContainerStatsResponse,
     service::ContainerSummary,
+    Docker,
 };
 use futures_util::StreamExt;
 use parking_lot::Mutex;
 use std::{
     collections::HashMap,
-    sync::{Arc, atomic::AtomicUsize},
+    sync::{atomic::AtomicUsize, Arc},
 };
 use tokio::{
     sync::mpsc::{Receiver, Sender},
@@ -20,11 +20,11 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::core::status::{
-    ENTRY_POINT,
     app_data::{AppData, ContainerId, DockerCommand, State},
     app_error::AppError,
     config::Config,
     ui::{GuiState, Status},
+    ENTRY_POINT,
 };
 mod message;
 pub use message::DockerMessage;
@@ -220,7 +220,10 @@ impl DockerData {
     /// Only shows containers with the com.clikd.cli.project label
     async fn update_all_containers(&self) {
         let mut filters = std::collections::HashMap::new();
-        filters.insert("label".to_string(), vec!["com.clikd.cli.project".to_string()]);
+        filters.insert(
+            "label".to_string(),
+            vec!["com.clikd.cli.project".to_string()],
+        );
 
         let containers = self
             .docker

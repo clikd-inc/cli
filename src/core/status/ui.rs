@@ -2,18 +2,18 @@ use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, Event},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use parking_lot::Mutex;
 use ratatui::{
-    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Position},
+    Frame, Terminal,
 };
 use std::{
     collections::HashSet,
     io::{self, Stdout, Write},
-    sync::{Arc, atomic::Ordering},
+    sync::{atomic::Ordering, Arc},
     time::Duration,
 };
 use std::{sync::atomic::AtomicBool, time::Instant};

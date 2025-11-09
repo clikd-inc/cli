@@ -11,10 +11,10 @@ use std::{
 mod container_state;
 
 use crate::core::status::{
-    ENTRY_POINT,
     app_error::AppError,
     config::Config,
-    ui::{GuiState, Rerender, Status, log_sanitizer},
+    ui::{log_sanitizer, GuiState, Rerender, Status},
+    ENTRY_POINT,
 };
 pub use container_state::*;
 
@@ -105,6 +105,12 @@ pub struct Filter {
     pub term: Option<String>,
     pub by: FilterBy,
 }
+impl Default for Filter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Filter {
     pub fn new() -> Self {
         Self {

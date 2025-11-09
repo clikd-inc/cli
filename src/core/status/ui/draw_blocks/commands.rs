@@ -8,11 +8,11 @@ use crate::core::status::{
 };
 use parking_lot::Mutex;
 use ratatui::{
-    Frame,
     layout::{Alignment, Rect},
     style::{Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph},
+    Frame,
 };
 
 use super::generate_block;
@@ -63,8 +63,8 @@ mod tests {
         config::AppColors,
         tests::gen_container_summary,
         ui::{
+            draw_blocks::tests::{get_result, test_setup, BORDER_CHARS},
             FrameData,
-            draw_blocks::tests::{BORDER_CHARS, get_result, test_setup},
         },
     };
 

@@ -1,15 +1,15 @@
 use std::fmt::Display;
 
 use ratatui::{
-    Frame,
     layout::{Alignment, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     symbols,
     text::Span,
     widgets::{Axis, Block, BorderType, Borders, Chart, Dataset, GraphType},
+    Frame,
 };
 
-use super::{CONSTRAINT_50_50, FrameData};
+use super::{FrameData, CONSTRAINT_50_50};
 use crate::core::status::{
     app_data::{ByteStats, CpuStats, State, Stats},
     config::AppColors,
@@ -124,20 +124,16 @@ pub fn draw(area: Rect, colors: AppColors, f: &mut Frame, fd: &FrameData) {
             .constraints(CONSTRAINT_50_50)
             .split(area);
 
-        let cpu_dataset = vec![
-            Dataset::default()
-                .marker(symbols::Marker::Dot)
-                .style(Style::default().fg(colors.chart_cpu.points))
-                .graph_type(GraphType::Line)
-                .data(&cpu.0),
-        ];
-        let mem_dataset = vec![
-            Dataset::default()
-                .marker(symbols::Marker::Dot)
-                .style(Style::default().fg(colors.chart_memory.points))
-                .graph_type(GraphType::Line)
-                .data(&mem.0),
-        ];
+        let cpu_dataset = vec![Dataset::default()
+            .marker(symbols::Marker::Dot)
+            .style(Style::default().fg(colors.chart_cpu.points))
+            .graph_type(GraphType::Line)
+            .data(&cpu.0)];
+        let mem_dataset = vec![Dataset::default()
+            .marker(symbols::Marker::Dot)
+            .style(Style::default().fg(colors.chart_memory.points))
+            .graph_type(GraphType::Line)
+            .data(&mem.0)];
 
         let cpu_stats = CpuStats::new(cpu.0.last().map_or(0.00, |f| f.1));
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -174,8 +170,8 @@ mod tests {
         app_data::State,
         config::AppColors,
         ui::{
+            draw_blocks::tests::{get_result, insert_chart_data, test_setup, COLOR_ORANGE},
             FrameData,
-            draw_blocks::tests::{COLOR_ORANGE, get_result, insert_chart_data, test_setup},
         },
     };
 

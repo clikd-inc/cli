@@ -1,11 +1,11 @@
 use ratatui::{
-    Frame,
     layout::Alignment,
     style::Style,
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    Frame,
 };
 
-use super::{NAME, VERSION, max_line_width};
+use super::{max_line_width, NAME, VERSION};
 use crate::core::status::{
     app_error::AppError,
     config::{AppColors, Keymap},

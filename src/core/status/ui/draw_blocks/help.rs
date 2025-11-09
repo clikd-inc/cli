@@ -1,11 +1,11 @@
 use crossterm::event::KeyCode;
 use jiff::tz::TimeZone;
 use ratatui::{
-    Frame,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    Frame,
 };
 
 use crate::core::status::{
@@ -13,7 +13,7 @@ use crate::core::status::{
     ui::gui_state::BoxLocation,
 };
 
-use super::{DESCRIPTION, NAME_TEXT, REPO, VERSION, popup};
+use super::{popup, DESCRIPTION, NAME_TEXT, REPO, VERSION};
 
 /// Help popup box needs these three pieces of information
 struct HelpInfo {

@@ -1,16 +1,16 @@
 use std::{
     io::{Read, Stdout, Write},
-    sync::{Arc, atomic::AtomicBool, mpsc::Sender},
+    sync::{atomic::AtomicBool, mpsc::Sender, Arc},
 };
 
 use bollard::{
-    Docker,
     exec::{CreateExecOptions, ResizeExecOptions, StartExecOptions, StartExecResults},
+    Docker,
 };
 use crossterm::terminal::enable_raw_mode;
 use futures_util::StreamExt;
 use parking_lot::Mutex;
-use ratatui::{Terminal, backend::CrosstermBackend};
+use ratatui::{backend::CrosstermBackend, Terminal};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},

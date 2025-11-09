@@ -6,6 +6,12 @@ pub struct Rerender {
     clear: AtomicBool,
 }
 
+impl Default for Rerender {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Rerender {
     pub const fn new() -> Self {
         Self {

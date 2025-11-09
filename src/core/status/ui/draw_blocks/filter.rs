@@ -1,8 +1,8 @@
 use ratatui::{
-    Frame,
     layout::Rect,
     style::{Modifier, Style, Stylize},
     text::{Line, Span},
+    Frame,
 };
 
 use crate::core::status::{app_data::FilterBy, config::AppColors, ui::FrameData};
@@ -77,8 +77,8 @@ mod tests {
     use crate::core::status::{
         config::AppColors,
         ui::{
-            FrameData,
             draw_blocks::tests::{get_result, test_setup},
+            FrameData,
         },
     };
 
