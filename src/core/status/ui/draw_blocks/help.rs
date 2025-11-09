@@ -512,7 +512,6 @@ mod tests {
         assert_snapshot!(setup.terminal.backend());
     }
 
-
     #[test]
     fn test_draw_blocks_help_show_timezone() {
         let mut setup = test_setup(87, 39, true, true);
