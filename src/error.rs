@@ -49,6 +49,9 @@ pub enum CliError {
 
     #[error("Project not initialized. Run 'clikd init' to get started.")]
     ProjectNotInitialized,
+
+    #[error("Docker not running: {0}")]
+    DockerNotRunning(String),
 }
 
 pub type Result<T> = std::result::Result<T, CliError>;

@@ -1,0 +1,10 @@
+---
+source: src/core/status/ui/draw_blocks/containers.rs
+expression: setup.terminal.backend()
+---
+"╭ Containers ──────────────────────────╮"
+"│         no containers running        │"
+"│                                      │"
+"│                                      │"
+"│                                      │"
+"╰──────────────────────────────────────╯"

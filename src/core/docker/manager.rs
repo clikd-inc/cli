@@ -17,6 +17,7 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use tracing::{debug, info};
 
+#[derive(Clone)]
 pub struct DockerManager {
     client: Docker,
 }
@@ -30,6 +31,23 @@ impl DockerManager {
 
     pub fn client(&self) -> &Docker {
         &self.client
+    }
+
+    pub async fn is_docker_running(&self) -> bool {
+        let ping_future = self.client.ping();
+        let timeout = tokio::time::timeout(std::time::Duration::from_secs(2), ping_future);
+
+        match timeout.await {
+            Ok(Ok(_)) => true,
+            Ok(Err(e)) => {
+                debug!("Docker ping failed: {}", e);
+                false
+            }
+            Err(_) => {
+                debug!("Docker ping timed out");
+                false
+            }
+        }
     }
 
     pub async fn pull_image(&self, image: &str, platform: Option<&str>) -> Result<()> {

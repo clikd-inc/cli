@@ -5,9 +5,7 @@ pub mod error;
 pub mod cmd {
     pub mod auth;
     pub mod completions;
-    pub mod db;
     pub mod init;
-    pub mod logs;
     pub mod start;
     pub mod status;
     pub mod stop;
@@ -49,9 +47,7 @@ pub mod core {
         pub mod runner;
     }
 
-    pub mod status {
-        pub mod reporter;
-    }
+    pub mod status;
 
     pub mod config {
         pub mod images;
@@ -93,19 +89,7 @@ pub async fn execute(cli: Cli) -> Result<()> {
         }
         Commands::Status(args) => {
             let config = config::load(cli.env.as_deref())?;
-            cmd::status::run(args, config).await
-        }
-        Commands::Logs(args) => {
-            let config = config::load(cli.env.as_deref())?;
-            cmd::logs::run(args, config).await
-        }
-        Commands::Db(db_cmd) => {
-            let config = config::load(cli.env.as_deref())?;
-            match db_cmd {
-                cli::DbCommands::Migrate => cmd::db::migrate(config).await,
-                cli::DbCommands::Reset { force } => cmd::db::reset(force, config).await,
-                cli::DbCommands::Seed => cmd::db::seed(config).await,
-            }
+            cmd::status::run(args, config).await.map_err(Into::into)
         }
         Commands::Update(args) => cmd::update::run(args).await,
         Commands::Completions { shell } => {

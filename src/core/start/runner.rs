@@ -10,6 +10,13 @@ pub async fn run(config: &Config, exclude: Vec<String>, ignore_health_check: boo
     println!("{}", header("Starting Clikd"));
 
     let docker = DockerManager::new()?;
+
+    if !docker.is_docker_running().await {
+        let socket = std::env::var("DOCKER_HOST")
+            .unwrap_or_else(|_| "unix:///var/run/docker.sock".to_string());
+        return Err(crate::error::CliError::DockerNotRunning(socket));
+    }
+
     let network_name = format!("clikd_network_{}", &config.project_id);
 
     network::create_network(docker.client(), &network_name).await?;

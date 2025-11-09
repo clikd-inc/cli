@@ -35,8 +35,14 @@ kdam = { version = "0.6", features = ["gradient", "rich", "spinner"] }
 dialoguer = "0.12"
 open = "5.3"
 
+ratatui = "0.29"
+crossterm = { version = "0.29", features = ["event-stream"] }
+color-eyre = "0.6"
+
 config = "0.15.18"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_jsonc = "1.0.108"
 toml = "0.9.8"
 dirs = "6.0"
 minijinja = "2.5"
@@ -53,17 +59,24 @@ ureq = { version = "3.1.2", features = ["json"] }
 secrecy = "0.10.3"
 zeroize = "1.8"
 
-tokio = { version = "1.40", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "fs"] }
+tokio-util = "0.7"
 futures = "0.3"
+futures-util = "0.3"
+parking_lot = "0.12"
 
 chrono = "0.4"
+jiff = "0.2.16"
 uuid = { version = "1.0", features = ["v4"] }
+cansi = "2.2"
+directories = "6.0"
 
 [dev-dependencies]
 trycmd = "0.15"
 assert_cmd = "2.0"
 assert_fs = "1.1"
 tempfile = "3.8"
+insta = "1.34"
 
 [profile.release]
 opt-level = "z"
