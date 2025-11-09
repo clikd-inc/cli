@@ -40,11 +40,6 @@ pub enum Commands {
 
     Status(StatusArgs),
 
-    Logs(LogsArgs),
-
-    #[command(subcommand)]
-    Db(DbCommands),
-
     Update(UpdateArgs),
 
     Completions {
@@ -99,30 +94,6 @@ pub enum OutputFormat {
     Table,
     Json,
     Env,
-}
-
-#[derive(Args)]
-pub struct LogsArgs {
-    #[arg(short, long)]
-    pub service: Option<String>,
-
-    #[arg(short, long)]
-    pub follow: bool,
-
-    #[arg(short = 'n', long, default_value = "100")]
-    pub tail: usize,
-}
-
-#[derive(Subcommand)]
-pub enum DbCommands {
-    Migrate,
-
-    Reset {
-        #[arg(short, long)]
-        force: bool,
-    },
-
-    Seed,
 }
 
 #[derive(Args)]
