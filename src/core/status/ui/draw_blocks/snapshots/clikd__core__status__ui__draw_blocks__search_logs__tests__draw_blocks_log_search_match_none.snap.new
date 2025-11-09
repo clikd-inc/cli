@@ -1,6 +1,0 @@
----
-source: src/core/status/ui/draw_blocks/search_logs.rs
-assertion_line: 360
-expression: setup.terminal.backend()
----
-" Esc  clear   search term: z                                                                                                                "

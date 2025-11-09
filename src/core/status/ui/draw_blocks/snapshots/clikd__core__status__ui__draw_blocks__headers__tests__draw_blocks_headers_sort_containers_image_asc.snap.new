@@ -1,6 +1,0 @@
----
-source: src/core/status/ui/draw_blocks/headers.rs
-assertion_line: 632
-expression: setup.terminal.backend()
----
-"    name          state       status      cpu      memory/limit        id         image ▲   ↓ rx      ↑ tx                ( h ) show help   "

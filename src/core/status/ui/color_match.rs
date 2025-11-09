@@ -87,7 +87,7 @@ mod tests {
     use super::log_sanitizer;
 
     // This spells out "clikd", with each char having a foreground and background colour
-    const INPUT: &str = "\x1b[31;47mo\x1b[32;40mx\x1b[33;41mk\x1b[34;42me\x1b[35;43mr\x1b[0m";
+    const INPUT: &str = "\x1b[31;47mc\x1b[32;40ml\x1b[33;41mi\x1b[34;42mk\x1b[35;43md\x1b[0m";
 
     #[test]
     /// Return test raw, as in show escape codes
@@ -96,7 +96,7 @@ mod tests {
         let expected = vec![Line {
             spans: [Span {
                 content: std::borrow::Cow::Borrowed(
-                    "\\u{1b}[31;47mo\\u{1b}[32;40mx\\u{1b}[33;41mk\\u{1b}[34;42me\\u{1b}[35;43mr\\u{1b}[0m",
+                    "\\u{1b}[31;47mc\\u{1b}[32;40ml\\u{1b}[33;41mi\\u{1b}[34;42mk\\u{1b}[35;43md\\u{1b}[0m",
                 ),
                 style: Style::default(),
             }]
@@ -114,23 +114,23 @@ mod tests {
         let expected = vec![Line {
             spans: vec![
                 Span {
-                    content: std::borrow::Cow::Borrowed("o"),
+                    content: std::borrow::Cow::Borrowed("c"),
                     style: Style::default().fg(Color::Red).bg(Color::Gray),
                 },
                 Span {
-                    content: std::borrow::Cow::Borrowed("x"),
+                    content: std::borrow::Cow::Borrowed("l"),
                     style: Style::default().fg(Color::Green).bg(Color::Black),
                 },
                 Span {
-                    content: std::borrow::Cow::Borrowed("k"),
+                    content: std::borrow::Cow::Borrowed("i"),
                     style: Style::default().fg(Color::Yellow).bg(Color::Red),
                 },
                 Span {
-                    content: std::borrow::Cow::Borrowed("e"),
+                    content: std::borrow::Cow::Borrowed("k"),
                     style: Style::default().fg(Color::Blue).bg(Color::Green),
                 },
                 Span {
-                    content: std::borrow::Cow::Borrowed("r"),
+                    content: std::borrow::Cow::Borrowed("d"),
                     style: Style::default().fg(Color::Magenta).bg(Color::Yellow),
                 },
             ],

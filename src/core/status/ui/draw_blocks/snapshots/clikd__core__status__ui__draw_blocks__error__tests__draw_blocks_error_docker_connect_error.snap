@@ -1,0 +1,13 @@
+---
+source: src/core/status/ui/draw_blocks/error.rs
+expression: setup.terminal.backend()
+---
+"                                              "
+"╭────────────────── Error ───────────────────╮"
+"│                                            │"
+"│       Unable to access docker daemon       │"
+"│                                            │"
+"│    clikd::v0.00.000 closing in 04 seconds  │"
+"│                                            │"
+"╰────────────────────────────────────────────╯"
+"                                              "

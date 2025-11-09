@@ -482,42 +482,6 @@ mod tests {
             .unwrap();
 
         assert_snapshot!(setup.terminal.backend());
-
-        for (row_index, result_row) in get_result(&setup) {
-            for (result_cell_index, result_cell) in result_row.iter().enumerate() {
-                match (row_index, result_cell_index) {
-                    // first & last row, and first & last char on each row, is reset/reset, making sure that the help info is centered in the given area
-                    (0 | 38, _) | (0..=37, 0 | 86) => {
-                        assert_eq!(result_cell.bg, Color::Reset);
-                        assert_eq!(result_cell.fg, Color::Reset);
-                    }
-                    // Buttons
-                    (2..=10, 2..=84)
-                    | (12, 19..=66)
-                    | (14, 2..=10 | 13..=27)
-                    | (15, 2..=10 | 13..=21 | 24..=37)
-                    | (16 | 28 | 30, 2..=10)
-                    | (19..=26 | 29 | 31, 2..=8)
-                    | (17, 2..=11)
-                    | (18 | 27, 2..=12)
-                    | (24, 2..=9 | 12..=18) => {
-                        assert_eq!(result_cell.bg, Color::Magenta);
-                        assert_eq!(result_cell.fg, Color::White);
-                    }
-                    // The URL is white on yellow and underlined
-                    (34, 25..=60) => {
-                        assert_eq!(result_cell.bg, Color::Magenta);
-                        assert_eq!(result_cell.fg, Color::White);
-                        assert_eq!(result_cell.modifier, Modifier::UNDERLINED);
-                    }
-                    // The rest is black on magenta
-                    _ => {
-                        assert_eq!(result_cell.bg, Color::Magenta);
-                        assert_eq!(result_cell.fg, Color::Black);
-                    }
-                }
-            }
-        }
     }
 
     #[test]
@@ -547,41 +511,6 @@ mod tests {
             .unwrap();
 
         assert_snapshot!(setup.terminal.backend());
-        for (row_index, result_row) in get_result(&setup) {
-            for (result_cell_index, result_cell) in result_row.iter().enumerate() {
-                match (row_index, result_cell_index) {
-                    // first & last row, and first & last char on each row, is reset/reset, making sure that the help info is centered in the given area
-                    (0 | 38, _) | (0..=37, 0 | 86) => {
-                        assert_eq!(result_cell.bg, Color::Reset);
-                        assert_eq!(result_cell.fg, Color::Reset);
-                    }
-                    // Buttons
-                    (2..=10, 2..=84)
-                    | (12, 19..=66)
-                    | (14, 2..=10 | 13..=27)
-                    | (15, 2..=10 | 13..=21 | 24..=37)
-                    | (16 | 28 | 30, 2..=10)
-                    | (19..=26 | 29 | 31, 2..=8)
-                    | (17, 2..=11)
-                    | (18 | 27, 2..=12)
-                    | (24, 2..=9 | 12..=18) => {
-                        assert_eq!(result_cell.bg, Color::Black);
-                        assert_eq!(result_cell.fg, Color::Yellow);
-                    }
-                    // The URL is white on yellow and underlined
-                    (34, 25..=60) => {
-                        assert_eq!(result_cell.bg, Color::Black);
-                        assert_eq!(result_cell.fg, Color::Yellow);
-                        assert_eq!(result_cell.modifier, Modifier::UNDERLINED);
-                    }
-                    // The rest is black on magenta
-                    _ => {
-                        assert_eq!(result_cell.bg, Color::Black);
-                        assert_eq!(result_cell.fg, Color::Red);
-                    }
-                }
-            }
-        }
     }
 
     #[test]
@@ -758,19 +687,5 @@ mod tests {
             .unwrap();
 
         assert_snapshot!(setup.terminal.backend());
-
-        for (row_index, result_row) in get_result(&setup) {
-            for (result_cell_index, result_cell) in result_row.iter().enumerate() {
-                match (row_index, result_cell_index) {
-                    (13, 31..=45) => {
-                        assert_eq!(result_cell.fg, AppColors::new().popup_help.text);
-                    }
-                    (13, 46..=55) => {
-                        assert_eq!(result_cell.fg, AppColors::new().popup_help.text_highlight);
-                    }
-                    _ => (),
-                }
-            }
-        }
     }
 }

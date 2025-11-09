@@ -259,8 +259,8 @@ mod tests {
 
         for (_, result_row) in get_result(&setup) {
             for result_cell in result_row {
-                assert_eq!(result_cell.bg, Color::Magenta);
-                assert_eq!(result_cell.fg, Color::Gray,);
+                assert_eq!(result_cell.bg, Color::Rgb(13, 17, 23));
+                assert_eq!(result_cell.fg, Color::Cyan,);
             }
         }
     }
@@ -290,8 +290,8 @@ mod tests {
 
         for (_, result_row) in get_result(&setup) {
             for result_cell in result_row {
-                assert_eq!(result_cell.bg, Color::Magenta);
-                assert_eq!(result_cell.fg, Color::Black);
+                assert_eq!(result_cell.bg, Color::Rgb(13, 17, 23));
+                assert_eq!(result_cell.fg, Color::White);
             }
         }
     }
@@ -318,14 +318,14 @@ mod tests {
 
         for (_, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
-                assert_eq!(result_cell.bg, Color::Magenta);
+                assert_eq!(result_cell.bg, Color::Rgb(13, 17, 23));
                 assert_eq!(
                     result_cell.fg,
                     match result_cell_index {
                         0..=3 => Color::White,
-                        4..=111 => Color::Black,
+                        4..=111 => Color::White,
                         112..=121 => Color::Reset,
-                        _ => Color::Gray,
+                        _ => Color::Cyan,
                     }
                 );
             }
@@ -355,14 +355,14 @@ mod tests {
         assert_snapshot!(setup.terminal.backend());
         for (_, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
-                assert_eq!(result_cell.bg, Color::Magenta);
+                assert_eq!(result_cell.bg, Color::Rgb(13, 17, 23));
                 assert_eq!(
                     result_cell.fg,
                     match result_cell_index {
                         0..=3 => Color::White,
-                        4..=50 => Color::Black,
+                        4..=50 => Color::White,
                         51..=61 => Color::Reset,
-                        _ => Color::Gray,
+                        _ => Color::Cyan,
                     }
                 );
             }
@@ -394,13 +394,13 @@ mod tests {
         assert_snapshot!(setup.terminal.backend());
         for (_, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
-                assert_eq!(result_cell.bg, Color::Magenta);
+                assert_eq!(result_cell.bg, Color::Rgb(13, 17, 23));
                 assert_eq!(
                     result_cell.fg,
                     match result_cell_index {
                         0..=3 => Color::White,
-                        4..=111 => Color::Black,
-                        122..=140 => Color::Gray,
+                        4..=111 => Color::White,
+                        122..=140 => Color::Cyan,
                         _ => Color::Reset,
                     }
                 );
@@ -502,16 +502,16 @@ mod tests {
     fn check_color(setup: &TuiTestSetup, range: RangeInclusive<usize>) {
         for (_, result_row) in get_result(setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
-                assert_eq!(result_cell.bg, Color::Magenta);
+                assert_eq!(result_cell.bg, Color::Rgb(13, 17, 23));
                 assert_eq!(
                     result_cell.fg,
                     match result_cell_index {
                         0..=3 => Color::White,
-                        122..=139 => Color::Gray,
+                        122..=139 => Color::Cyan,
                         // given range | help section
-                        x if range.contains(&x) => Color::Gray,
+                        x if range.contains(&x) => Color::Cyan,
                         112..=121 => Color::Reset,
-                        _ => Color::Black,
+                        _ => Color::White,
                     }
                 );
             }

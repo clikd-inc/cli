@@ -187,13 +187,13 @@
 		// The single line bar at the uppermost of the display. Contains name/state/status headings etc
 		"headers_bar": {
 			// Background color of the entire line
-			"background": "magenta",
+			"background": "#0D1117",
 			// Animated loading icon at the start of the bar
 			"loading_spinner": "white",
 			// Text color
-			"text": "black",
+			"text": "white",
 			// Text color of a selected header
-			"text_selected": "gray"
+			"text_selected": "cyan"
 		},
 		// The borders around the selectable panels - Containers, Commands, Logs
 		"borders": {
@@ -314,11 +314,11 @@
 		// The help popup
 		"popup_help": {
 			// Background color
-			"background": "magenta",
+			"background": "#0D1117",
 			// Text color
-			"text": "black",
+			"text": "white",
 			// Highlighted text color
-			"text_highlight": "white"
+			"text_highlight": "cyan"
 		},
 		// The info popup - used to display small messages - such as saving logs to disk, or change of mouse capture settings
 		"popup_info": {
