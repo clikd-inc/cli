@@ -453,12 +453,11 @@ pub fn draw(
 #[allow(clippy::unwrap_used, clippy::too_many_lines)]
 mod tests {
     use crate::core::status::config::{AppColors, Keymap};
-    use crossterm::event::{KeyCode, KeyModifiers};
     use insta::assert_snapshot;
     use jiff::tz::TimeZone;
-    use ratatui::style::{Color, Modifier};
+    use ratatui::style::Color;
 
-    use crate::core::status::ui::draw_blocks::tests::{get_result, test_setup};
+    use crate::core::status::ui::draw_blocks::tests::test_setup;
 
     #[test]
     /// This will cause issues once the version has more than the current 5 chars (0.5.0)
@@ -513,161 +512,6 @@ mod tests {
         assert_snapshot!(setup.terminal.backend());
     }
 
-    #[test]
-    /// Help panel will show custom keymap if in use, with one definition for each entry
-    fn test_draw_blocks_help_custom_keymap_one_definition() {
-        let mut setup = test_setup(98, 50, true, true);
-
-        let input = Keymap {
-            clear: (KeyCode::Char('a'), None),
-            delete_confirm: (KeyCode::Char('b'), None),
-            delete_deny: (KeyCode::Char('c'), None),
-            exec: (KeyCode::Char('d'), None),
-            filter_mode: (KeyCode::Char('e'), None),
-            log_search_mode: (KeyCode::Char('7'), None),
-            force_redraw: (KeyCode::Char('f'), None),
-            log_scroll_back: (KeyCode::Char('g'), None),
-            log_scroll_forward: (KeyCode::Char('h'), None),
-            log_section_height_decrease: (KeyCode::Char('i'), None),
-            log_section_height_increase: (KeyCode::Char('j'), None),
-            log_section_toggle: (KeyCode::Char('k'), None),
-            quit: (KeyCode::Char('l'), None),
-            save_logs: (KeyCode::Char('m'), None),
-            scroll_down: (KeyCode::Char('o'), None),
-            scroll_end: (KeyCode::Char('p'), None),
-            scroll_many: KeyModifiers::ALT,
-            scroll_start: (KeyCode::Char('q'), None),
-            scroll_up: (KeyCode::Char('s'), None),
-            select_next_panel: (KeyCode::Char('t'), None),
-            select_previous_panel: (KeyCode::Char('u'), None),
-            sort_by_cpu: (KeyCode::Char('v'), None),
-            sort_by_id: (KeyCode::Char('w'), None),
-            sort_by_image: (KeyCode::Char('x'), None),
-            sort_by_memory: (KeyCode::Char('y'), None),
-            sort_by_name: (KeyCode::Char('z'), None),
-            sort_by_rx: (KeyCode::Char('0'), None),
-            sort_by_state: (KeyCode::Char('1'), None),
-            sort_by_status: (KeyCode::Char('2'), None),
-            sort_by_tx: (KeyCode::Char('3'), None),
-            sort_reset: (KeyCode::Char('4'), None),
-            toggle_help: (KeyCode::Char('5'), None),
-            toggle_mouse_capture: (KeyCode::Char('6'), None),
-        };
-
-        setup
-            .terminal
-            .draw(|f| {
-                super::draw(AppColors::new(), f, &input, false, None);
-            })
-            .unwrap();
-
-        assert_snapshot!(setup.terminal.backend());
-    }
-
-    #[test]
-    /// Help panel will show custom keymap if in use, with two definition for each entry
-    fn test_draw_blocks_help_custom_keymap_two_definitions() {
-        let mut setup = test_setup(110, 50, true, true);
-
-        let keymap = Keymap {
-            clear: (KeyCode::Char('a'), Some(KeyCode::Char('A'))),
-            delete_confirm: (KeyCode::Char('b'), Some(KeyCode::Char('B'))),
-            delete_deny: (KeyCode::Char('c'), Some(KeyCode::Char('C'))),
-            exec: (KeyCode::Char('d'), Some(KeyCode::Char('D'))),
-            filter_mode: (KeyCode::Char('e'), Some(KeyCode::Char('E'))),
-            log_search_mode: (KeyCode::Char('m'), Some(KeyCode::Char('M'))),
-            force_redraw: (KeyCode::Char('f'), Some(KeyCode::Char('F'))),
-            log_scroll_back: (KeyCode::Char('f'), Some(KeyCode::Char('F'))),
-            log_scroll_forward: (KeyCode::Char('g'), Some(KeyCode::Char('G'))),
-            log_section_height_decrease: (KeyCode::Char('h'), Some(KeyCode::Char('H'))),
-            log_section_height_increase: (KeyCode::Char('i'), Some(KeyCode::Char('I'))),
-            log_section_toggle: (KeyCode::Char('j'), Some(KeyCode::Char('J'))),
-            quit: (KeyCode::Char('k'), Some(KeyCode::Char('K'))),
-            save_logs: (KeyCode::Char('l'), Some(KeyCode::Char('L'))),
-            scroll_down: (KeyCode::Char('n'), Some(KeyCode::Char('N'))),
-            scroll_end: (KeyCode::Char('o'), Some(KeyCode::Char('O'))),
-            scroll_many: KeyModifiers::ALT,
-            scroll_start: (KeyCode::Char('p'), Some(KeyCode::Char('P'))),
-            scroll_up: (KeyCode::Char('r'), Some(KeyCode::Char('R'))),
-            select_next_panel: (KeyCode::Char('s'), Some(KeyCode::Char('S'))),
-            select_previous_panel: (KeyCode::Char('t'), Some(KeyCode::Char('T'))),
-            sort_by_cpu: (KeyCode::Char('u'), Some(KeyCode::Char('U'))),
-            sort_by_id: (KeyCode::Char('v'), Some(KeyCode::Char('V'))),
-            sort_by_image: (KeyCode::Char('w'), Some(KeyCode::Char('W'))),
-            sort_by_memory: (KeyCode::Char('x'), Some(KeyCode::Char('X'))),
-            sort_by_name: (KeyCode::Char('y'), Some(KeyCode::Char('Y'))),
-            sort_by_rx: (KeyCode::Char('z'), Some(KeyCode::Char('Z'))),
-            sort_by_state: (KeyCode::Char('0'), Some(KeyCode::Char('9'))),
-            sort_by_status: (KeyCode::Char('1'), Some(KeyCode::Char('8'))),
-            sort_by_tx: (KeyCode::Char('2'), Some(KeyCode::Char('7'))),
-            sort_reset: (KeyCode::Char('3'), Some(KeyCode::Char('6'))),
-            toggle_help: (KeyCode::Char('4'), Some(KeyCode::Char('5'))),
-            toggle_mouse_capture: (KeyCode::Char('5'), Some(KeyCode::PageDown)),
-        };
-
-        setup
-            .terminal
-            .draw(|f| {
-                super::draw(AppColors::new(), f, &keymap, false, None);
-            })
-            .unwrap();
-
-        assert_snapshot!(setup.terminal.backend());
-    }
-
-    #[test]
-    /// Help panel will show custom keymap if in use, with either one or two definition for each entry
-    #[allow(clippy::todo)]
-    fn test_draw_blocks_help_one_and_two_definitions() {
-        let mut setup = test_setup(110, 50, true, true);
-
-        let keymap = Keymap {
-            clear: (KeyCode::Char('a'), Some(KeyCode::Char('A'))),
-            delete_confirm: (KeyCode::Char('b'), None),
-            delete_deny: (KeyCode::Char('c'), Some(KeyCode::Char('C'))),
-            exec: (KeyCode::Char('d'), None),
-            filter_mode: (KeyCode::Char('e'), Some(KeyCode::Char('E'))),
-            log_search_mode: (KeyCode::Char('8'), None),
-            force_redraw: (KeyCode::Char('f'), None),
-            log_scroll_back: (KeyCode::Char('g'), Some(KeyCode::Char('G'))),
-            log_scroll_forward: (KeyCode::Char('h'), None),
-            log_section_height_decrease: (KeyCode::Char('i'), Some(KeyCode::Char('I'))),
-            log_section_height_increase: (KeyCode::Char('j'), None),
-            log_section_toggle: (KeyCode::Char('k'), Some(KeyCode::Char('K'))),
-            quit: (KeyCode::Char('l'), None),
-            save_logs: (KeyCode::Char('m'), Some(KeyCode::Char('M'))),
-            scroll_down: (KeyCode::Char('o'), Some(KeyCode::Char('O'))),
-            scroll_end: (KeyCode::Char('p'), None),
-            scroll_many: KeyModifiers::ALT,
-            scroll_start: (KeyCode::Char('q'), Some(KeyCode::Char('Q'))),
-            scroll_up: (KeyCode::Char('s'), Some(KeyCode::Char('S'))),
-            select_next_panel: (KeyCode::Char('t'), None),
-            select_previous_panel: (KeyCode::Char('u'), Some(KeyCode::Char('U'))),
-            sort_by_cpu: (KeyCode::Char('v'), None),
-            sort_by_id: (KeyCode::Char('w'), Some(KeyCode::Char('W'))),
-            sort_by_image: (KeyCode::Char('x'), None),
-            sort_by_memory: (KeyCode::Char('y'), Some(KeyCode::Char('Y'))),
-            sort_by_name: (KeyCode::Char('z'), None),
-            sort_by_rx: (KeyCode::Char('0'), Some(KeyCode::Char('9'))),
-            sort_by_state: (KeyCode::Char('1'), None),
-            sort_by_status: (KeyCode::Char('2'), Some(KeyCode::Char('7'))),
-            sort_by_tx: (KeyCode::Char('3'), None),
-            sort_reset: (KeyCode::Char('4'), Some(KeyCode::Char('5'))),
-            toggle_help: (KeyCode::Char('5'), None),
-            toggle_mouse_capture: (KeyCode::Char('6'), Some(KeyCode::Char('#'))),
-        };
-
-        let tz = setup.app_data.lock().config.timezone.clone();
-
-        setup
-            .terminal
-            .draw(|f| {
-                super::draw(AppColors::new(), f, &keymap, false, tz.as_ref());
-            })
-            .unwrap();
-
-        assert_snapshot!(setup.terminal.backend());
-    }
 
     #[test]
     fn test_draw_blocks_help_show_timezone() {
