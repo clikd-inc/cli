@@ -109,12 +109,12 @@ pub struct Dependency {
     /// the main branch.
     pub literal: String,
 
-    /// The logical expression of the requirement in Cranko's framework. Cranko
+    /// The logical expression of the requirement in Clikd's framework. Clikd
     /// prefers to express version dependencies in terms of commit IDs. Since
     /// this concept is (properly) not integrated into package manager metadata
     /// files, the information expressing the requirement must be recorded in
-    /// Cranko-specific metadata that are different than the literal expression.
-    pub cranko_requirement: DepRequirement,
+    /// Clikd-specific metadata that are different than the literal expression.
+    pub clikd_requirement: DepRequirement,
 
     /// If the requirement is expressed as a DepRequirement::Commit, *and* we
     /// have resolved that requirement to a specific version of the dependee
@@ -137,11 +137,11 @@ pub enum DepRequirement {
     /// in steady-state, the former will be something like `0.0.0-dev.0` so that
     /// everyday builds can work, while this might be `^0.1` if the project
     /// requires that version of its dependency and 0.1 was released before
-    /// Cranko was introduced.
+    /// Clikd was introduced.
     Manual(String),
 
-    /// Cranko metadata are missing, so we can't process this dependency in the
-    /// Cranko framework.
+    /// Clikd metadata are missing, so we can't process this dependency in the
+    /// Clikd framework.
     Unavailable,
 }
 
@@ -172,7 +172,7 @@ pub struct ProjectBuilder {
 pub struct DependencyBuilder {
     pub target: DependencyTarget,
     pub literal: String,
-    pub cranko_requirement: DepRequirement,
+    pub clikd_requirement: DepRequirement,
     pub resolved_version: Option<Version>,
 }
 

@@ -200,7 +200,7 @@ impl CsProjLoader {
                                     State::Scanning
                                 }
                             }
-                            b"CrankoInternalDepVersion" => State::DepReqText,
+                            b"ClikdInternalDepVersion" => State::DepReqText,
                             _ => State::Scanning,
                         };
                     }
@@ -239,11 +239,11 @@ impl CsProjLoader {
                         State::DepReqText => {
                             let r = atry!(
                                 t.unescape();
-                                ["unable to decode XML text in CrankoInternalDepVersion of `{}`", p.display()]
+                                ["unable to decode XML text in ClikdInternalDepVersion of `{}`", p.display()]
                             );
                             let (guid, reqtext) = a_ok_or!(
                                 r.split_once('=');
-                                ["malformatted CrankoInternalDepVersion `{}` in `{}`", r, p.display()]
+                                ["malformatted ClikdInternalDepVersion `{}` in `{}`", r, p.display()]
                             );
                             let mut guid = guid.to_owned();
                             guid.make_ascii_lowercase();
@@ -304,7 +304,7 @@ impl CsProjLoader {
 
                         Err(e) => {
                             warn!(
-                                "invalid <CrankoInternalDepVersion> entry `{}` in `{}`: {}",
+                                "invalid <ClikdInternalDepVersion> entry `{}` in `{}`: {}",
                                 text,
                                 p.display(),
                                 e
@@ -320,8 +320,8 @@ impl CsProjLoader {
                     warn!("cannot find version requirement for dependency of `{}` on the project with GUID `{}`", &name, &guid);
 
                     if !gave_dep_warning_help {
-                        warn!("... you likely need to add <CrankoInternalDepVersion>{{guid}}={{req}}</CrankoInternalDepVersion> to `{}`", p.display());
-                        warn!("... Cranko needs this information to know the oldest compatible version of the dependency");
+                        warn!("... you likely need to add <ClikdInternalDepVersion>{{guid}}={{req}}</ClikdInternalDepVersion> to `{}`", p.display());
+                        warn!("... Clikd needs this information to know the oldest compatible version of the dependency");
                         gave_dep_warning_help = true;
                     }
                 }

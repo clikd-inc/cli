@@ -55,7 +55,7 @@ impl Version {
         }
     }
 
-    /// Mutate this version to be Cranko's default "development mode" value.
+    /// Mutate this version to be Clikd's default "development mode" value.
     pub fn set_to_dev_value(&mut self) {
         match self {
             Version::Semver(v) => {

@@ -107,7 +107,7 @@ impl PypaLoader {
                     })
                     .transpose()?;
 
-                let data = data.and_then(|d| d.tool).and_then(|t| t.cranko);
+                let data = data.and_then(|d| d.tool).and_then(|t| t.clikd);
 
                 if let Some(ref data) = data {
                     name = data.name.clone();
@@ -162,6 +162,14 @@ impl PypaLoader {
                     if name.is_none() {
                         name = data.get("metadata", "name");
                     }
+                    if version.is_none() {
+                        if let Some(v) = data.get("metadata", "version") {
+                            version = Some(atry!(
+                                v.parse();
+                                ["failed to parse version `{}` from setup.cfg", v]
+                            ));
+                        }
+                    }
                 }
             }
 
@@ -198,7 +206,7 @@ impl PypaLoader {
                             ["error reading data from file `{}`", setup_path.display()]
                         );
 
-                        if simple_py_parse::has_commented_marker(&line, "cranko project-name")
+                        if simple_py_parse::has_commented_marker(&line, "clikd project-name")
                             && name.is_none()
                         {
                             name = Some(atry!(
@@ -210,7 +218,7 @@ impl PypaLoader {
                         if main_version_in_setup
                             && simple_py_parse::has_commented_marker(
                                 &line,
-                                "cranko project-version",
+                                "clikd project-version",
                             )
                         {
                             version = Some(atry!(
@@ -224,7 +232,7 @@ impl PypaLoader {
             }
 
             fn version_from_line(line: &str) -> Result<Pep440Version> {
-                if simple_py_parse::has_commented_marker(line, "cranko project-version tuple") {
+                if simple_py_parse::has_commented_marker(line, "clikd project-version tuple") {
                     Pep440Version::parse_from_tuple_literal(line)
                 } else {
                     Ok(simple_py_parse::extract_text_from_string_literal(line)?.parse()?)
@@ -251,7 +259,7 @@ impl PypaLoader {
                         ["error reading data from file `{}`", version_path.display()]
                     );
 
-                    if simple_py_parse::has_commented_marker(&line, "cranko project-version") {
+                    if simple_py_parse::has_commented_marker(&line, "clikd project-version") {
                         version = Some(atry!(
                             version_from_line(&line);
                             ["failed to parse project version out source text line `{}` in `{}`",
@@ -266,14 +274,14 @@ impl PypaLoader {
             let name = a_ok_or!(name;
                 ["could not identify the name of the Python project in {}", dir_desc]
                 (note "try adding (1) a `name = ...` field in the `[metadata]` section of its `setup.cfg` \
-                      or (2) a `# cranko project-name` comment at the end of a line containing the project \
+                      or (2) a `# clikd project-name` comment at the end of a line containing the project \
                       name as a simple string literal in `setup.py` or (3) or a `name = ...` field in a \
-                      `[tool.cranko]` section of its `pyproject.toml`")
+                      `[tool.clikd]` section of its `pyproject.toml`")
             );
 
             let version = a_ok_or!(version;
                 ["could not identify the version of the Python project in {}", dir_desc]
-                (note "try adding a `# cranko project-version` comment at the end of a line containing \
+                (note "try adding a `# clikd project-version` comment at the end of a line containing \
                       the project version as a simple string literal in `setup.py`; see the documentation \
                       for other supported approaches")
             );
@@ -336,7 +344,7 @@ impl PypaLoader {
 
                     if req.is_none() {
                         warn!(
-                            "missing or invalid key `tool.cranko.internal_dep_versions.{}` in `{}`",
+                            "missing or invalid key `tool.clikd.internal_dep_versions.{}` in `{}`",
                             &req_name,
                             toml_repopath.escaped()
                         );
@@ -378,14 +386,14 @@ fn scan_rewritten_file(
             ["error reading data from file `{}`", file_path.display()]
         );
 
-        if simple_py_parse::has_commented_marker(&line, "cranko internal-req") {
-            let idx = line.find("cranko internal-req").unwrap();
+        if simple_py_parse::has_commented_marker(&line, "clikd internal-req") {
+            let idx = line.find("clikd internal-req").unwrap();
             let mut pieces = line[idx..].split_whitespace();
-            pieces.next(); // skip "cranko"
+            pieces.next(); // skip "clikd"
             pieces.next(); // skip "internal-req"
             let name = a_ok_or!(
                 pieces.next();
-                ["in `{}` line {}, `cranko internal-req` comment must provide a project name",
+                ["in `{}` line {}, `clikd internal-req` comment must provide a project name",
                  file_path.display(), line_num0 + 1]
             );
 
@@ -541,16 +549,16 @@ struct PyProjectFile {
 /// `pyproject.toml` section `tool` deserialization container.
 #[derive(Debug, Deserialize)]
 struct PyProjectTool {
-    pub cranko: Option<PyProjectCranko>,
+    pub clikd: Option<PyProjectClikd>,
 
     #[allow(dead_code)]
     #[serde(flatten)]
     pub rest: Value,
 }
 
-/// Cranko metadata in `pyproject.toml`.
+/// Clikd metadata in `pyproject.toml`.
 #[derive(Debug, Deserialize)]
-struct PyProjectCranko {
+struct PyProjectClikd {
     /// The project name. It isn't always straightforward to determine this,
     /// since we basically can't assume anything about setup.py.
     pub name: Option<String>,
@@ -600,7 +608,7 @@ impl Rewriter for PythonRewriter {
         let mut internal_reqs = HashMap::new();
 
         for dep in &proj.internal_deps[..] {
-            let req_text = match dep.cranko_requirement {
+            let req_text = match dep.clikd_requirement {
                 DepRequirement::Manual(ref t) => t.clone(),
 
                 DepRequirement::Commit(_) => {
@@ -637,11 +645,11 @@ impl Rewriter for PythonRewriter {
                     ["error reading data from file `{}`", file_path.display()]
                 );
 
-                let line = if simple_py_parse::has_commented_marker(&line, "cranko project-version")
+                let line = if simple_py_parse::has_commented_marker(&line, "clikd project-version")
                 {
                     did_anything = true;
 
-                    if simple_py_parse::has_commented_marker(&line, "cranko project-version tuple") {
+                    if simple_py_parse::has_commented_marker(&line, "clikd project-version tuple") {
                         let new_text = atry!(
                             proj.version.as_pep440_tuple_literal();
                             ["couldn't convert the project version to a `sys.version_info` tuple"]
@@ -656,16 +664,16 @@ impl Rewriter for PythonRewriter {
                             ["couldn't rewrite version-string source line `{}`", line]
                         )
                     }
-                } else if  simple_py_parse::has_commented_marker(&line, "cranko internal-req") {
+                } else if  simple_py_parse::has_commented_marker(&line, "clikd internal-req") {
                     did_anything = true;
 
-                    let idx = line.find("cranko internal-req").unwrap();
+                    let idx = line.find("clikd internal-req").unwrap();
                     let mut pieces = line[idx..].split_whitespace();
-                    pieces.next(); // skip "cranko"
+                    pieces.next(); // skip "clikd"
                     pieces.next(); // skip "internal-req"
                     let name = a_ok_or!(
                         pieces.next();
-                        ["in `{}` line {}, `cranko internal-req` comment must provide a project name",
+                        ["in `{}` line {}, `clikd internal-req` comment must provide a project name",
                         file_path.display(), line_num0 + 1]
                     );
 
@@ -675,7 +683,7 @@ impl Rewriter for PythonRewriter {
                     // racey happening so make it a hard error.
                     let req_text = a_ok_or!(
                         internal_reqs.get(name);
-                        ["found internal requirement of `{}` not traced by Cranko", name]
+                        ["found internal requirement of `{}` not traced by clikd", name]
                     );
 
                     atry!(
@@ -738,7 +746,7 @@ impl PythonCommand {
     }
 }
 
-/// `cranko python foreach-released`
+/// `clikd python foreach-released`
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct ForeachReleasedCommand {
     #[arg(help = "The command to run", required = true)]
@@ -800,7 +808,7 @@ impl ForeachReleasedCommand {
     }
 }
 
-/// `cranko python install-token`
+/// `clikd python install-token`
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct InstallTokenCommand {
     #[arg(

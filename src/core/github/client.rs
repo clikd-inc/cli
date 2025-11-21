@@ -45,7 +45,7 @@ impl GitHubInformation {
             header::AUTHORIZATION,
             header::HeaderValue::from_str(&format!("token {}", self.token))?,
         );
-        headers.insert(header::USER_AGENT, header::HeaderValue::from_str("cranko")?);
+        headers.insert(header::USER_AGENT, header::HeaderValue::from_str("clikd")?);
 
         Ok(reqwest::blocking::Client::builder()
             .default_headers(headers)
@@ -195,7 +195,7 @@ pub enum GithubCommands {
     DeleteRelease(DeleteReleaseCommand),
 
     #[structopt(name = "install-credential-helper")]
-    /// Install Cranko as a Git "credential helper", using $GITHUB_TOKEN to log in
+    /// Install Clikd as a Git "credential helper", using $GITHUB_TOKEN to log in
     InstallCredentialHelper(InstallCredentialHelperCommand),
 
     #[structopt(name = "upload-artifacts")]
@@ -231,7 +231,7 @@ pub struct CreateCustomReleaseCommand {
     #[structopt(
         long = "desc",
         help = "The release description text (Markdown-formatted)",
-        default_value = "Release automatically created by Cranko."
+        default_value = "Release automatically created by Clikd."
     )]
     body: String,
 
@@ -387,7 +387,7 @@ impl InstallCredentialHelperCommand {
         let this_exe = std::env::current_exe()?;
         let this_exe = this_exe.to_str().ok_or_else(|| {
             anyhow!(
-                "cannot install cranko as a Git \
+                "cannot install clikd as a Git \
                  credential helper because its executable path is not Unicode"
             )
         })?;
@@ -412,7 +412,7 @@ pub struct UploadArtifactsCommand {
 
     #[structopt(
         long = "by-tag",
-        help = "Identify the target release by Git tag name, not Cranko project name"
+        help = "Identify the target release by Git tag name, not Clikd project name"
     )]
     by_tag: bool,
 
@@ -433,7 +433,7 @@ impl UploadArtifactsCommand {
             info.get_custom_release_metadata(&self.proj_name, &mut client)
         } else {
             let rel_info = sess.repo.parse_release_info_from_head().context(
-                "expected Cranko release metadata in the HEAD commit but could not load it",
+                "expected Clikd release metadata in the HEAD commit but could not load it",
             )?;
 
             let ident = sess

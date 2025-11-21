@@ -5,11 +5,11 @@ use crate::atry;
 use crate::core::release::session::AppSession;
 
 pub fn run() -> Result<i32> {
-    info!("checking release status with Cranko version {}", env!("CARGO_PKG_VERSION"));
+    info!("checking release status with clikd version {}", env!("CARGO_PKG_VERSION"));
 
     let _repo = atry!(
         crate::core::release::repository::Repository::open_from_env();
-        ["Cranko is not being run from a Git working directory"]
+        ["clikd is not being run from a Git working directory"]
     );
 
     let sess = atry!(

@@ -17,6 +17,28 @@ impl TestRepo {
         TestRepo { dir, path }
     }
 
+    pub fn from_fixture(fixture_name: &str) -> Self {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_path_buf();
+
+        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join(fixture_name);
+
+        Command::new("cp")
+            .args(["-R", fixture_path.to_str().unwrap(), path.to_str().unwrap()])
+            .output()
+            .expect("failed to copy fixture");
+
+        let actual_path = path.join(fixture_name);
+
+        TestRepo {
+            dir,
+            path: actual_path,
+        }
+    }
+
     fn init_git(path: &Path) {
         Command::new("git")
             .args(["init"])
@@ -85,7 +107,7 @@ impl TestRepo {
     }
 
     pub fn has_config_dir(&self) -> bool {
-        self.path.join(".config/clikd").is_dir()
+        self.path.join("clikd").is_dir()
     }
 }
 

@@ -1,9 +1,9 @@
 // Copyright 2020-2022 Peter Williams <peter@newton.cx> and collaborators
 // Licensed under the MIT License.
 
-//! The Cranko configuration file.
+//! The Clikd configuration file.
 //!
-//! Given the same input repository, Cranko should give reproducible results no
+//! Given the same input repository, Clikd should give reproducible results no
 //! matter who’s running it. So we really want all configuration to be at the
 //! per-repository level.
 
@@ -19,7 +19,31 @@ pub mod syntax {
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
-    /// The toplevel (per-repo) configuration structure.
+    /// The toplevel unified configuration structure with optional sections.
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct UnifiedConfiguration {
+        /// Release management configuration (optional).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub release: Option<ReleaseConfiguration>,
+    }
+
+    /// Release-specific configuration nested under [release].
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    pub struct ReleaseConfiguration {
+        /// General per-repository configuration.
+        #[serde(default)]
+        pub repo: RepoConfiguration,
+
+        /// NPM integration configuration.
+        #[serde(default)]
+        pub npm: NpmConfiguration,
+
+        /// Centralized per-project configuration.
+        #[serde(default)]
+        pub projects: HashMap<String, ProjectConfiguration>,
+    }
+
+    /// Legacy structure for backwards compatibility.
     #[derive(Clone, Debug, Deserialize, Serialize)]
     pub struct SerializedConfiguration {
         /// General per-repository configuration.
@@ -113,6 +137,18 @@ impl ConfigurationFile {
         f.read_to_string(&mut text)
             .with_context(|| format!("failed to read config file `{}`", path.as_ref().display()))?;
 
+        // Try new unified format first ([release] section)
+        if let Ok(unified) = toml::from_str::<syntax::UnifiedConfiguration>(&text) {
+            if let Some(release_cfg) = unified.release {
+                return Ok(ConfigurationFile {
+                    repo: release_cfg.repo,
+                    npm: release_cfg.npm,
+                    projects: release_cfg.projects,
+                });
+            }
+        }
+
+        // Fall back to legacy format (backwards compatibility)
         let sercfg: syntax::SerializedConfiguration = toml::from_str(&text).with_context(|| {
             format!(
                 "could not parse config file `{}` as TOML",
@@ -128,13 +164,15 @@ impl ConfigurationFile {
     }
 
     pub fn into_toml(self) -> Result<String> {
-        let syn_cfg = syntax::SerializedConfiguration {
-            repo: self.repo,
-            npm: self.npm,
-            projects: self.projects,
+        let unified_cfg = syntax::UnifiedConfiguration {
+            release: Some(syntax::ReleaseConfiguration {
+                repo: self.repo,
+                npm: self.npm,
+                projects: self.projects,
+            }),
         };
         Ok(atry!(
-            toml::to_string_pretty(&syn_cfg);
+            toml::to_string_pretty(&unified_cfg);
             ["could not serialize configuration into TOML format"]
         ))
     }

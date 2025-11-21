@@ -3,7 +3,7 @@
 
 //! The graph of projects within the repository.
 //!
-//! A Cranko-enabled repository may adopt a “monorepo” model where it contains
+//! A Clikd-enabled repository may adopt a “monorepo” model where it contains
 //! multiple projects, each with their own independent versioning scheme. The
 //! projects will likely all be managed in a single repository because they
 //! depend on each other. In the general case, these intra-repository
@@ -333,7 +333,7 @@ impl ProjectGraphBuilder {
             .push(DependencyBuilder {
                 target: dependee_target,
                 literal,
-                cranko_requirement: req,
+                clikd_requirement: req,
                 resolved_version: None,
             });
     }
@@ -505,7 +505,7 @@ impl ProjectGraphBuilder {
                 internal_deps.push(Dependency {
                     ident: dep_ident,
                     literal: dep.literal,
-                    cranko_requirement: dep.cranko_requirement,
+                    clikd_requirement: dep.clikd_requirement,
                     resolved_version: dep.resolved_version,
                 });
 

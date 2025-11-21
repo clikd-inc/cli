@@ -106,7 +106,7 @@ pub enum AuthCommands {
 
 #[derive(Subcommand)]
 pub enum ReleaseCommands {
-    #[command(about = "Initialize Cranko release management")]
+    #[command(about = "Initialize Clikd release management")]
     Init {
         #[arg(short, long, help = "Force operation even in unexpected conditions")]
         force: bool,

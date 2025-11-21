@@ -165,7 +165,7 @@ impl CargoLoader {
                             "UNDEFINED".to_owned()
                         });
 
-                        // Find the Cranko-augmented dependency info.
+                        // Find the Clikd-augmented dependency info.
 
                         let req = maybe_versions
                             .and_then(|table| table.get(&dep.name))
@@ -235,7 +235,7 @@ impl Rewriter for CargoRewriter {
         let mut internal_reqs = HashMap::new();
 
         for dep in &proj.internal_deps[..] {
-            let req_text = match dep.cranko_requirement {
+            let req_text = match dep.clikd_requirement {
                 DepRequirement::Manual(ref t) => t.clone(),
 
                 DepRequirement::Commit(_) => {
@@ -349,8 +349,8 @@ impl Rewriter for CargoRewriter {
         Ok(())
     }
 
-    /// Rewriting just the special Cranko requirement metadata.
-    fn rewrite_cranko_requirements(
+    /// Rewriting just the special Clikd requirement metadata.
+    fn rewrite_clikd_requirements(
         &self,
         app: &AppSession,
         changes: &mut ChangeList,
@@ -410,7 +410,7 @@ impl Rewriter for CargoRewriter {
             for dep in &proj.internal_deps {
                 let target = &graph.lookup(dep.ident).qualified_names()[0];
 
-                let spec = match &dep.cranko_requirement {
+                let spec = match &dep.clikd_requirement {
                     DepRequirement::Commit(cid) => cid.to_string(),
                     DepRequirement::Manual(t) => format!("manual:{t}"),
                     DepRequirement::Unavailable => continue,
@@ -457,7 +457,7 @@ impl CargoCommand {
     }
 }
 
-/// `cranko cargo foreach-released`
+/// `clikd cargo foreach-released`
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct ForeachReleasedCommand {
     #[arg(
@@ -540,7 +540,7 @@ impl ForeachReleasedCommand {
     }
 }
 
-/// `cranko cargo package-released-binaries`
+/// `clikd cargo package-released-binaries`
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct PackageReleasedBinariesCommand {
     #[arg(
@@ -703,7 +703,7 @@ impl BinaryArchiveMode {
         let out_file = File::create(&path)
             .with_context(|| format!("failed to create Zip file `{}`", path.display()))?;
         let mut zip = zip::ZipWriter::new(out_file);
-        zip.set_comment("Created by Cranko");
+        zip.set_comment("Created by Clikd");
 
         let options = zip::write::FileOptions::<()>::default().unix_permissions(0o755);
 

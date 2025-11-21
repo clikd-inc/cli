@@ -38,7 +38,7 @@ impl std::fmt::Display for CommitId {
 }
 
 /// An empty error returned when the backing repository is "bare", without a
-/// working directory. Cranko cannot operate on such repositories.
+/// working directory. Clikd cannot operate on such repositories.
 #[derive(Debug, ThisError)]
 #[error("cannot operate on a bare repository")]
 pub struct BareRepositoryError;
@@ -87,7 +87,7 @@ pub struct Repository {
     release_tag_name_format: String,
 
     /// "Bootstrap" versioning information used to tell us where versions were at
-    /// before the first Cranko release commit.
+    /// before the first Clikd release commit.
     bootstrap_info: BootstrapConfiguration,
 }
 
@@ -422,7 +422,7 @@ impl Repository {
 
     /// Resolve the path to the per-repository configuration directory.
     pub fn resolve_config_dir(&self) -> PathBuf {
-        self.resolve_workdir(RepoPath::new(b".config/clikd"))
+        self.resolve_workdir(RepoPath::new(b"clikd"))
     }
 
     /// Convert a filesystem path pointing inside the working directory into a
@@ -469,8 +469,9 @@ impl Repository {
     /// selection.) Modifications to any of the paths matched by `ok_matchers`
     /// are allowed.
     pub fn check_if_dirty(&self, ok_matchers: &[PathMatcher]) -> Result<Option<RepoPathBuf>> {
-        // Default options are what we want.
         let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(true);
+        opts.include_ignored(false);
 
         for entry in self.repo.statuses(Some(&mut opts))?.iter() {
             // Is this correct / sufficient?
@@ -541,7 +542,7 @@ impl Repository {
     }
 
     /// Get a ReleaseCommitInfo corresponding to the project's history before
-    /// Cranko.
+    /// Clikd.
     fn get_bootstrap_release_info(&self) -> ReleaseCommitInfo {
         let mut rel_info = ReleaseCommitInfo::default();
 
@@ -567,7 +568,7 @@ impl Repository {
     }
 
     fn get_signature(&self) -> Result<git2::Signature> {
-        Ok(git2::Signature::now("cranko", "cranko@devnull")?)
+        Ok(git2::Signature::now("clikd", "clikd@devnull")?)
     }
 
     fn try_get_release_commit(&self) -> Result<Option<git2::Commit>> {
@@ -658,11 +659,11 @@ impl Repository {
             }
         }
 
-        // TODO: summary should say (e.g.) "Release cranko 0.1.0" if possible.
+        // TODO: summary should say (e.g.) "Release clikd 0.1.0" if possible.
         let message = format!(
-            "Release commit created with Cranko.
+            "Release commit created with Clikd.
 
-+++ cranko-release-info-v1
++++ clikd-release-info-v1
 {}
 +++
 ",
@@ -742,7 +743,7 @@ impl Repository {
                     data.push_str(line);
                     data.push('\n');
                 }
-            } else if line.starts_with("+++ cranko-release-info-v1") {
+            } else if line.starts_with("+++ clikd-release-info-v1") {
                 in_body = true;
             }
         }
@@ -752,7 +753,7 @@ impl Repository {
         }
 
         if data.is_empty() {
-            bail!("empty cranko-release-info body in release commit message");
+            bail!("empty clikd-release-info body in release commit message");
         }
 
         let mut srci: SerializedReleaseCommitInfo = toml::from_str(&data)?;
@@ -824,11 +825,11 @@ impl Repository {
 
                 if commit.parent_count() == 1 {
                     // If a `release` commit has one parent, it is the first
-                    // Cranko release commit in the project history, and all
+                    // Clikd release commit in the project history, and all
                     // further parent commits are just regular code from
-                    // `master` (because all other Cranko release commits merge
+                    // `master` (because all other Clikd release commits merge
                     // the main branch into the release branch). Therefore any
-                    // leftover projects must have no Cranko releases on record.
+                    // leftover projects must have no Clikd releases on record.
                     break;
                 }
 
@@ -1034,9 +1035,9 @@ impl Repository {
         let info = SerializedRcCommitInfo { projects: rcinfo };
 
         let message = format!(
-            "Release request commit created with Cranko.
+            "Release request commit created with Clikd.
 
-+++ cranko-rc-info-v1
++++ clikd-rc-info-v1
 {}
 +++
 ",
@@ -1105,7 +1106,7 @@ impl Repository {
                     data.push_str(line);
                     data.push('\n');
                 }
-            } else if line.starts_with("+++ cranko-rc-info-v1") {
+            } else if line.starts_with("+++ clikd-rc-info-v1") {
                 in_body = true;
             }
         }
@@ -1115,7 +1116,7 @@ impl Repository {
         }
 
         if data.is_empty() {
-            bail!("empty cranko-rc-info body in RC commit message");
+            bail!("empty clikd-rc-info body in RC commit message");
         }
 
         let srci: SerializedRcCommitInfo = toml::from_str(&data)?;
@@ -1164,7 +1165,7 @@ impl Repository {
         // exhaustively check for invalid tags. The main thing is that our qname
         // separator ":" isn't allowed in tags. Most invalid characters we
         // replace with _, but we replace that with '/' to reflect its
-        // hierarchical meaning in Cranko.
+        // hierarchical meaning in Clikd.
 
         const REPLACEMENT: char = '_';
 
@@ -1298,7 +1299,7 @@ impl Repository {
 
             if commit.parent_count() == 1 {
                 // If a `release` commit has one parent, it is the first
-                // Cranko release commit in the project history, so there's
+                // Clikd release commit in the project history, so there's
                 // nothing more to check.
                 break;
             }
@@ -1439,7 +1440,7 @@ pub struct RepoHistory {
 }
 
 impl RepoHistory {
-    /// Get the Cranko release commit that this chunk of history
+    /// Get the Clikd release commit that this chunk of history
     /// extends to. If None, there is no such commit, and the
     /// history extends all the way to the start of the project
     /// history.

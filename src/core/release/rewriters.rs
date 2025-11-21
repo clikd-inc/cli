@@ -11,12 +11,12 @@ pub trait Rewriter: std::fmt::Debug {
     /// dependency specifications captured in the current runtime state.
     fn rewrite(&self, app: &AppSession, changes: &mut ChangeList) -> Result<()>;
 
-    /// Rewrite the metafiles to embed the Cranko-specific internal dependency
+    /// Rewrite the metafiles to embed the Clikd-specific internal dependency
     /// version requirement metadata. This should not be done as part of the
     /// mainline rewriting process, but it is convenient to be able to do this
     /// on behalf of the user (e.g. generating `thiscommit:` strings and
     /// bootstrapping).
-    fn rewrite_cranko_requirements(
+    fn rewrite_clikd_requirements(
         &self,
         _app: &AppSession,
         _changes: &mut ChangeList,

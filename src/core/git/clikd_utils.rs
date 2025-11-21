@@ -32,7 +32,7 @@ impl RebootBranchCommand {
         let repo = git2::Repository::open_from_env().context("couldn't open Git repository")?;
         let mut index = repo.index().context("couldn't open Git index")?;
 
-        let sig = git2::Signature::now("cranko", "cranko@devnull")?;
+        let sig = git2::Signature::now("clikd", "clikd@devnull")?;
 
         let ref_name = format!("refs/heads/{}", &self.branch);
 

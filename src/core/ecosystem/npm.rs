@@ -154,11 +154,11 @@ impl NpmLoader {
                 {
                     for (dep_name, dep_spec) in dep_map {
                         if let Some(dep_data) = &self.npm_to_graph.get(dep_name) {
-                            let req = if let Some(cranko_spec) = maybe_internal_specs
+                            let req = if let Some(clikd_spec) = maybe_internal_specs
                                 .and_then(|d| d.get(dep_name))
                                 .and_then(|v| v.as_str())
                             {
-                                match app.repo.parse_history_ref(cranko_spec).and_then(|cref| {
+                                match app.repo.parse_history_ref(clikd_spec).and_then(|cref| {
                                     app.repo.resolve_history_ref(&cref, &load_data.json_path)
                                 }) {
                                     Ok(r) => r,
@@ -227,7 +227,7 @@ impl Rewriter for PackageJsonRewriter {
         let mut internal_reqs = HashMap::new();
 
         for dep in &proj.internal_deps[..] {
-            let req_text = match dep.cranko_requirement {
+            let req_text = match dep.clikd_requirement {
                 DepRequirement::Manual(ref t) => t.clone(),
 
                 DepRequirement::Commit(_) => {
@@ -303,8 +303,8 @@ impl Rewriter for PackageJsonRewriter {
         Ok(())
     }
 
-    /// Rewriting just the special Cranko requirement metadata.
-    fn rewrite_cranko_requirements(
+    /// Rewriting just the special Clikd requirement metadata.
+    fn rewrite_clikd_requirements(
         &self,
         app: &AppSession,
         changes: &mut ChangeList,
@@ -355,7 +355,7 @@ impl Rewriter for PackageJsonRewriter {
         for dep in &proj.internal_deps {
             let target = &graph.lookup(dep.ident).qualified_names()[0];
 
-            let spec = match &dep.cranko_requirement {
+            let spec = match &dep.clikd_requirement {
                 DepRequirement::Commit(cid) => cid.to_string(),
                 DepRequirement::Manual(t) => format!("manual:{t}"),
                 DepRequirement::Unavailable => continue,
@@ -409,7 +409,7 @@ impl NpmCommand {
     }
 }
 
-/// `cranko npm foreach-released`
+/// `clikd npm foreach-released`
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct ForeachReleasedCommand {
     #[arg(help = "The command to run", required = true)]
@@ -471,7 +471,7 @@ impl ForeachReleasedCommand {
     }
 }
 
-/// `cranko npm install-token`
+/// `clikd npm install-token`
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct InstallTokenCommand {
     #[arg(long)]
@@ -537,7 +537,7 @@ impl InstallTokenCommand {
     }
 }
 
-/// `cranko npm lerna-workaround`
+/// `clikd npm lerna-workaround`
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct LernaWorkaroundCommand {}
 

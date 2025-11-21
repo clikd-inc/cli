@@ -1,7 +1,7 @@
 // Copyright 2020 Peter Williams <peter@newton.cx> and collaborators
 // Licensed under the MIT License.
 
-//! Boostrapping Cranko on a preexisting repository.
+//! Boostrapping Clikd on a preexisting repository.
 
 use anyhow::bail;
 use log::{error, info, warn};
@@ -58,19 +58,19 @@ pub fn run(force: bool, upstream: Option<String>) -> Result<i32> {
 impl BootstrapCommand {
     fn execute(self) -> Result<i32> {
         info!(
-            "bootstrapping with Cranko version {}",
+            "bootstrapping with clikd version {}",
             env!("CARGO_PKG_VERSION")
         );
 
         let mut repo = atry!(
             crate::core::release::repository::Repository::open_from_env();
-            ["Cranko is not being run from a Git working directory"]
+            ["clikd is not being run from a Git working directory"]
             (note "run the bootstrap stage inside the Git work tree that you wish to bootstrap")
         );
 
         let upstream_url = atry!(
             repo.bootstrap_upstream(self.upstream_name.as_ref().map(|s| s.as_ref()));
-            ["Cranko cannot identify the Git upstream URL"]
+            ["clikd cannot identify the Git upstream URL"]
             (note "use the `--upstream` option to manually identify the upstream Git remote")
         );
 
@@ -97,12 +97,12 @@ impl BootstrapCommand {
             let mut cfg_path = repo.resolve_config_dir();
             atry!(
                 fs::create_dir_all(&cfg_path);
-                ["could not create Cranko configuration directory `{}`", cfg_path.display()]
+                ["could not create clikd configuration directory `{}`", cfg_path.display()]
             );
 
             cfg_path.push("config.toml");
             info!(
-                "stubbing Cranko configuration file `{}`",
+                "stubbing clikd configuration file `{}`",
                 cfg_path.display(),
             );
 
@@ -115,13 +115,13 @@ impl BootstrapCommand {
                 Err(e) => {
                     if e.kind() == std::io::ErrorKind::AlreadyExists {
                         warn!(
-                            "Cranko configuration file `{}` already exists; not modifying it",
+                            "clikd configuration file `{}` already exists; not modifying it",
                             cfg_path.display()
                         );
                         None
                     } else {
                         return Err(Error::new(e).context(format!(
-                            "failed to open Cranko configuration file `{}` for writing",
+                            "failed to open clikd configuration file `{}` for writing",
                             cfg_path.display()
                         )));
                     }
@@ -131,7 +131,7 @@ impl BootstrapCommand {
             if let Some(mut f) = f {
                 atry!(
                     f.write_all(cfg_text.as_bytes());
-                    ["could not write Cranko configuration file `{}`", cfg_path.display()]
+                    ["could not write clikd configuration file `{}`", cfg_path.display()]
                 );
             }
         }
@@ -147,7 +147,7 @@ impl BootstrapCommand {
             let proj = sess.graph().lookup(ident);
 
             if !seen_any {
-                info!("Cranko detected the following projects in the repo:");
+                info!("clikd detected the following projects in the repo:");
                 println!();
                 seen_any = true;
             }
@@ -171,10 +171,10 @@ impl BootstrapCommand {
         if seen_any {
             println!();
             info!("consult the documentation if these results are unexpected");
-            info!("autodetection letting you down? file an issue: https://github.com/pkgw/cranko/issues/new");
+            info!("autodetection letting you down? file an issue: https://github.com/clikd-inc/cli/issues/new");
         } else {
-            error!("Cranko failed to discover any projects in the repo");
-            error!("autodetection letting you down? file an issue: https://github.com/pkgw/cranko/issues/new");
+            error!("clikd failed to discover any projects in the repo");
+            error!("autodetection letting you down? file an issue: https://github.com/clikd-inc/cli/issues/new");
             return Ok(1);
         }
 
@@ -192,7 +192,7 @@ impl BootstrapCommand {
             versions.insert(proj.ident(), proj.version.clone());
 
             for dep in &mut proj.internal_deps[..] {
-                dep.cranko_requirement = DepRequirement::Manual(versions[&dep.ident].to_string());
+                dep.clikd_requirement = DepRequirement::Manual(versions[&dep.ident].to_string());
             }
         }
 
@@ -206,14 +206,30 @@ impl BootstrapCommand {
             bs_path.push("bootstrap.toml");
             info!("writing versioning bootstrap file `{}`", bs_path.display());
 
-            let mut f = atry!(
-                fs::OpenOptions::new().write(true).create_new(true).open(&bs_path);
-                ["could not create bootstrap file `{}`", bs_path.display()]
-            );
-            atry!(
-                f.write_all(bs_text.as_bytes());
-                ["could not write bootstrap file `{}`", bs_path.display()]
-            );
+            let f = match fs::OpenOptions::new().write(true).create_new(true).open(&bs_path) {
+                Ok(f) => Some(f),
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::AlreadyExists {
+                        warn!(
+                            "clikd bootstrap file `{}` already exists; not modifying it",
+                            bs_path.display()
+                        );
+                        None
+                    } else {
+                        return Err(Error::new(e).context(format!(
+                            "failed to open clikd bootstrap file `{}` for writing",
+                            bs_path.display()
+                        )));
+                    }
+                }
+            };
+
+            if let Some(mut f) = f {
+                atry!(
+                    f.write_all(bs_text.as_bytes());
+                    ["could not write bootstrap file `{}`", bs_path.display()]
+                );
+            }
         }
 
         info!("updating project meta-files with developer versions");
@@ -243,21 +259,21 @@ impl BootstrapCommand {
 
         for proj in sess.graph_mut().toposorted_mut() {
             for dep in &mut proj.internal_deps[..] {
-                dep.cranko_requirement = DepRequirement::Manual(dep.literal.clone());
+                dep.clikd_requirement = DepRequirement::Manual(dep.literal.clone());
             }
         }
 
         atry!(
-            sess.rewrite_cranko_requirements();
-            ["there was a problem adding Cranko dependency metadata to the project files"]
+            sess.rewrite_clikd_requirements();
+            ["there was a problem adding dependency metadata to the project files"]
         );
 
         info!("modifications complete!");
         println!();
-        info!("Review changes, add `.config/clikd/` to the repository, and commit.");
-        info!("Then try `cranko status` for a history summary");
-        info!("   (its results will be imprecise because Cranko cannot trace into pre-Cranko history)");
-        info!("Then begin modifying your CI/CD pipeline to use the `cranko release-workflow` commands");
+        info!("Review changes, add `clikd/` to the repository, and commit.");
+        info!("Then try `clikd release status` for a history summary");
+        info!("   (its results will be imprecise because clikd cannot trace into pre-bootstrap history)");
+        info!("Then begin modifying your CI/CD pipeline to use the `clikd release` commands");
         Ok(0)
     }
 }

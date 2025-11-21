@@ -4,7 +4,7 @@
 //! Dealing with changelogs.
 //!
 //! This whole subject matter might not seem integral to the operation of
-//! Cranko, but it turns out to be very relevant, since so much of Cranko's core
+//! Clikd, but it turns out to be very relevant, since so much of Clikd's core
 //! has to do with looking at the repository history since the most recent
 //! release(s). That's exactly the information contained in a release changelog.
 
@@ -49,8 +49,8 @@ pub trait Changelog: std::fmt::Debug {
     ) -> Result<()>;
 
     /// Create a matcher that matches one or more paths in the project's
-    /// directory corresponding to its changelog(s). Operations like `cranko
-    /// stage` and `cranko confirm` care about working directory dirtiness, but
+    /// directory corresponding to its changelog(s). Operations like `clikd
+    /// stage` and `clikd confirm` care about working directory dirtiness, but
     /// in our model modified changelogs are OK.
     fn create_path_matcher(&self, proj: &Project) -> Result<PathMatcher>;
 
@@ -88,7 +88,7 @@ pub fn default() -> Box<dyn Changelog> {
 }
 
 /// An error returned when a changelog file does not obey the special structure
-/// expected by Cranko's processing routines. The inner value is the path to the
+/// expected by Clikd's processing routines. The inner value is the path to the
 /// offending changelog (not a RepoPathBuf since it may not have yet been added
 /// to the repo).
 #[derive(Debug, ThisError)]

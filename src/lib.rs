@@ -38,7 +38,7 @@ pub mod core {
     pub mod git {
         pub mod branch;
         pub mod gitignore;
-        pub mod cranko_utils;
+        pub mod clikd_utils;
     }
 
     pub mod release {

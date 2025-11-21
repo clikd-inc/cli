@@ -1,7 +1,7 @@
 // Copyright 2020 Peter Williams <peter@newton.cx> and collaborators
 // Licensed under the MIT License.
 
-//! State for the Cranko CLI application.
+//! State for the Clikd CLI application.
 
 use anyhow::{anyhow, Context};
 use tracing::{error, info, warn};
@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-/// Setting up a Cranko application session.
+/// Setting up a Clikd application session.
 pub struct AppBuilder {
     pub repo: Repository,
     pub graph: ProjectGraphBuilder,
@@ -83,6 +83,8 @@ impl AppBuilder {
             let mut csproj = crate::core::ecosystem::csproj::CsProjLoader::default();
             let mut npm = crate::core::ecosystem::npm::NpmLoader::default();
             let mut pypa = crate::core::ecosystem::pypa::PypaLoader::default();
+            let mut go = crate::core::ecosystem::go::GoLoader::default();
+            let mut elixir = crate::core::ecosystem::elixir::ElixirLoader::default();
 
             // Dumb hack around the borrowchecker to allow mutable reference to
             // the graph while iterating over the repo:
@@ -96,6 +98,8 @@ impl AppBuilder {
                 csproj.process_index_item(&repo, p, dirname, basename)?;
                 npm.process_index_item(&repo, &mut graph, p, dirname, basename, &proj_config)?;
                 pypa.process_index_item(dirname, basename);
+                go.process_index_item(dirname, basename);
+                elixir.process_index_item(dirname, basename);
                 Ok(())
             })?;
 
@@ -108,6 +112,8 @@ impl AppBuilder {
             csproj.finalize(&mut self, &proj_config)?;
             npm.finalize(&mut self)?;
             pypa.finalize(&mut self, &proj_config)?;
+            go.finalize(&mut self, &proj_config)?;
+            elixir.finalize(&mut self, &proj_config)?;
         }
 
         // Apply project config and compile the graph.
@@ -134,7 +140,7 @@ impl AppBuilder {
 #[error("unsatisfied internal requirement: `{0}` needs newer `{1}`")]
 pub struct UnsatisfiedInternalRequirementError(pub String, pub String);
 
-/// The main Cranko CLI application state structure.
+/// The main Clikd CLI application state structure.
 pub struct AppSession {
     /// The backing repository.
     pub repo: Repository,
@@ -173,20 +179,20 @@ impl AppSession {
 
             if let Some(true) = maybe_pr {
                 if maybe_ci_branch == Some(rc_name) {
-                    warn!("cranko seems to be running in a pull request to the `{}` branch; this is not recommended", rc_name);
+                    warn!("clikd seems to be running in a pull request to the `{}` branch; this is not recommended", rc_name);
                     warn!("... treating as a non-CI environment for safety");
                     return Ok(ExecutionEnvironment::NotCi);
                 }
 
                 if maybe_ci_branch == Some(release_name) {
-                    warn!("cranko seems to be running in a pull request to the `{}` branch; this is not recommended", release_name);
+                    warn!("clikd seems to be running in a pull request to the `{}` branch; this is not recommended", release_name);
                     warn!("... treating as a non-CI environment for safety");
                     return Ok(ExecutionEnvironment::NotCi);
                 }
             }
 
             if maybe_ci_branch == Some(release_name) {
-                warn!("cranko seems to be running in an update to the `{}` branch; this is not recommended", release_name);
+                warn!("clikd seems to be running in an update to the `{}` branch; this is not recommended", release_name);
                 warn!("... treating as a non-CI environment for safety");
                 return Ok(ExecutionEnvironment::NotCi);
             }
@@ -395,7 +401,7 @@ impl AppSession {
                 let mut resolved_versions = Vec::new();
 
                 for (idx, dep) in proj.internal_deps.iter().enumerate() {
-                    match dep.cranko_requirement {
+                    match dep.clikd_requirement {
                         // If the requirement is of a specific commit, we need
                         // to resolve its corresponding release and/or make sure
                         // that the dependee project is also being released in
@@ -507,7 +513,7 @@ impl AppSession {
                 let proj = self.graph.lookup_mut(ident);
 
                 for (idx, resolved) in resolved_versions.drain(..) {
-                    proj.internal_deps[idx].cranko_requirement =
+                    proj.internal_deps[idx].clikd_requirement =
                         DepRequirement::Manual(resolved.to_string());
                     proj.internal_deps[idx].resolved_version = Some(resolved);
                 }
@@ -577,16 +583,16 @@ impl AppSession {
         Ok(changes)
     }
 
-    /// Like rewrite(), but only for the special Cranko requirements metadata.
+    /// Like rewrite(), but only for the special Clikd requirements metadata.
     /// This is convenience functionality not needed for the main workflows.
-    pub fn rewrite_cranko_requirements(&self) -> Result<ChangeList> {
+    pub fn rewrite_clikd_requirements(&self) -> Result<ChangeList> {
         let mut changes = ChangeList::default();
 
         for ident in self.graph.toposorted() {
             let proj = self.graph.lookup(ident);
 
             for rw in &proj.rewriters {
-                rw.rewrite_cranko_requirements(self, &mut changes)?;
+                rw.rewrite_clikd_requirements(self, &mut changes)?;
             }
         }
 
@@ -676,7 +682,7 @@ pub enum ExecutionEnvironment {
     CiRcMode(bool, RcCommitInfo),
 
     /// The program is running in a CI environment, in a "release deployment"
-    /// mode where HEAD is a Cranko release commit. If the boolean is true, we
+    /// mode where HEAD is a Clikd release commit. If the boolean is true, we
     /// are in a development mode where version numbers are temporary and
     /// release artifacts will not be deployed (but this mode still can be
     /// useful for creating artifacts and so on).
