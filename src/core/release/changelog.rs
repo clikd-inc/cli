@@ -18,12 +18,11 @@ use std::{
 };
 use thiserror::Error as ThisError;
 
-use crate::{
-    app::AppSession,
+use crate::core::release::{
+    session::AppSession,
     errors::{Error, Result},
     project::Project,
     repository::{ChangeList, CommitId, PathMatcher, RcProjectInfo, RepoPathBuf, Repository},
-    write_crlf,
 };
 
 /// A type that defines how the changelog for a given project is managed.
@@ -174,7 +173,7 @@ impl MarkdownChangelog {
                 let header = SimpleCurlyFormat
                     .format(&self.stage_header_format, &headfoot_args)
                     .map_err(|e| Error::msg(e.to_string()))?;
-                write_crlf!(new_f, "{}", header)?;
+                writeln!(new_f, "{}", header)?;
 
                 // Commit summaries! Note: if we're staging muliple projects and the
                 // same commit affects many of them, we'll reload the same commit many
@@ -187,7 +186,7 @@ impl MarkdownChangelog {
                     let mut prefix = "- ";
 
                     for line in textwrap::wrap(&message, WRAP_WIDTH) {
-                        write_crlf!(new_f, "{}{}", prefix, line)?;
+                        writeln!(new_f, "{}{}", prefix, line)?;
                         prefix = "  ";
                     }
                 }
@@ -197,7 +196,7 @@ impl MarkdownChangelog {
                 let footer = SimpleCurlyFormat
                     .format(&self.footer_format, &headfoot_args)
                     .map_err(|e| Error::msg(e.to_string()))?;
-                write_crlf!(new_f, "{}", footer)?;
+                writeln!(new_f, "{}", footer)?;
             }
 
             // Write back all of the previous contents, and we're done.
@@ -327,18 +326,18 @@ impl Changelog for MarkdownChangelog {
                         let header = SimpleCurlyFormat
                             .format(&self.release_header_format, &header_args)
                             .map_err(|e| Error::msg(e.to_string()))?;
-                        write_crlf!(new_f, "{}", header)?;
+                        writeln!(new_f, "{}", header)?;
                     }
 
                     State::BlanksAfterHeader => {
                         if !line.trim().is_empty() {
                             state = State::AfterHeader;
-                            write_crlf!(new_f, "{}", line)?;
+                            writeln!(new_f, "{}", line)?;
                         }
                     }
 
                     State::AfterHeader => {
-                        write_crlf!(new_f, "{}", line)?;
+                        writeln!(new_f, "{}", line)?;
                     }
                 }
             }

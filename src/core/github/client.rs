@@ -5,18 +5,17 @@
 
 use anyhow::{anyhow, Context};
 use json::{object, JsonValue};
-use log::{error, info, warn};
+use tracing::{error, info, warn};
 use std::{fs::File, path::PathBuf};
-use structopt::StructOpt;
+use clap::Parser;
 
-use super::Command;
-use crate::{
-    app::{AppBuilder, AppSession},
+use crate::core::release::{
     env::require_var,
     errors::Result,
     graph,
     project::Project,
     repository::{CommitId, ReleasedProjectInfo},
+    session::{AppBuilder, AppSession},
 };
 
 struct GitHubInformation {
@@ -177,7 +176,7 @@ impl GitHubInformation {
 }
 
 /// The `github` subcommands.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub enum GithubCommands {
     #[structopt(name = "create-custom-release")]
     /// Create a single, customized GitHub release
@@ -187,7 +186,7 @@ pub enum GithubCommands {
     /// Create one or more new GitHub releases
     CreateReleases(CreateReleasesCommand),
 
-    #[structopt(name = "_credential-helper", setting = structopt::clap::AppSettings::Hidden)]
+    #[command(name = "_credential-helper", hide = true)]
     /// (hidden) github credential helper
     CredentialHelper(CredentialHelperCommand),
 
@@ -204,14 +203,14 @@ pub enum GithubCommands {
     UploadArtifacts(UploadArtifactsCommand),
 }
 
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct GithubCommand {
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     command: GithubCommands,
 }
 
-impl Command for GithubCommand {
-    fn execute(self) -> Result<i32> {
+impl GithubCommand {
+    pub fn execute(self) -> Result<i32> {
         match self.command {
             GithubCommands::CreateCustomRelease(o) => o.execute(),
             GithubCommands::CreateReleases(o) => o.execute(),
@@ -224,7 +223,7 @@ impl Command for GithubCommand {
 }
 
 /// Create a single custom GitHub release.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct CreateCustomReleaseCommand {
     #[structopt(long = "name", help = "The user-facing name for the release")]
     release_name: String,
@@ -249,8 +248,8 @@ pub struct CreateCustomReleaseCommand {
     tag_name: String,
 }
 
-impl Command for CreateCustomReleaseCommand {
-    fn execute(self) -> Result<i32> {
+impl CreateCustomReleaseCommand {
+    pub fn execute(self) -> Result<i32> {
         let sess = AppBuilder::new()?.populate_graph(false).initialize()?;
         let info = GitHubInformation::new(&sess)?;
         let mut client = info.make_blocking_client()?;
@@ -267,14 +266,14 @@ impl Command for CreateCustomReleaseCommand {
 }
 
 /// Create new release(s) on GitHub.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct CreateReleasesCommand {
     #[structopt(help = "Name(s) of the project(s) to release on GitHub")]
     proj_names: Vec<String>,
 }
 
-impl Command for CreateReleasesCommand {
-    fn execute(self) -> Result<i32> {
+impl CreateReleasesCommand {
+    pub fn execute(self) -> Result<i32> {
         let sess = AppSession::initialize_default()?;
         let info = GitHubInformation::new(&sess)?;
 
@@ -338,14 +337,14 @@ impl Command for CreateReleasesCommand {
 }
 
 /// hidden Git credential helper command
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct CredentialHelperCommand {
     #[structopt(help = "The operation")]
     operation: String,
 }
 
-impl Command for CredentialHelperCommand {
-    fn execute(self) -> Result<i32> {
+impl CredentialHelperCommand {
+    pub fn execute(self) -> Result<i32> {
         if self.operation != "get" {
             info!("ignoring Git credential operation `{}`", self.operation);
         } else {
@@ -359,14 +358,14 @@ impl Command for CredentialHelperCommand {
 }
 
 /// Delete a release from GitHub.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct DeleteReleaseCommand {
     #[structopt(help = "Name of the release's tag on GitHub")]
     tag_name: String,
 }
 
-impl Command for DeleteReleaseCommand {
-    fn execute(self) -> Result<i32> {
+impl DeleteReleaseCommand {
+    pub fn execute(self) -> Result<i32> {
         let sess = AppSession::initialize_default()?;
         let info = GitHubInformation::new(&sess)?;
         let mut client = info.make_blocking_client()?;
@@ -380,12 +379,11 @@ impl Command for DeleteReleaseCommand {
 }
 
 /// Install as a Git credential helper
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct InstallCredentialHelperCommand {}
 
-impl Command for InstallCredentialHelperCommand {
-    fn execute(self) -> Result<i32> {
-        // The path given to Git must be an absolute path.
+impl InstallCredentialHelperCommand {
+    pub fn execute(self) -> Result<i32> {
         let this_exe = std::env::current_exe()?;
         let this_exe = this_exe.to_str().ok_or_else(|| {
             anyhow!(
@@ -404,7 +402,7 @@ impl Command for InstallCredentialHelperCommand {
 }
 
 /// Upload one or more artifact files to a GitHub release.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct UploadArtifactsCommand {
     #[structopt(
         long = "overwrite",
@@ -425,8 +423,8 @@ pub struct UploadArtifactsCommand {
     paths: Vec<PathBuf>,
 }
 
-impl Command for UploadArtifactsCommand {
-    fn execute(self) -> Result<i32> {
+impl UploadArtifactsCommand {
+    pub fn execute(self) -> Result<i32> {
         let sess = AppSession::initialize_default()?;
         let info = GitHubInformation::new(&sess)?;
         let mut client = info.make_blocking_client()?;
@@ -452,8 +450,6 @@ impl Command for UploadArtifactsCommand {
                     )
                 })?;
 
-            // Get information about the release
-
             let proj = sess.graph().lookup(ident);
             info.get_release_metadata(&sess, proj, rel, &mut client)
         }?;
@@ -462,17 +458,13 @@ impl Command for UploadArtifactsCommand {
             .take_string()
             .ok_or_else(|| anyhow!("no upload_url in release metadata?"))?;
         let upload_url = {
-            // The returned value includes template `{?name,label}` at the end.
             let v: Vec<&str> = upload_url.split('{').collect();
             v[0].to_owned()
         };
 
         info!("upload url = {}", upload_url);
 
-        // Upload artifacts
-
         for path in &self.paths {
-            // Make sure the file exists!
             let file = File::open(path)?;
 
             let name = path
@@ -482,14 +474,8 @@ impl Command for UploadArtifactsCommand {
                 .ok_or_else(|| anyhow!("input file name cannot be stringified"))?
                 .to_owned();
 
-            // If we're in overwrite mode, delete the artifact if it already
-            // exists. This is racy, but the API doesn't give us a better method.
-
             if self.overwrite {
                 for asset_info in metadata["assets"].members() {
-                    // The `json` docs make it seem like I should just be able to
-                    // write `asset_info["name"] == name`, but empirically that's
-                    // not working.
                     if asset_info["name"].as_str() == Some(&name) {
                         info!("deleting preexisting asset (id {})", asset_info["id"]);
 
@@ -505,8 +491,6 @@ impl Command for UploadArtifactsCommand {
                     }
                 }
             }
-
-            // Ready to upload now.
 
             info!("uploading {} => {}", path.display(), name);
             let url = reqwest::Url::parse_with_params(&upload_url, &[("name", &name)])?;

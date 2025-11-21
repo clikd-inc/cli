@@ -9,29 +9,29 @@
 //! fix that.
 
 use anyhow::{anyhow, Context};
-use log::warn;
+use tracing::warn;
 use std::{
     collections::HashMap,
     env,
     ffi::OsString,
     fs::{File, OpenOptions},
+    io::Write,
     process,
 };
-use structopt::StructOpt;
-
-use super::Command;
+use clap::Parser;
 
 use crate::{
-    app::{AppBuilder, AppSession},
     atry,
-    config::ProjectConfiguration,
-    errors::Result,
-    graph::{GraphQueryBuilder, ProjectGraphBuilder},
-    project::{DepRequirement, DependencyTarget, ProjectId},
-    repository::{ChangeList, RepoPath, RepoPathBuf, Repository},
-    rewriters::Rewriter,
-    version::Version,
-    write_crlf,
+    core::release::{
+        session::{AppBuilder, AppSession},
+        config::ProjectConfiguration,
+        errors::Result,
+        graph::GraphQueryBuilder,
+        project::{DepRequirement, DependencyTarget, ProjectId},
+        repository::{ChangeList, RepoPath, RepoPathBuf, Repository},
+        rewriters::Rewriter,
+        version::Version,
+    },
 };
 
 const DEPENDENCY_KEYS: &[&str] = &["dependencies", "devDependencies", "optionalDependencies"];
@@ -50,12 +50,10 @@ struct PackageLoadData {
 }
 
 impl NpmLoader {
-    // TODO: should should defer detailed processing to finalize() like the
-    // othe loaders
     pub fn process_index_item(
         &mut self,
         repo: &Repository,
-        graph: &mut ProjectGraphBuilder,
+        graph: &mut crate::core::release::graph::ProjectGraphBuilder,
         repopath: &RepoPath,
         dirname: &RepoPath,
         basename: &RepoPath,
@@ -296,7 +294,7 @@ impl Rewriter for PackageJsonRewriter {
                 ["failed to overwrite JSON file `{}`", path.display()]
             );
             atry!(
-                write_crlf!(f, "");
+                writeln!(f, "");
                 ["failed to overwrite JSON file `{}`", path.display()]
             );
             changes.add_path(&self.json_path);
@@ -382,30 +380,27 @@ impl Rewriter for PackageJsonRewriter {
 }
 
 /// Npm-specific CLI utilities.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub enum NpmCommands {
-    #[structopt(name = "foreach-released")]
     /// Run a command for each released NPM project.
     ForeachReleased(ForeachReleasedCommand),
 
-    #[structopt(name = "install-token")]
     /// Install $NPM_TOKEN in the user's .npmrc or .yarnrc.yml
     InstallToken(InstallTokenCommand),
 
-    #[structopt(name = "lerna-workaround")]
     /// Write incorrect internal version requirements so that Lerna can
     /// understand them.
     LernaWorkaround(LernaWorkaroundCommand),
 }
 
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct NpmCommand {
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     command: NpmCommands,
 }
 
-impl Command for NpmCommand {
-    fn execute(self) -> Result<i32> {
+impl NpmCommand {
+    pub fn execute(self) -> Result<i32> {
         match self.command {
             NpmCommands::ForeachReleased(o) => o.execute(),
             NpmCommands::InstallToken(o) => o.execute(),
@@ -415,13 +410,13 @@ impl Command for NpmCommand {
 }
 
 /// `cranko npm foreach-released`
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct ForeachReleasedCommand {
-    #[structopt(help = "The command to run", required = true)]
+    #[arg(help = "The command to run", required = true)]
     command: Vec<OsString>,
 }
 
-impl Command for ForeachReleasedCommand {
+impl ForeachReleasedCommand {
     fn execute(self) -> Result<i32> {
         let sess = AppSession::initialize_default()?;
 
@@ -477,16 +472,16 @@ impl Command for ForeachReleasedCommand {
 }
 
 /// `cranko npm install-token`
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct InstallTokenCommand {
-    #[structopt(long)]
+    #[arg(long)]
     yarn: bool,
 
-    #[structopt(long = "registry", help = "The registry base URL.")]
+    #[arg(long = "registry", help = "The registry base URL.")]
     registry: Option<String>,
 }
 
-impl Command for InstallTokenCommand {
+impl InstallTokenCommand {
     fn execute(self) -> Result<i32> {
         let token = atry!(
             env::var("NPM_TOKEN");
@@ -509,15 +504,15 @@ impl Command for InstallTokenCommand {
             );
 
             atry!(
-                write_crlf!(file, "npmRegistries:");
+                writeln!(file, "npmRegistries:");
                 ["failed to write token data to file `{}`", p.display()]
             );
             atry!(
-                write_crlf!(file, "  \"{}\":", registry);
+                writeln!(file, "  \"{}\":", registry);
                 ["failed to write token data to file `{}`", p.display()]
             );
             atry!(
-                write_crlf!(file, "    npmAuthToken: {}", token);
+                writeln!(file, "    npmAuthToken: {}", token);
                 ["failed to write token data to file `{}`", p.display()]
             );
         } else {
@@ -533,7 +528,7 @@ impl Command for InstallTokenCommand {
             );
 
             atry!(
-                write_crlf!(file, "{}:_authToken={}", registry, token);
+                writeln!(file, "{}:_authToken={}", registry, token);
                 ["failed to write token data to file `{}`", p.display()]
             );
         }
@@ -543,10 +538,10 @@ impl Command for InstallTokenCommand {
 }
 
 /// `cranko npm lerna-workaround`
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct LernaWorkaroundCommand {}
 
-impl Command for LernaWorkaroundCommand {
+impl LernaWorkaroundCommand {
     fn execute(self) -> Result<i32> {
         let mut sess = AppSession::initialize_default()?;
 

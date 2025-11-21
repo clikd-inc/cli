@@ -10,6 +10,10 @@ pub mod cmd {
     pub mod status;
     pub mod stop;
     pub mod update;
+
+    pub mod release {
+        pub mod init;
+    }
 }
 
 pub mod core {
@@ -32,6 +36,34 @@ pub mod core {
     pub mod git {
         pub mod branch;
         pub mod gitignore;
+        pub mod cranko_utils;
+    }
+
+    pub mod release {
+        pub mod changelog;
+        pub mod config;
+        pub mod env;
+        pub mod errors;
+        pub mod graph;
+        pub mod project;
+        pub mod repository;
+        pub mod rewriters;
+        pub mod session;
+        pub mod version;
+    }
+
+    pub mod ecosystem {
+        pub mod cargo;
+        pub mod npm;
+        pub mod pypa;
+        pub mod go;
+        pub mod elixir;
+        #[cfg(feature = "csharp")]
+        pub mod csproj;
+    }
+
+    pub mod github {
+        pub mod client;
     }
 
     pub mod ide {

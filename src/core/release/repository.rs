@@ -5,7 +5,7 @@
 
 use anyhow::{anyhow, bail};
 use dynfmt::{Format, SimpleCurlyFormat};
-use log::{info, warn};
+use tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -17,12 +17,14 @@ use thiserror::Error as ThisError;
 
 use crate::{
     a_ok_or, atry,
-    bootstrap::BootstrapConfiguration,
-    config::RepoConfiguration,
-    errors::{Error, Result},
-    graph::ProjectGraph,
-    project::{DepRequirement, Project},
-    version::Version,
+    core::release::{
+        config::RepoConfiguration,
+        errors::{Error, Result},
+        graph::ProjectGraph,
+        project::{DepRequirement, Project},
+        version::Version,
+    },
+    cmd::release::init::BootstrapConfiguration,
 };
 
 /// Opaque type representing a commit in the repository.
@@ -420,7 +422,7 @@ impl Repository {
 
     /// Resolve the path to the per-repository configuration directory.
     pub fn resolve_config_dir(&self) -> PathBuf {
-        self.resolve_workdir(RepoPath::new(b".config/cranko"))
+        self.resolve_workdir(RepoPath::new(b".config/clikd"))
     }
 
     /// Convert a filesystem path pointing inside the working directory into a

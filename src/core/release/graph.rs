@@ -16,8 +16,8 @@ use petgraph::{
 use std::collections::{HashMap, HashSet};
 use thiserror::Error as ThisError;
 
-use crate::{
-    a_ok_or, atry,
+use crate::{a_ok_or, atry};
+use crate::core::release::{
     config::ProjectConfiguration,
     errors::Result,
     project::{
@@ -664,7 +664,7 @@ impl<'a> Iterator for GraphIterMut<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{repository::RepoPathBuf, version::Version};
+    use crate::core::release::{repository::RepoPathBuf, version::Version};
 
     fn do_name_assignment_test(spec: &[(&[&str], &str)]) -> Result<()> {
         let mut graph = ProjectGraphBuilder::new();

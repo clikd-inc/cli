@@ -8,7 +8,7 @@
 
 use anyhow::{anyhow, Context};
 use cargo_metadata::MetadataCommand;
-use log::{info, warn};
+use tracing::{info, warn};
 use std::{
     collections::HashMap,
     ffi::OsString,
@@ -17,21 +17,21 @@ use std::{
     path::{Path, PathBuf},
     process, thread, time,
 };
-use structopt::StructOpt;
-use toml_edit::{Document, Item, Table};
-
-use super::Command;
+use clap::Parser;
+use toml_edit::{DocumentMut, Item, Table};
 
 use crate::{
-    app::{AppBuilder, AppSession},
     atry,
-    config::ProjectConfiguration,
-    errors::Result,
-    graph::GraphQueryBuilder,
-    project::{DepRequirement, DependencyTarget, Project, ProjectId},
-    repository::{ChangeList, RepoPath, RepoPathBuf},
-    rewriters::Rewriter,
-    version::Version,
+    core::release::{
+        session::{AppBuilder, AppSession},
+        config::ProjectConfiguration,
+        errors::Result,
+        graph::GraphQueryBuilder,
+        project::{DepRequirement, DependencyTarget, Project, ProjectId},
+        repository::{ChangeList, RepoPath, RepoPathBuf},
+        rewriters::Rewriter,
+        version::Version,
+    },
 };
 
 /// Framework for auto-loading Cargo projects from the repository contents.
@@ -225,7 +225,7 @@ impl Rewriter for CargoRewriter {
             let mut f = File::open(&toml_path)?;
             f.read_to_string(&mut s)?;
         }
-        let mut doc: Document = s.parse()?;
+        let mut doc: DocumentMut = s.parse()?;
 
         // Helper table for applying internal deps. Note that we use the 0'th
         // qname, not the user-facing name, since that is what is used in
@@ -371,7 +371,7 @@ impl Rewriter for CargoRewriter {
             let mut f = File::open(&toml_path)?;
             f.read_to_string(&mut s)?;
         }
-        let mut doc: Document = s.parse()?;
+        let mut doc: DocumentMut = s.parse()?;
 
         // Modify.
 
@@ -433,25 +433,23 @@ impl Rewriter for CargoRewriter {
 }
 
 /// Cargo-specific CLI utilities.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub enum CargoCommands {
-    #[structopt(name = "foreach-released")]
     /// Run a "cargo" command for each released Cargo project.
     ForeachReleased(ForeachReleasedCommand),
 
-    #[structopt(name = "package-released-binaries")]
     /// Archive the executables associated with released Cargo projects.
     PackageReleasedBinaries(PackageReleasedBinariesCommand),
 }
 
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct CargoCommand {
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     command: CargoCommands,
 }
 
-impl Command for CargoCommand {
-    fn execute(self) -> Result<i32> {
+impl CargoCommand {
+    pub fn execute(self) -> Result<i32> {
         match self.command {
             CargoCommands::ForeachReleased(o) => o.execute(),
             CargoCommands::PackageReleasedBinaries(o) => o.execute(),
@@ -460,27 +458,27 @@ impl Command for CargoCommand {
 }
 
 /// `cranko cargo foreach-released`
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct ForeachReleasedCommand {
-    #[structopt(
+    #[arg(
         long = "command-name",
         help = "The command name to use for Cargo",
         default_value = "cargo"
     )]
     command_name: String,
 
-    #[structopt(
+    #[arg(
         long = "pause",
         help = "Pause a number of seconds between command invocations",
         default_value = "0"
     )]
     pause: u64,
 
-    #[structopt(help = "Arguments to the `cargo` command", required = true)]
+    #[arg(help = "Arguments to the `cargo` command", required = true)]
     cargo_args: Vec<OsString>,
 }
 
-impl Command for ForeachReleasedCommand {
+impl ForeachReleasedCommand {
     fn execute(self) -> Result<i32> {
         let sess = AppSession::initialize_default()?;
 
@@ -543,39 +541,39 @@ impl Command for ForeachReleasedCommand {
 }
 
 /// `cranko cargo package-released-binaries`
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct PackageReleasedBinariesCommand {
-    #[structopt(
+    #[arg(
         long = "command-name",
         help = "The command name to use for Cargo",
         default_value = "cargo"
     )]
     command_name: String,
 
-    #[structopt(
+    #[arg(
         long = "reroot",
         help = "A prefix to apply to paths returned by the invoked tool"
     )]
     reroot: Option<OsString>,
 
-    #[structopt(short = "t", long = "target", help = "The binaries' target platform")]
+    #[arg(short = 't', long = "target", help = "The binaries' target platform")]
     target: String,
 
-    #[structopt(
+    #[arg(
         help = "The directory into which the archive files should be placed",
         required = true
     )]
     dest_dir: PathBuf,
 
-    #[structopt(
-        last(true),
+    #[arg(
+        last = true,
         help = "Arguments to the `cargo` command used to build/detect binaries",
         required = true
     )]
     cargo_args: Vec<OsString>,
 }
 
-impl Command for PackageReleasedBinariesCommand {
+impl PackageReleasedBinariesCommand {
     fn execute(self) -> Result<i32> {
         use cargo_metadata::Message;
 
@@ -707,7 +705,7 @@ impl BinaryArchiveMode {
         let mut zip = zip::ZipWriter::new(out_file);
         zip.set_comment("Created by Cranko");
 
-        let options = zip::write::FileOptions::default().unix_permissions(0o755);
+        let options = zip::write::FileOptions::<()>::default().unix_permissions(0o755);
 
         for bin in binaries {
             let name = bin

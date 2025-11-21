@@ -6,7 +6,7 @@
 use anyhow::anyhow;
 use std::env;
 
-use crate::errors::Result;
+use crate::core::release::errors::Result;
 
 /// Get an optional environment variable as a string.
 ///

@@ -10,10 +10,8 @@
 use anyhow::Context;
 use std::{collections::HashMap, fs::File, io::Read, path::Path};
 
-use crate::{
-    atry,
-    errors::{Error, Result},
-};
+use crate::atry;
+use crate::core::release::errors::{Error, Result};
 
 /// The configuration file structures as explicitly serialized into the TOML
 /// format.

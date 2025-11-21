@@ -8,7 +8,7 @@ use chrono::{offset::Local, Datelike};
 use std::fmt::{Display, Formatter};
 use thiserror::Error as ThisError;
 
-use crate::errors::Result;
+use crate::core::release::errors::Result;
 
 pub use dotnet::DotNetVersion;
 pub use pep440::Pep440Version;
@@ -310,7 +310,7 @@ mod dotnet {
     use anyhow::bail;
     use std::fmt::{Display, Formatter};
 
-    use crate::errors::{Error, Result};
+    use crate::core::release::errors::{Error, Result};
 
     /// A version compatible with .NET's System.Version
     ///
@@ -388,7 +388,7 @@ mod pep440 {
         fmt::{Display, Formatter},
     };
 
-    use crate::errors::{Error, Result};
+    use crate::core::release::errors::{Error, Result};
 
     /// A version compatible with the Python PEP-440 specification.
     ///
@@ -870,7 +870,7 @@ mod pep440 {
                 "candidate" => (Some(Pep440Prerelease::Rc(serial)), None),
                 "final" => (None, None),
                 "dev" => (None, Some(serial)),
-                _ => return Err(nom::Err::Failure((i, ErrorKind::Alt))),
+                _ => return Err(nom::Err::Failure(nom::error::Error::new(i, ErrorKind::Alt))),
             };
 
             Ok((

@@ -6,25 +6,26 @@
 //! We currently "manually" update `Properties/AssemblyInfo.cs`.
 
 use anyhow::bail;
-use log::{info, warn};
+use tracing::{info, warn};
 use quick_xml::{events::Event, Reader};
 use std::{
     collections::HashMap,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
 };
 
 use crate::{
     a_ok_or,
-    app::{AppBuilder, AppSession},
     atry,
-    config::ProjectConfiguration,
-    errors::Result,
-    project::{DepRequirement, DependencyTarget, ProjectId},
-    repository::{ChangeList, RepoPath, RepoPathBuf, Repository},
-    rewriters::Rewriter,
-    version::Version,
-    write_crlf,
+    core::release::{
+        session::{AppBuilder, AppSession},
+        config::ProjectConfiguration,
+        errors::Result,
+        project::{DepRequirement, DependencyTarget, ProjectId},
+        repository::{ChangeList, RepoPath, RepoPathBuf, Repository},
+        rewriters::Rewriter,
+        version::Version,
+    },
 };
 
 /// Framework for auto-loading Visual Studio C# projects from the repository
@@ -478,7 +479,7 @@ impl Rewriter for AssemblyInfoCsRewriter {
                 let line = if line.starts_with("[assembly: AssemblyVersion") || line.starts_with("[assembly: AssemblyFileVersion") {
                     did_anything = true;
                     atry!(
-                        crate::pypa::simple_py_parse::replace_text_in_string_literal(&line, &proj.version.to_string());
+                        crate::core::ecosystem::pypa::simple_py_parse::replace_text_in_string_literal(&line, &proj.version.to_string());
                         ["couldn't rewrite version-string source line `{}`", line]
                     )
                 } else {
@@ -486,7 +487,7 @@ impl Rewriter for AssemblyInfoCsRewriter {
                 };
 
                 atry!(
-                    write_crlf!(new_f, "{}", line);
+                    writeln!(new_f, "{}", line);
                     ["error writing data to `{}`", new_af.path().display()]
                 );
             }
@@ -600,7 +601,7 @@ impl Rewriter for VdprojRewriter {
                 };
 
                 atry!(
-                    write_crlf!(new_f, "{}", line);
+                    writeln!(new_f, "{}", line);
                     ["error writing data to `{}`", new_af.path().display()]
                 );
             }

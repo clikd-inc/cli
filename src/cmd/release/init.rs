@@ -7,11 +7,10 @@ use anyhow::bail;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io::Write};
-use structopt::StructOpt;
+use clap::Parser;
 
-use super::Command;
-use crate::{
-    atry,
+use crate::atry;
+use crate::core::release::{
     errors::{Error, Result},
     project::DepRequirement,
 };
@@ -31,34 +30,32 @@ pub struct BootstrapProjectInfo {
 }
 
 /// The `bootstrap` commands.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct BootstrapCommand {
-    #[structopt(
-        short = "f",
+    #[arg(
+        short = 'f',
         long = "force",
         help = "Force operation even in unexpected conditions"
     )]
     force: bool,
 
-    #[structopt(
-        short = "u",
+    #[arg(
+        short = 'u',
         long = "upstream",
         help = "The name of the Git upstream remote"
     )]
     upstream_name: Option<String>,
 }
 
-impl Command for BootstrapCommand {
-    fn execute(self) -> Result<i32> {
+impl BootstrapCommand {
+    pub fn execute(self) -> Result<i32> {
         info!(
             "bootstrapping with Cranko version {}",
             env!("CARGO_PKG_VERSION")
         );
 
-        // Early business: get the repo and identify the upstream.
-
         let mut repo = atry!(
-            crate::repository::Repository::open_from_env();
+            crate::core::release::repository::Repository::open_from_env();
             ["Cranko is not being run from a Git working directory"]
             (note "run the bootstrap stage inside the Git work tree that you wish to bootstrap")
         );
@@ -84,10 +81,8 @@ impl Command for BootstrapCommand {
             }
         }
 
-        // Stub the config file.
-
         {
-            let mut cfg = crate::config::ConfigurationFile::default();
+            let mut cfg = crate::core::release::config::ConfigurationFile::default();
             cfg.repo.upstream_urls = vec![upstream_url];
             let cfg_text = cfg.into_toml()?;
 
@@ -133,10 +128,8 @@ impl Command for BootstrapCommand {
             }
         }
 
-        // Now we can initialize the regular app and report on the projects.
-
         let mut sess = atry!(
-            crate::app::AppSession::initialize_default();
+            crate::core::release::session::AppSession::initialize_default();
             ["could not initialize app and project graph"]
         );
 
@@ -177,9 +170,6 @@ impl Command for BootstrapCommand {
             return Ok(1);
         }
 
-        // Reset internal version specifications. Bit hacky: first, zero out all
-        // versions and rewrite metafiles with exact dev-mode interdependencies.
-
         let mut bs_cfg = BootstrapConfiguration::default();
         let mut versions = HashMap::new();
 
@@ -194,12 +184,9 @@ impl Command for BootstrapCommand {
             versions.insert(proj.ident(), proj.version.clone());
 
             for dep in &mut proj.internal_deps[..] {
-                // By definition of the toposort, the version will always be avilable.
                 dep.cranko_requirement = DepRequirement::Manual(versions[&dep.ident].to_string());
             }
         }
-
-        // Save the old versions to the bootstrap file.
 
         let bs_text = atry!(
             toml::to_string_pretty(&bs_cfg);
@@ -220,8 +207,6 @@ impl Command for BootstrapCommand {
                 ["could not write bootstrap file `{}`", bs_path.display()]
             );
         }
-
-        // Rewrite the project files with the zeroed versions.
 
         info!("updating project meta-files with developer versions");
 
@@ -248,11 +233,6 @@ impl Command for BootstrapCommand {
             info!("... no files modified. This might be OK.")
         }
 
-        // Now, re-rewrite the internal dependency specifications to contain
-        // whatever requirements were listed before, and rewrite only those
-        // portions of the metafiles. Note that our processing above will not
-        // have altered `dep.literal`.
-
         for proj in sess.graph_mut().toposorted_mut() {
             for dep in &mut proj.internal_deps[..] {
                 dep.cranko_requirement = DepRequirement::Manual(dep.literal.clone());
@@ -264,10 +244,9 @@ impl Command for BootstrapCommand {
             ["there was a problem adding Cranko dependency metadata to the project files"]
         );
 
-        // All done.
         info!("modifications complete!");
         println!();
-        info!("Review changes, add `.config/cranko/` to the repository, and commit.");
+        info!("Review changes, add `.config/clikd/` to the repository, and commit.");
         info!("Then try `cranko status` for a history summary");
         info!("   (its results will be imprecise because Cranko cannot trace into pre-Cranko history)");
         info!("Then begin modifying your CI/CD pipeline to use the `cranko release-workflow` commands");

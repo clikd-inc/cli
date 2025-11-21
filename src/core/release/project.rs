@@ -11,7 +11,7 @@
 
 use anyhow::{anyhow, bail};
 
-use crate::{
+use crate::core::release::{
     changelog::{self, Changelog},
     errors::Result,
     repository::{CommitId, PathMatcher, RepoPath, RepoPathBuf},

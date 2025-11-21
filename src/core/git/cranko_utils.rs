@@ -5,17 +5,16 @@
 
 use anyhow::Context;
 use std::path::PathBuf;
-use structopt::StructOpt;
+use clap::Parser;
 
-use super::Command;
-use crate::errors::Result;
+use crate::core::release::errors::Result;
 
 /// Force-create an ancestor-less branch containing a directory tree.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct RebootBranchCommand {
     #[structopt(
         long = "message",
-        short = "m",
+        short = 'm',
         help = "The commit message",
         default_value = "Reboot branch"
     )]
@@ -28,12 +27,11 @@ pub struct RebootBranchCommand {
     root: PathBuf,
 }
 
-impl Command for RebootBranchCommand {
-    fn execute(self) -> Result<i32> {
+impl RebootBranchCommand {
+    pub fn execute(self) -> Result<i32> {
         let repo = git2::Repository::open_from_env().context("couldn't open Git repository")?;
         let mut index = repo.index().context("couldn't open Git index")?;
 
-        // TODO: centralize with repository
         let sig = git2::Signature::now("cranko", "cranko@devnull")?;
 
         let ref_name = format!("refs/heads/{}", &self.branch);
@@ -54,12 +52,12 @@ impl Command for RebootBranchCommand {
 
         let commit_id = repo
             .commit(
-                None, // reference
-                &sig, // author
-                &sig, // committer
+                None,
+                &sig,
+                &sig,
                 &self.message,
                 &tree,
-                &[], // parents
+                &[],
             )
             .context("couldn't create new commit")?;
 
@@ -69,21 +67,21 @@ impl Command for RebootBranchCommand {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub enum GitUtilCommands {
     #[structopt(name = "reboot-branch")]
     /// Force-create an ancestor-less branch
     RebootBranch(RebootBranchCommand),
 }
 
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct GitUtilCommand {
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     command: GitUtilCommands,
 }
 
-impl Command for GitUtilCommand {
-    fn execute(self) -> Result<i32> {
+impl GitUtilCommand {
+    pub fn execute(self) -> Result<i32> {
         match self.command {
             GitUtilCommands::RebootBranch(o) => o.execute(),
         }

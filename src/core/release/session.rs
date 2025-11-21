@@ -4,21 +4,23 @@
 //! State for the Cranko CLI application.
 
 use anyhow::{anyhow, Context};
-use log::{error, info, warn};
+use tracing::{error, info, warn};
 use std::collections::HashMap;
 use thiserror::Error as ThisError;
 
 use crate::{
     atry,
-    config::{ConfigurationFile, NpmConfiguration},
-    errors::Result,
-    graph::{ProjectGraph, ProjectGraphBuilder, RepoHistories},
-    project::{DepRequirement, ProjectId},
-    repository::{
-        ChangeList, CommitId, PathMatcher, RcCommitInfo, RcProjectInfo, ReleaseAvailability,
-        ReleaseCommitInfo, Repository,
+    core::release::{
+        config::{ConfigurationFile, NpmConfiguration},
+        errors::Result,
+        graph::{ProjectGraph, ProjectGraphBuilder, RepoHistories},
+        project::{DepRequirement, ProjectId},
+        repository::{
+            ChangeList, CommitId, PathMatcher, RcCommitInfo, RcProjectInfo, ReleaseAvailability,
+            ReleaseCommitInfo, Repository,
+        },
+        version::Version,
     },
-    version::Version,
 };
 
 /// Setting up a Cranko application session.
@@ -76,10 +78,11 @@ impl AppBuilder {
         // Now auto-detect everything in the repo index.
 
         if self.populate_graph {
-            let mut cargo = crate::cargo::CargoLoader::default();
-            let mut csproj = crate::csproj::CsProjLoader::default();
-            let mut npm = crate::npm::NpmLoader::default();
-            let mut pypa = crate::pypa::PypaLoader::default();
+            let mut cargo = crate::core::ecosystem::cargo::CargoLoader::default();
+            #[cfg(feature = "csharp")]
+            let mut csproj = crate::core::ecosystem::csproj::CsProjLoader::default();
+            let mut npm = crate::core::ecosystem::npm::NpmLoader::default();
+            let mut pypa = crate::core::ecosystem::pypa::PypaLoader::default();
 
             // Dumb hack around the borrowchecker to allow mutable reference to
             // the graph while iterating over the repo:
@@ -89,6 +92,7 @@ impl AppBuilder {
             repo.scan_paths(|p| {
                 let (dirname, basename) = p.split_basename();
                 cargo.process_index_item(dirname, basename);
+                #[cfg(feature = "csharp")]
                 csproj.process_index_item(&repo, p, dirname, basename)?;
                 npm.process_index_item(&repo, &mut graph, p, dirname, basename, &proj_config)?;
                 pypa.process_index_item(dirname, basename);
@@ -100,6 +104,7 @@ impl AppBuilder {
             // End dumb hack.
 
             cargo.finalize(&mut self, &proj_config)?;
+            #[cfg(feature = "csharp")]
             csproj.finalize(&mut self, &proj_config)?;
             npm.finalize(&mut self)?;
             pypa.finalize(&mut self, &proj_config)?;
@@ -310,7 +315,7 @@ impl AppSession {
     /// Ok if clean, an Err downcastable to DirtyRepositoryError if not. The
     /// error may have a different cause if, e.g., there is an I/O failure.
     pub fn ensure_fully_clean(&self) -> Result<()> {
-        use crate::repository::DirtyRepositoryError;
+        use crate::core::release::repository::DirtyRepositoryError;
 
         if let Some(changed_path) = self.repo.check_if_dirty(&[])? {
             Err(DirtyRepositoryError(changed_path).into())
@@ -324,7 +329,7 @@ impl AppSession {
     /// downcastable to DirtyRepositoryError if not. The error may have a
     /// different cause if, e.g., there is an I/O failure.
     pub fn ensure_changelog_clean(&self) -> Result<()> {
-        use crate::repository::DirtyRepositoryError;
+        use crate::core::release::repository::DirtyRepositoryError;
 
         let mut matchers: Vec<Result<PathMatcher>> = self
             .graph

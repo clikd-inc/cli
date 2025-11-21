@@ -5,33 +5,32 @@
 
 use anyhow::{anyhow, bail, Context};
 use configparser::ini::Ini;
-use log::warn;
+use tracing::warn;
 use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     env,
     ffi::OsString,
     fs::{File, OpenOptions},
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader, Read, Write},
     process,
 };
-use structopt::StructOpt;
+use clap::Parser;
 use toml::Value;
-
-use super::Command;
 
 use crate::{
     a_ok_or,
-    app::{AppBuilder, AppSession},
     atry,
-    config::ProjectConfiguration,
-    errors::{Error, Result},
-    graph::GraphQueryBuilder,
-    project::{DepRequirement, DependencyTarget, ProjectId},
-    repository::{ChangeList, RepoPath, RepoPathBuf},
-    rewriters::Rewriter,
-    version::{Pep440Version, Version},
-    write_crlf,
+    core::release::{
+        session::{AppBuilder, AppSession},
+        config::ProjectConfiguration,
+        errors::{Error, Result},
+        graph::GraphQueryBuilder,
+        project::{DepRequirement, DependencyTarget, ProjectId},
+        repository::{ChangeList, RepoPath, RepoPathBuf},
+        rewriters::Rewriter,
+        version::{Pep440Version, Version},
+    },
 };
 
 /// Framework for auto-loading PyPA projects from the repository contents.
@@ -687,7 +686,7 @@ impl Rewriter for PythonRewriter {
                 };
 
                 atry!(
-                    write_crlf!(new_f, "{}", line);
+                    writeln!(new_f, "{}", line);
                     ["error writing data to `{}`", new_af.path().display()]
                 );
             }
@@ -714,25 +713,23 @@ impl Rewriter for PythonRewriter {
 }
 
 /// Python-specific CLI utilities.
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub enum PythonCommands {
-    #[structopt(name = "foreach-released")]
     /// Run a command for each released PyPA project.
     ForeachReleased(ForeachReleasedCommand),
 
-    #[structopt(name = "install-token")]
     /// Install $PYPI_TOKEN in the user's .pypirc.
     InstallToken(InstallTokenCommand),
 }
 
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct PythonCommand {
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     command: PythonCommands,
 }
 
-impl Command for PythonCommand {
-    fn execute(self) -> Result<i32> {
+impl PythonCommand {
+    pub fn execute(self) -> Result<i32> {
         match self.command {
             PythonCommands::ForeachReleased(o) => o.execute(),
             PythonCommands::InstallToken(o) => o.execute(),
@@ -741,13 +738,13 @@ impl Command for PythonCommand {
 }
 
 /// `cranko python foreach-released`
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct ForeachReleasedCommand {
-    #[structopt(help = "The command to run", required = true)]
+    #[arg(help = "The command to run", required = true)]
     command: Vec<OsString>,
 }
 
-impl Command for ForeachReleasedCommand {
+impl ForeachReleasedCommand {
     fn execute(self) -> Result<i32> {
         let sess = AppSession::initialize_default()?;
 
@@ -803,9 +800,9 @@ impl Command for ForeachReleasedCommand {
 }
 
 /// `cranko python install-token`
-#[derive(Debug, Eq, PartialEq, StructOpt)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 pub struct InstallTokenCommand {
-    #[structopt(
+    #[arg(
         long = "repository",
         default_value = "pypi",
         help = "The repository name."
@@ -813,7 +810,7 @@ pub struct InstallTokenCommand {
     repository: String,
 }
 
-impl Command for InstallTokenCommand {
+impl InstallTokenCommand {
     fn execute(self) -> Result<i32> {
         let token = atry!(
             env::var("PYPI_TOKEN");
@@ -830,9 +827,9 @@ impl Command for InstallTokenCommand {
         );
 
         let mut write = || -> Result<()> {
-            write_crlf!(file, "[{}]", self.repository)?;
-            write_crlf!(file, "username = __token__")?;
-            write_crlf!(file, "password = {}", token)?;
+            writeln!(file, "[{}]", self.repository)?;
+            writeln!(file, "username = __token__")?;
+            writeln!(file, "password = {}", token)?;
             Ok(())
         };
 

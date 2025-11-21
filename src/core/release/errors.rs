@@ -1,7 +1,7 @@
 // Copyright 2020 Peter Williams <peter@newton.cx> and collaborators
 // Licensed under the MIT License.
 
-//! Error handling for Cranko.
+//! Error handling for release management.
 
 use log::error;
 use thiserror::Error as ThisError;
@@ -61,9 +61,9 @@ macro_rules! atry {
     };
 
     ($op:expr ; $( $annotation:tt )+) => {{
-        use $crate::errors::Context;
+        use $crate::core::release::errors::Context;
         $op.with_context(|| {
-            let mut ar = $crate::errors::AnnotatedReport::default();
+            let mut ar = $crate::core::release::errors::AnnotatedReport::default();
             $(
                 atry!(@aa ar $annotation);
             )+
@@ -87,7 +87,7 @@ macro_rules! a_ok_or {
     ($option:expr ; $( $annotation:tt )+) => {{
         use $crate::atry;
         $option.ok_or_else(|| {
-            let mut ar = $crate::errors::AnnotatedReport::default();
+            let mut ar = $crate::core::release::errors::AnnotatedReport::default();
             $(
                 atry!(@aa ar $annotation);
             )+
@@ -112,7 +112,7 @@ pub fn report(r: Result<i32>) -> i32 {
     }
 
     err.chain().skip(1).for_each(|cause| {
-        crate::logger::Logger::print_cause(cause);
+        eprintln!("  Caused by: {}", cause);
 
         if let Some(ann) = cause.downcast_ref::<AnnotatedReport>() {
             notes.extend(ann.notes());
@@ -121,7 +121,7 @@ pub fn report(r: Result<i32>) -> i32 {
 
     for note in &notes {
         eprintln!();
-        crate::logger::Logger::print_err_note(note);
+        eprintln!("  Note: {}", note);
     }
 
     1
