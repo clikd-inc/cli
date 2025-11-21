@@ -10,7 +10,7 @@ use crate::{
     atry,
     core::release::{
         session::{AppBuilder, AppSession},
-        config::ProjectConfiguration,
+        config::syntax::ProjectConfiguration,
         errors::Result,
         project::ProjectId,
         repository::{ChangeList, RepoPath, RepoPathBuf},

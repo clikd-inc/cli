@@ -11,7 +11,7 @@ use thiserror::Error as ThisError;
 use crate::{
     atry,
     core::release::{
-        config::{ConfigurationFile, NpmConfiguration},
+        config::{syntax::NpmConfiguration, ConfigurationFile},
         errors::Result,
         graph::{ProjectGraph, ProjectGraphBuilder, RepoHistories},
         project::{DepRequirement, ProjectId},

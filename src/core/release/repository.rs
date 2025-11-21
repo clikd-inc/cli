@@ -18,7 +18,7 @@ use thiserror::Error as ThisError;
 use crate::{
     a_ok_or, atry,
     core::release::{
-        config::RepoConfiguration,
+        config::syntax::RepoConfiguration,
         errors::{Error, Result},
         graph::ProjectGraph,
         project::{DepRequirement, Project},

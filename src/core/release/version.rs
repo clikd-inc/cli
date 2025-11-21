@@ -10,9 +10,6 @@ use thiserror::Error as ThisError;
 
 use crate::core::release::errors::Result;
 
-pub use dotnet::DotNetVersion;
-pub use pep440::Pep440Version;
-
 /// A version number associated with a project.
 ///
 /// This is an enumeration because different kinds of projects may subscribe to
@@ -23,10 +20,10 @@ pub enum Version {
     Semver(semver::Version),
 
     // A version compatible with the Python PEP-440 specification.
-    Pep440(Pep440Version),
+    Pep440(pep440::Pep440Version),
 
     // A version compatible with the .NET System.Version type.
-    DotNet(DotNetVersion),
+    DotNet(dotnet::DotNetVersion),
 }
 
 impl Display for Version {
@@ -53,8 +50,8 @@ impl Version {
     pub fn zero_like(&self) -> Version {
         match self {
             Version::Semver(_) => Version::Semver(semver::Version::new(0, 0, 0)),
-            Version::Pep440(_) => Version::Pep440(Pep440Version::default()),
-            Version::DotNet(_) => Version::DotNet(DotNetVersion::default()),
+            Version::Pep440(_) => Version::Pep440(pep440::Pep440Version::default()),
+            Version::DotNet(_) => Version::DotNet(dotnet::DotNetVersion::default()),
         }
     }
 
@@ -306,7 +303,7 @@ impl VersionBumpScheme {
 }
 
 /// .NET System.Version versions
-mod dotnet {
+pub mod dotnet {
     use anyhow::bail;
     use std::fmt::{Display, Formatter};
 
@@ -381,7 +378,7 @@ mod dotnet {
 }
 
 /// Python PEP-440 versions.
-mod pep440 {
+pub mod pep440 {
     use anyhow::bail;
     use std::{
         cmp::Ordering,

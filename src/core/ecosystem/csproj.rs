@@ -19,7 +19,7 @@ use crate::{
     atry,
     core::release::{
         session::{AppBuilder, AppSession},
-        config::ProjectConfiguration,
+        config::syntax::ProjectConfiguration,
         errors::Result,
         project::{DepRequirement, DependencyTarget, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf, Repository},

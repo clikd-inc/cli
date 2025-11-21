@@ -15,7 +15,7 @@ use crate::core::release::errors::{Error, Result};
 
 /// The configuration file structures as explicitly serialized into the TOML
 /// format.
-mod syntax {
+pub mod syntax {
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
@@ -71,21 +71,16 @@ mod syntax {
     }
 }
 
-// The rest of this module normalizes the on-disk format into forms more useful
-// at runtime.
-
-pub use syntax::{NpmConfiguration, ProjectConfiguration, RepoConfiguration};
-
 #[derive(Clone, Debug)]
 pub struct ConfigurationFile {
-    pub repo: RepoConfiguration,
-    pub npm: NpmConfiguration,
-    pub projects: HashMap<String, ProjectConfiguration>,
+    pub repo: syntax::RepoConfiguration,
+    pub npm: syntax::NpmConfiguration,
+    pub projects: HashMap<String, syntax::ProjectConfiguration>,
 }
 
 impl Default for ConfigurationFile {
     fn default() -> Self {
-        let repo = RepoConfiguration::default();
+        let repo = syntax::RepoConfiguration::default();
         let npm = Default::default();
         let projects = Default::default();
 

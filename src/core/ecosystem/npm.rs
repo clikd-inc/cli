@@ -24,7 +24,7 @@ use crate::{
     atry,
     core::release::{
         session::{AppBuilder, AppSession},
-        config::ProjectConfiguration,
+        config::syntax::ProjectConfiguration,
         errors::Result,
         graph::GraphQueryBuilder,
         project::{DepRequirement, DependencyTarget, ProjectId},

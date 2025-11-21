@@ -18,7 +18,7 @@ use thiserror::Error as ThisError;
 
 use crate::{a_ok_or, atry};
 use crate::core::release::{
-    config::ProjectConfiguration,
+    config::syntax::ProjectConfiguration,
     errors::Result,
     project::{
         DepRequirement, Dependency, DependencyBuilder, DependencyTarget, Project, ProjectBuilder,

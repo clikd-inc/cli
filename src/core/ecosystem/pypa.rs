@@ -23,15 +23,16 @@ use crate::{
     atry,
     core::release::{
         session::{AppBuilder, AppSession},
-        config::ProjectConfiguration,
+        config::syntax::ProjectConfiguration,
         errors::{Error, Result},
         graph::GraphQueryBuilder,
         project::{DepRequirement, DependencyTarget, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf},
         rewriters::Rewriter,
-        version::{Pep440Version, Version},
+        version::Version,
     },
 };
+use crate::core::release::version::pep440::Pep440Version;
 
 /// Framework for auto-loading PyPA projects from the repository contents.
 #[derive(Debug, Default)]
