@@ -13,6 +13,8 @@ pub mod cmd {
 
     pub mod release {
         pub mod init;
+        pub mod status;
+        pub mod prepare;
     }
 }
 
@@ -128,5 +130,28 @@ pub async fn execute(cli: Cli) -> Result<()> {
             cmd::completions::generate(shell);
             Ok(())
         }
+        Commands::Release(release_cmd) => match release_cmd {
+            cli::ReleaseCommands::Init { force, upstream } => {
+                let exit_code = cmd::release::init::run(force, upstream)?;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+                Ok(())
+            }
+            cli::ReleaseCommands::Status => {
+                let exit_code = cmd::release::status::run()?;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+                Ok(())
+            }
+            cli::ReleaseCommands::Prepare { bump } => {
+                let exit_code = cmd::release::prepare::run(bump)?;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+                Ok(())
+            }
+        },
     }
 }

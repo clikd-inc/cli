@@ -85,7 +85,7 @@ impl TestRepo {
     }
 
     pub fn has_config_dir(&self) -> bool {
-        self.path.join(".clikd").is_dir()
+        self.path.join(".config/clikd").is_dir()
     }
 }
 

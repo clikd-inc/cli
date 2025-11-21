@@ -47,8 +47,16 @@ pub struct BootstrapCommand {
     upstream_name: Option<String>,
 }
 
+pub fn run(force: bool, upstream: Option<String>) -> Result<i32> {
+    let cmd = BootstrapCommand {
+        force,
+        upstream_name: upstream,
+    };
+    cmd.execute()
+}
+
 impl BootstrapCommand {
-    pub fn execute(self) -> Result<i32> {
+    fn execute(self) -> Result<i32> {
         info!(
             "bootstrapping with Cranko version {}",
             env!("CARGO_PKG_VERSION")

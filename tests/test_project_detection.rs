@@ -12,7 +12,7 @@ fn test_detect_single_rust_project() {
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("my-crate"), "Rust project not detected");
     assert!(bootstrap.contains("0.1.0"), "Version not detected");
 }
@@ -28,7 +28,7 @@ fn test_detect_single_go_project() {
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("myapp"), "Go project not detected");
 }
 
@@ -43,7 +43,7 @@ fn test_detect_single_elixir_project() {
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("my_app"), "Elixir project not detected");
     assert!(bootstrap.contains("1.0.0"), "Version not detected");
 }
@@ -59,7 +59,7 @@ fn test_detect_single_npm_project() {
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("my-package"), "NPM project not detected");
     assert!(bootstrap.contains("2.0.0"), "Version not detected");
 }
@@ -75,7 +75,7 @@ fn test_detect_single_python_project() {
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("my-python-pkg"), "Python project not detected");
     assert!(bootstrap.contains("3.0.0"), "Version not detected");
 }
@@ -93,7 +93,7 @@ fn test_detect_monorepo_multiple_rust_crates() {
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("web"), "web crate not detected");
     assert!(bootstrap.contains("api"), "api crate not detected");
     assert!(bootstrap.contains("core"), "core crate not detected");
@@ -112,7 +112,7 @@ fn test_detect_monorepo_mixed_languages() {
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("backend"), "Rust backend not detected");
     assert!(bootstrap.contains("frontend"), "NPM frontend not detected");
     assert!(bootstrap.contains("deployment-tools"), "Python scripts not detected");
@@ -151,7 +151,7 @@ common = { path = "../common" }
 
     assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
 
-    let bootstrap = repo.read_file(".clikd/bootstrap.toml");
+    let bootstrap = repo.read_file(".config/clikd/bootstrap.toml");
     assert!(bootstrap.contains("common"), "common crate not detected");
     assert!(bootstrap.contains("app"), "app crate not detected");
 }

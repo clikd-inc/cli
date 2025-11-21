@@ -81,6 +81,9 @@ pub enum Commands {
         #[arg(value_enum, help = "Shell type to generate completions for")]
         shell: clap_complete::Shell,
     },
+
+    #[command(subcommand, about = "Release management commands")]
+    Release(ReleaseCommands),
 }
 
 #[derive(Args)]
@@ -99,6 +102,27 @@ pub struct InitArgs {
 pub enum AuthCommands {
     #[command(about = "Show current authentication status")]
     Status,
+}
+
+#[derive(Subcommand)]
+pub enum ReleaseCommands {
+    #[command(about = "Initialize Cranko release management")]
+    Init {
+        #[arg(short, long, help = "Force operation even in unexpected conditions")]
+        force: bool,
+
+        #[arg(short, long, help = "The name of the Git upstream remote")]
+        upstream: Option<String>,
+    },
+
+    #[command(about = "Show release status and changelog")]
+    Status,
+
+    #[command(about = "Prepare a release (bump versions)")]
+    Prepare {
+        #[arg(help = "Version bump type: major, minor, patch, or manual")]
+        bump: Option<String>,
+    },
 }
 
 #[derive(Args)]
