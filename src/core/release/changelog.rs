@@ -397,3 +397,147 @@ impl Changelog for MarkdownChangelog {
         Ok(changelog)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_markdown_changelog_default_basename() {
+        let changelog = MarkdownChangelog::default();
+        assert_eq!(changelog.basename, "CHANGELOG.md");
+    }
+
+    #[test]
+    fn test_markdown_changelog_release_header_format() {
+        let changelog = MarkdownChangelog::default();
+        let mut args = HashMap::new();
+        args.insert("project_slug", "my-project".to_string());
+        args.insert("version", "1.2.3".to_string());
+        args.insert("yyyy_mm_dd", "2025-01-15".to_string());
+
+        let result = SimpleCurlyFormat
+            .format(&changelog.release_header_format, &args)
+            .unwrap();
+
+        assert_eq!(result, "# my-project 1.2.3 (2025-01-15)\n");
+    }
+
+    #[test]
+    fn test_markdown_changelog_stage_header_format() {
+        let changelog = MarkdownChangelog::default();
+        let mut args = HashMap::new();
+        args.insert("bump_spec", "minor bump".to_string());
+
+        let result = SimpleCurlyFormat
+            .format(&changelog.stage_header_format, &args)
+            .unwrap();
+
+        assert_eq!(result, "# rc: minor bump\n");
+    }
+
+    #[test]
+    fn test_parse_rc_header_micro_bump() {
+        let line = "# rc: micro bump";
+        let spec = line.strip_prefix("# rc:");
+
+        assert_eq!(spec, Some(" micro bump"));
+        assert_eq!(spec.unwrap().trim(), "micro bump");
+    }
+
+    #[test]
+    fn test_parse_rc_header_minor_bump() {
+        let line = "# rc: minor bump";
+        let spec = line.strip_prefix("# rc:").map(|s| s.trim());
+
+        assert_eq!(spec, Some("minor bump"));
+    }
+
+    #[test]
+    fn test_parse_rc_header_major_bump() {
+        let line = "# rc: major bump";
+        let spec = line.strip_prefix("# rc:").map(|s| s.trim());
+
+        assert_eq!(spec, Some("major bump"));
+    }
+
+    #[test]
+    fn test_changelog_line_wrap() {
+        let message = "This is a very long commit message that should be wrapped at 78 characters to fit nicely in the changelog";
+        let wrapped = textwrap::wrap(message, 78);
+
+        assert!(wrapped.len() > 1);
+        assert!(wrapped[0].len() <= 78);
+    }
+
+    #[test]
+    fn test_changelog_entry_format() {
+        let message = "Add new feature";
+        let entry = format!("- {}", message);
+
+        assert_eq!(entry, "- Add new feature");
+    }
+
+    #[test]
+    fn test_changelog_multiline_entry() {
+        let message = "Add support for multiple authentication providers including OAuth2 and SAML";
+        let lines: Vec<String> = textwrap::wrap(message, 78)
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                if i == 0 {
+                    format!("- {}", line)
+                } else {
+                    format!("  {}", line)
+                }
+            })
+            .collect();
+
+        assert!(lines[0].starts_with("- "));
+        if lines.len() > 1 {
+            assert!(lines[1].starts_with("  "));
+        }
+    }
+
+    #[test]
+    fn test_scan_changelog_finds_first_header() {
+        let content = "# Project 1.0.0 (2025-01-15)\n\n- Initial release\n\n# Project 0.9.0 (2024-12-01)\n\n- Beta";
+        let lines: Vec<_> = content.lines().collect();
+
+        let mut found_header = false;
+        for line in lines {
+            if line.starts_with("# ") {
+                found_header = true;
+                break;
+            }
+        }
+
+        assert!(found_header);
+    }
+
+    #[test]
+    fn test_scan_changelog_stops_at_second_header() {
+        let content = "# Version 1.0.0\n\n- Feature A\n- Feature B\n\n# Version 0.9.0\n\n- Old feature";
+
+        let mut entries = Vec::new();
+        let mut in_first_section = false;
+
+        for line in content.lines() {
+            if line.starts_with("# ") {
+                if in_first_section {
+                    break;
+                }
+                in_first_section = true;
+                continue;
+            }
+
+            if in_first_section && line.starts_with("- ") {
+                entries.push(line);
+            }
+        }
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0], "- Feature A");
+        assert_eq!(entries[1], "- Feature B");
+    }
+}

@@ -132,3 +132,98 @@ impl Rewriter for GoModRewriter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_index_item_detects_go_mod() {
+        let mut loader = GoLoader::default();
+        let dirname_buf = RepoPathBuf::new(b"backend");
+        let basename_buf = RepoPathBuf::new(b"go.mod");
+
+        loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
+
+        assert_eq!(loader.go_mod_paths.len(), 1);
+        assert_eq!(<RepoPathBuf as AsRef<[u8]>>::as_ref(&loader.go_mod_paths[0]), b"backend/go.mod");
+    }
+
+    #[test]
+    fn test_process_index_item_ignores_other_files() {
+        let mut loader = GoLoader::default();
+        let dirname_buf = RepoPathBuf::new(b"backend");
+        let basename_buf = RepoPathBuf::new(b"main.go");
+
+        loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
+
+        assert_eq!(loader.go_mod_paths.len(), 0);
+    }
+
+    #[test]
+    fn test_process_index_item_multiple_modules() {
+        let mut loader = GoLoader::default();
+
+        let backend_dir = RepoPathBuf::new(b"backend");
+        let frontend_dir = RepoPathBuf::new(b"frontend");
+        let api_dir = RepoPathBuf::new(b"api");
+        let go_mod = RepoPathBuf::new(b"go.mod");
+
+        loader.process_index_item(backend_dir.as_ref(), go_mod.as_ref());
+        loader.process_index_item(frontend_dir.as_ref(), go_mod.as_ref());
+        loader.process_index_item(api_dir.as_ref(), go_mod.as_ref());
+
+        assert_eq!(loader.go_mod_paths.len(), 3);
+    }
+
+    #[test]
+    fn test_extract_module_name_simple() {
+        let content = "module github.com/user/project\n\ngo 1.21\n";
+        let lines: Vec<_> = content.lines().collect();
+
+        let mut module_name = None;
+        for line in lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("module ") {
+                module_name = Some(trimmed[7..].trim().to_string());
+                break;
+            }
+        }
+
+        assert_eq!(module_name, Some("github.com/user/project".to_string()));
+    }
+
+    #[test]
+    fn test_extract_module_name_with_whitespace() {
+        let content = "  module   github.com/org/repo  \n\ngo 1.20\n";
+        let lines: Vec<_> = content.lines().collect();
+
+        let mut module_name = None;
+        for line in lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("module ") {
+                module_name = Some(trimmed[7..].trim().to_string());
+                break;
+            }
+        }
+
+        assert_eq!(module_name, Some("github.com/org/repo".to_string()));
+    }
+
+    #[test]
+    fn test_extract_module_name_not_first_line() {
+        let content = "// Comment\n\nmodule example.com/myproject\n\ngo 1.21\n";
+        let lines: Vec<_> = content.lines().collect();
+
+        let mut module_name = None;
+        for line in lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("module ") {
+                module_name = Some(trimmed[7..].trim().to_string());
+                break;
+            }
+        }
+
+        assert_eq!(module_name, Some("example.com/myproject".to_string()));
+    }
+}

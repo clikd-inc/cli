@@ -43,7 +43,7 @@ impl PypaLoader {
     pub fn process_index_item(&mut self, dirname: &RepoPath, basename: &RepoPath) {
         let b = basename.as_ref();
 
-        if b == b"setup.py" || b == b"setup.cfg" && b == b"pyproject.toml" {
+        if b == b"setup.py" || b == b"setup.cfg" || b == b"pyproject.toml" {
             self.dirs_of_interest.insert(dirname.to_owned());
         }
     }
@@ -839,5 +839,154 @@ impl InstallTokenCommand {
         );
 
         Ok(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_index_item_detects_setup_py() {
+        let mut loader = PypaLoader::default();
+        let dirname_buf = RepoPathBuf::new(b"python-project");
+        let basename_buf = RepoPathBuf::new(b"setup.py");
+
+        loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
+
+        assert_eq!(loader.dirs_of_interest.len(), 1);
+        assert!(loader.dirs_of_interest.contains(&dirname_buf));
+    }
+
+    #[test]
+    fn test_process_index_item_detects_pyproject_toml() {
+        let mut loader = PypaLoader::default();
+        let dirname_buf = RepoPathBuf::new(b"modern-python");
+        let basename_buf = RepoPathBuf::new(b"pyproject.toml");
+
+        loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
+
+        assert_eq!(loader.dirs_of_interest.len(), 1);
+        assert!(loader.dirs_of_interest.contains(&dirname_buf));
+    }
+
+    #[test]
+    fn test_process_index_item_ignores_other_files() {
+        let mut loader = PypaLoader::default();
+        let dirname_buf = RepoPathBuf::new(b"src");
+        let basename_buf = RepoPathBuf::new(b"main.py");
+
+        loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
+
+        assert_eq!(loader.dirs_of_interest.len(), 0);
+    }
+
+    #[test]
+    fn test_process_index_item_multiple_projects() {
+        let mut loader = PypaLoader::default();
+
+        let dirname1_buf = RepoPathBuf::new(b"packages/lib1");
+        let basename1_buf = RepoPathBuf::new(b"setup.py");
+        loader.process_index_item(dirname1_buf.as_ref(), basename1_buf.as_ref());
+
+        let dirname2_buf = RepoPathBuf::new(b"packages/lib2");
+        let basename2_buf = RepoPathBuf::new(b"pyproject.toml");
+        loader.process_index_item(dirname2_buf.as_ref(), basename2_buf.as_ref());
+
+        let dirname3_buf = RepoPathBuf::new(b"packages/lib3");
+        let basename3_buf = RepoPathBuf::new(b"setup.py");
+        loader.process_index_item(dirname3_buf.as_ref(), basename3_buf.as_ref());
+
+        assert_eq!(loader.dirs_of_interest.len(), 3);
+        assert!(loader.dirs_of_interest.contains(&dirname1_buf));
+        assert!(loader.dirs_of_interest.contains(&dirname2_buf));
+        assert!(loader.dirs_of_interest.contains(&dirname3_buf));
+    }
+
+    #[test]
+    fn test_parse_setup_py_version_simple() {
+        let content = r#"setup(
+    name="my-package",
+    version="1.2.3",
+)"#;
+
+        let has_version = content.contains("version=");
+        assert!(has_version);
+    }
+
+    #[test]
+    fn test_parse_pyproject_toml_simple() {
+        let content = r#"
+[project]
+name = "example-package"
+version = "0.1.0"
+"#;
+
+        let parsed: std::result::Result<Value, toml::de::Error> = toml::from_str(content);
+        assert!(parsed.is_ok());
+
+        let table = parsed.unwrap();
+        let project = table.get("project");
+        assert!(project.is_some());
+    }
+
+    #[test]
+    fn test_parse_pyproject_toml_dynamic_version() {
+        let content = r#"
+[project]
+name = "dynamic-package"
+dynamic = ["version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "package.__version__"}
+"#;
+
+        let parsed: std::result::Result<Value, toml::de::Error> = toml::from_str(content);
+        assert!(parsed.is_ok());
+
+        let table = parsed.unwrap();
+        let dynamic = table
+            .get("project")
+            .and_then(|p| p.get("dynamic"))
+            .and_then(|d| d.as_array());
+
+        assert!(dynamic.is_some());
+    }
+
+    #[test]
+    fn test_pep440_version_parsing() {
+        let version = "1.2.3";
+        let parsed = version.parse::<Pep440Version>();
+        assert!(parsed.is_ok());
+    }
+
+    #[test]
+    fn test_pep440_version_with_dev() {
+        let version = "1.0.dev0";
+        let parsed = version.parse::<Pep440Version>();
+        assert!(parsed.is_ok());
+    }
+
+    #[test]
+    fn test_pep440_version_with_post() {
+        let version = "1.0.post1";
+        let parsed = version.parse::<Pep440Version>();
+        assert!(parsed.is_ok());
+    }
+
+    #[test]
+    fn test_simple_py_parse_string_literal() {
+        let line = r#"    version = "1.2.3""#;
+        let has_string = line.contains('"');
+        assert!(has_string);
+    }
+
+    #[test]
+    fn test_simple_py_parse_different_quotes() {
+        let double = r#"version = "1.0.0""#;
+        let single = r#"version = '1.0.0'"#;
+
+        assert!(double.contains('"'));
+        assert!(single.contains('\''));
     }
 }

@@ -95,7 +95,7 @@ impl ElixirLoader {
                 if let Some(colon_pos) = trimmed.find(':') {
                     let app_part = trimmed[colon_pos + 1..].trim();
                     if let Some(app_part) = app_part.strip_prefix(':') {
-                        let name = app_part.trim().trim_end_matches(',');
+                        let name = app_part.trim_end_matches(',').trim();
                         return Some(name.to_string());
                     }
                 }
@@ -185,5 +185,105 @@ impl Rewriter for MixExsRewriter {
             Err(atomicwrites::Error::User(e)) => Err(e),
             Ok(()) => Ok(()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_index_item_detects_mix_exs() {
+        let mut loader = ElixirLoader::default();
+        let dirname_buf = RepoPathBuf::new(b"backend");
+        let basename_buf = RepoPathBuf::new(b"mix.exs");
+
+        loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
+
+        assert_eq!(loader.mix_exs_paths.len(), 1);
+        assert_eq!(<RepoPathBuf as AsRef<[u8]>>::as_ref(&loader.mix_exs_paths[0]), b"backend/mix.exs");
+    }
+
+    #[test]
+    fn test_process_index_item_ignores_other_files() {
+        let mut loader = ElixirLoader::default();
+        let dirname_buf = RepoPathBuf::new(b"lib");
+        let basename_buf = RepoPathBuf::new(b"app.ex");
+
+        loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
+
+        assert_eq!(loader.mix_exs_paths.len(), 0);
+    }
+
+    #[test]
+    fn test_process_index_item_multiple_projects() {
+        let mut loader = ElixirLoader::default();
+
+        let dirname_web = RepoPathBuf::new(b"apps/web");
+        let dirname_api = RepoPathBuf::new(b"apps/api");
+        let dirname_worker = RepoPathBuf::new(b"apps/worker");
+        let basename = RepoPathBuf::new(b"mix.exs");
+
+        loader.process_index_item(dirname_web.as_ref(), basename.as_ref());
+        loader.process_index_item(dirname_api.as_ref(), basename.as_ref());
+        loader.process_index_item(dirname_worker.as_ref(), basename.as_ref());
+
+        assert_eq!(loader.mix_exs_paths.len(), 3);
+    }
+
+    #[test]
+    fn test_extract_app_name_simple() {
+        let content = "defmodule MyApp.MixProject do\n  def project do\n    [\n      app: :my_app,\n      version: \"0.1.0\"\n    ]\n  end\nend";
+
+        let result = ElixirLoader::extract_app_name(content);
+        assert_eq!(result, Some("my_app".to_string()));
+    }
+
+    #[test]
+    fn test_extract_app_name_with_whitespace() {
+        let content = "  def project do\n    [\n      app:   :phoenix_app  ,\n      version: \"1.0.0\"\n    ]";
+
+        let result = ElixirLoader::extract_app_name(content);
+        assert_eq!(result, Some("phoenix_app".to_string()));
+    }
+
+    #[test]
+    fn test_extract_app_name_not_found() {
+        let content = "defmodule Test do\n  def hello, do: :world\nend";
+
+        let result = ElixirLoader::extract_app_name(content);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_version_simple() {
+        let content = "defmodule MyApp.MixProject do\n  def project do\n    [\n      app: :my_app,\n      version: \"0.1.0\"\n    ]\n  end\nend";
+
+        let result = ElixirLoader::extract_version(content);
+        assert_eq!(result, Some("0.1.0".to_string()));
+    }
+
+    #[test]
+    fn test_extract_version_with_whitespace() {
+        let content = "    version:   \"1.2.3\"  ,";
+
+        let result = ElixirLoader::extract_version(content);
+        assert_eq!(result, Some("1.2.3".to_string()));
+    }
+
+    #[test]
+    fn test_extract_version_semver_prerelease() {
+        let content = "      version: \"2.0.0-rc.1\",";
+
+        let result = ElixirLoader::extract_version(content);
+        assert_eq!(result, Some("2.0.0-rc.1".to_string()));
+    }
+
+    #[test]
+    fn test_extract_version_not_found() {
+        let content = "defmodule Test do\n  def hello, do: :world\nend";
+
+        let result = ElixirLoader::extract_version(content);
+        assert_eq!(result, None);
     }
 }

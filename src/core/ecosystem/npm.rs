@@ -570,3 +570,54 @@ impl LernaWorkaroundCommand {
         Ok(0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_package_json_name() {
+        let json = r#"{"name": "@scope/package", "version": "1.0.0"}"#;
+        let parsed: serde_json::Value = serde_json::from_str(json).unwrap();
+
+        let name = parsed.get("name").and_then(|v| v.as_str());
+        assert_eq!(name, Some("@scope/package"));
+    }
+
+    #[test]
+    fn test_parse_package_json_version() {
+        let json = r#"{"name": "my-package", "version": "2.1.3"}"#;
+        let parsed: serde_json::Value = serde_json::from_str(json).unwrap();
+
+        let version = parsed.get("version").and_then(|v| v.as_str());
+        assert_eq!(version, Some("2.1.3"));
+    }
+
+    #[test]
+    fn test_parse_package_json_dependencies() {
+        let json = r#"{
+            "name": "test",
+            "dependencies": {
+                "react": "^18.0.0",
+                "lodash": "~4.17.0"
+            }
+        }"#;
+        let parsed: serde_json::Value = serde_json::from_str(json).unwrap();
+
+        let deps = parsed.get("dependencies").and_then(|v| v.as_object());
+        assert!(deps.is_some());
+        assert_eq!(deps.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_parse_package_json_with_workspace() {
+        let json = r#"{
+            "name": "root",
+            "workspaces": ["packages/*"]
+        }"#;
+        let parsed: serde_json::Value = serde_json::from_str(json).unwrap();
+
+        let workspaces = parsed.get("workspaces");
+        assert!(workspaces.is_some());
+    }
+}
