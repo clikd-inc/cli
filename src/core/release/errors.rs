@@ -3,8 +3,8 @@
 
 //! Error handling for release management.
 
-use tracing::error;
 use thiserror::Error as ThisError;
+use tracing::error;
 
 /// The generic error type, for complex operations that can fail for a wide
 /// range of reasons. This type is a reexport of the `anyhow` 1.x series Error

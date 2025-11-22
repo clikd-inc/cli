@@ -5,9 +5,9 @@
 
 use anyhow::bail;
 use clap::Parser;
-use tracing::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io::Write};
+use tracing::{error, info, warn};
 
 use crate::atry;
 use crate::core::release::{

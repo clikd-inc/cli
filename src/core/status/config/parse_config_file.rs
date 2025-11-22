@@ -191,7 +191,8 @@ mod tests {
     /// make sure config.toml matches the default keymap
     fn test_parse_config_keymap_toml() {
         let example_toml = include_str!("./config.toml");
-        let result = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml).expect("BUG: test case should succeed");
+        let result = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml)
+            .expect("BUG: test case should succeed");
         assert!(result.keymap.is_some());
         assert_eq!(Keymap::from(result.keymap), Keymap::new());
     }
@@ -200,7 +201,8 @@ mod tests {
     /// make sure example.config.jsonc matches the default keymap
     fn test_parse_config_keymap_jsonc() {
         let example_jsonc = include_str!("../example_config/example.config.jsonc");
-        let result = ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc).expect("BUG: test case should succeed");
+        let result = ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc)
+            .expect("BUG: test case should succeed");
         assert!(result.keymap.is_some());
         assert_eq!(Keymap::from(result.keymap), Keymap::new());
     }
@@ -209,13 +211,14 @@ mod tests {
     /// All configs parsed and are equal
     fn test_parse_config_keymap_all() {
         let example_jsonc = include_str!("../example_config/example.config.jsonc");
-        let result_jsonc =
-            ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc).expect("BUG: test case should succeed");
+        let result_jsonc = ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc)
+            .expect("BUG: test case should succeed");
         assert!(result_jsonc.keymap.is_some());
         let result_jsonc = result_jsonc.keymap.expect("BUG: test case should succeed");
 
         let example_toml = include_str!("./config.toml");
-        let result_toml = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml).expect("BUG: test case should succeed");
+        let result_toml = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml)
+            .expect("BUG: test case should succeed");
         assert!(result_toml.keymap.is_some());
         let result_toml = result_toml.keymap.expect("BUG: test case should succeed");
 
@@ -227,7 +230,8 @@ mod tests {
     /// make sure config.toml matches the default app colors
     fn test_parse_config_colors_toml() {
         let example_toml = include_str!("./config.toml");
-        let result = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml).expect("BUG: test case should succeed");
+        let result = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml)
+            .expect("BUG: test case should succeed");
         assert!(result.colors.is_some());
         assert_eq!(AppColors::from(result.colors), AppColors::new());
     }
@@ -236,7 +240,8 @@ mod tests {
     /// make sure config.toml matches the default app colors
     fn test_parse_config_colors_jsonc() {
         let example_jsonc = include_str!("../example_config/example.config.jsonc");
-        let result = ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc).expect("BUG: test case should succeed");
+        let result = ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc)
+            .expect("BUG: test case should succeed");
         assert!(result.colors.is_some());
         assert_eq!(AppColors::from(result.colors), AppColors::new());
     }
@@ -245,13 +250,14 @@ mod tests {
     /// All configs parsed and are equal
     fn test_parse_config_colors_all() {
         let example_jsonc = include_str!("../example_config/example.config.jsonc");
-        let result_jsonc =
-            ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc).expect("BUG: test case should succeed");
+        let result_jsonc = ConfigFile::parse(super::ConfigFileFormat::Jsonc, example_jsonc)
+            .expect("BUG: test case should succeed");
         assert!(result_jsonc.colors.is_some());
         let result_jsonc = result_jsonc.colors.expect("BUG: test case should succeed");
 
         let example_toml = include_str!("./config.toml");
-        let result_toml = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml).expect("BUG: test case should succeed");
+        let result_toml = ConfigFile::parse(super::ConfigFileFormat::Toml, example_toml)
+            .expect("BUG: test case should succeed");
         assert!(result_toml.colors.is_some());
         let result_toml = result_toml.colors.expect("BUG: test case should succeed");
 

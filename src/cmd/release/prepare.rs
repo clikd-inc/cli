@@ -3,10 +3,7 @@ use tracing::{info, warn};
 
 use crate::{
     atry,
-    core::release::{
-        graph::GraphQueryBuilder,
-        session::AppSession,
-    },
+    core::release::{graph::GraphQueryBuilder, session::AppSession},
 };
 
 pub fn run(bump: Option<String>) -> Result<i32> {
@@ -63,12 +60,15 @@ pub fn run(bump: Option<String>) -> Result<i32> {
             continue;
         }
 
-        let bump_scheme = proj.version
+        let bump_scheme = proj
+            .version
             .parse_bump_scheme(bump_scheme_text)
-            .with_context(|| format!(
-                "invalid bump scheme \"{}\" for project {}",
-                bump_scheme_text, proj.user_facing_name
-            ))?;
+            .with_context(|| {
+                format!(
+                    "invalid bump scheme \"{}\" for project {}",
+                    bump_scheme_text, proj.user_facing_name
+                )
+            })?;
 
         let proj_mut = sess.graph_mut().lookup_mut(*ident);
         let old_version = proj_mut.version.clone();

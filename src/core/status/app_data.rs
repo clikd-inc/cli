@@ -2006,7 +2006,13 @@ mod tests {
 
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(2));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(2)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_logs(
@@ -2035,7 +2041,13 @@ mod tests {
 
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(0));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(0)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2055,7 +2067,13 @@ mod tests {
 
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(0));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(0)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2064,7 +2082,13 @@ mod tests {
         app_data.log_end();
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(2));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(2)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2085,7 +2109,13 @@ mod tests {
 
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(0));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(0)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2094,7 +2124,13 @@ mod tests {
         app_data.log_scroll(&ScrollDirection::Next);
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(1));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(1)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2103,7 +2139,13 @@ mod tests {
         app_data.log_scroll(&ScrollDirection::Next);
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(2));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(2)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2112,7 +2154,13 @@ mod tests {
 
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(2));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(2)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2133,7 +2181,13 @@ mod tests {
 
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(2));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(2)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
 
         let result = app_data.get_log_title();
@@ -2143,7 +2197,13 @@ mod tests {
 
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(1));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(1)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
         let result = app_data.get_log_title();
         assert_eq!(result, " 2/3 - container_1 - image_1");
@@ -2151,7 +2211,13 @@ mod tests {
         app_data.log_scroll(&ScrollDirection::Previous);
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(0));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(0)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
         let result = app_data.get_log_title();
         assert_eq!(result, " 1/3 - container_1 - image_1");
@@ -2159,7 +2225,13 @@ mod tests {
         app_data.log_scroll(&ScrollDirection::Previous);
         let result = app_data.get_log_state();
         assert!(result.is_some());
-        assert_eq!(result.as_ref().expect("BUG: test case should succeed").selected(), Some(0));
+        assert_eq!(
+            result
+                .as_ref()
+                .expect("BUG: test case should succeed")
+                .selected(),
+            Some(0)
+        );
         assert_eq!(result.expect("BUG: test case should succeed").offset(), 0);
         let result = app_data.get_log_title();
         assert_eq!(result, " 1/3 - container_1 - image_1");

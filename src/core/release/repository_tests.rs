@@ -362,10 +362,7 @@ fn test_change_list_add_duplicate_paths() {
 #[test]
 fn test_repo_history_n_commits() {
     let history = RepoHistory {
-        commits: vec![
-            CommitId(git2::Oid::zero()),
-            CommitId(git2::Oid::zero()),
-        ],
+        commits: vec![CommitId(git2::Oid::zero()), CommitId(git2::Oid::zero())],
         release_commit: None,
     };
     assert_eq!(history.n_commits(), 2);
@@ -481,12 +478,7 @@ fn test_path_traversal_parent_dir_rejected() {
 fn test_path_current_dir_rejected() {
     use std::path::Path;
 
-    let paths = vec![
-        ".",
-        "./",
-        "./foo",
-        "foo/./bar",
-    ];
+    let paths = vec![".", "./", "./foo", "foo/./bar"];
 
     for path_str in paths {
         let path = Path::new(path_str);
@@ -538,9 +530,8 @@ fn test_windows_reserved_names_rejected() {
     use std::path::Path;
 
     let reserved = vec![
-        "CON", "PRN", "AUX", "NUL",
-        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     ];
 
     for name in reserved {

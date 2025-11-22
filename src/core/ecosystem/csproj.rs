@@ -652,7 +652,7 @@ pub fn extract_braced_text(line: &str) -> Result<&str> {
 
 /// This function works on vdproj ProductVersion lines that look like:
 ///
-/// ```
+/// ```text
 ///         "ProductVersion" = "8:6.0.13"
 /// ```
 ///

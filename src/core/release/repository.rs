@@ -869,8 +869,7 @@ impl Repository {
         // helps, though ...)
 
         let mut commit_data = lru::LruCache::new(
-            std::num::NonZeroUsize::new(512)
-                .expect("BUG: 512 is a non-zero constant"),
+            std::num::NonZeroUsize::new(512).expect("BUG: 512 is a non-zero constant"),
         );
         let mut trees = lru::LruCache::new(
             std::num::NonZeroUsize::new(3).expect("BUG: 3 is a non-zero constant"),
@@ -1032,7 +1031,10 @@ impl Repository {
                 {
                     changes.add_path(path);
                     saw_changelog = true;
-                } else if status.is_wt_deleted() || status.is_wt_renamed() || status.is_wt_typechange() {
+                } else if status.is_wt_deleted()
+                    || status.is_wt_renamed()
+                    || status.is_wt_typechange()
+                {
                     bail!(
                         "changelog file `{}` has unexpected status (deleted, renamed, or typechange)",
                         path.escaped()
@@ -1748,9 +1750,7 @@ fn bytes2path(b: &[u8]) -> &Path {
 #[cfg(windows)]
 fn bytes2path(b: &[u8]) -> &Path {
     use std::str;
-    Path::new(
-        str::from_utf8(b).expect("BUG: git paths should be valid UTF-8 on Windows"),
-    )
+    Path::new(str::from_utf8(b).expect("BUG: git paths should be valid UTF-8 on Windows"))
 }
 
 /// An owned reference to a pathname as understood by the backing repository.
@@ -1785,11 +1785,15 @@ fn validate_safe_repo_path(path: &Path) -> Result<()> {
             bail!("path contains null byte: `{}`", path.display());
         }
 
-        if bytes.windows(2).any(|w| w == b"/.") || bytes.starts_with(b".") {
-            if bytes.split(|&b| b == b'/').any(|seg| seg == b"." || seg == b"..") {
-                bail!("path contains current or parent directory reference (. or ..): `{}`",
-                      path.display());
-            }
+        if (bytes.windows(2).any(|w| w == b"/.") || bytes.starts_with(b"."))
+            && bytes
+                .split(|&b| b == b'/')
+                .any(|seg| seg == b"." || seg == b"..")
+        {
+            bail!(
+                "path contains current or parent directory reference (. or ..): `{}`",
+                path.display()
+            );
         }
     }
 
@@ -1800,25 +1804,31 @@ fn validate_safe_repo_path(path: &Path) -> Result<()> {
                 bail!("path contains null byte: `{}`", path.display());
             }
 
-            if path_str.split(|c| c == '/' || c == '\\').any(|seg| seg == "." || seg == "..") {
-                bail!("path contains current or parent directory reference (. or ..): `{}`",
-                      path_str);
+            if path_str
+                .split(|c| c == '/' || c == '\\')
+                .any(|seg| seg == "." || seg == "..")
+            {
+                bail!(
+                    "path contains current or parent directory reference (. or ..): `{}`",
+                    path_str
+                );
             }
         }
 
-        let reserved_names = ["CON", "PRN", "AUX", "NUL",
-                               "COM1", "COM2", "COM3", "COM4", "COM5",
-                               "COM6", "COM7", "COM8", "COM9",
-                               "LPT1", "LPT2", "LPT3", "LPT4", "LPT5",
-                               "LPT6", "LPT7", "LPT8", "LPT9"];
+        let reserved_names = [
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+            "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        ];
 
         for component in path.components() {
             if let Component::Normal(comp) = component {
                 if let Some(comp_str) = comp.to_str() {
                     let base = comp_str.split('.').next().unwrap_or("");
                     if reserved_names.iter().any(|&r| base.eq_ignore_ascii_case(r)) {
-                        bail!("path contains reserved Windows filename: `{}`",
-                              path.display());
+                        bail!(
+                            "path contains reserved Windows filename: `{}`",
+                            path.display()
+                        );
                     }
                 }
             }
@@ -1828,15 +1838,19 @@ fn validate_safe_repo_path(path: &Path) -> Result<()> {
     for component in path.components() {
         match component {
             Component::ParentDir => {
-                bail!("path contains parent directory reference (..): `{}`",
-                      path.display());
+                bail!(
+                    "path contains parent directory reference (..): `{}`",
+                    path.display()
+                );
             }
             Component::RootDir | Component::Prefix(_) => {
                 bail!("path must be relative: `{}`", path.display());
             }
             Component::CurDir => {
-                bail!("path contains current directory reference (.): `{}`",
-                      path.display());
+                bail!(
+                    "path contains current directory reference (.): `{}`",
+                    path.display()
+                );
             }
             Component::Normal(_) => {}
         }
@@ -1884,15 +1898,12 @@ impl RepoPathBuf {
             }
 
             if let std::path::Component::Normal(c) = cmpt {
-                let s = c.to_str().ok_or_else(|| {
-                    anyhow!("path component `{:?}` is not valid UTF-8", c)
-                })?;
+                let s = c
+                    .to_str()
+                    .ok_or_else(|| anyhow!("path component `{:?}` is not valid UTF-8", c))?;
                 b.extend(s.as_bytes());
             } else {
-                bail!(
-                    "path with unexpected components: `{}`",
-                    path.display()
-                );
+                bail!("path with unexpected components: `{}`", path.display());
             }
         }
 
@@ -1943,7 +1954,11 @@ pub fn escape_pathlike(b: &[u8]) -> String {
 
     if let Ok(s) = std::str::from_utf8(b) {
         if s.chars().all(|c| {
-            (c.is_ascii_graphic() && c != '"' && c != '\\') || c == '/' || c == '-' || c == '_' || c == '.'
+            (c.is_ascii_graphic() && c != '"' && c != '\\')
+                || c == '/'
+                || c == '-'
+                || c == '_'
+                || c == '.'
         }) {
             return s.to_owned();
         }
@@ -1966,8 +1981,7 @@ pub fn escape_pathlike(b: &[u8]) -> String {
         let mut buf = vec![b'\"'];
         buf.extend(b.iter().flat_map(|c| std::ascii::escape_default(*c)));
         buf.push(b'\"');
-        String::from_utf8(buf)
-            .expect("BUG: ASCII escape sequences should always be valid UTF-8")
+        String::from_utf8(buf).expect("BUG: ASCII escape sequences should always be valid UTF-8")
     }
 }
 

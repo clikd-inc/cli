@@ -60,7 +60,8 @@ impl PypaLoader {
         pconfig: &HashMap<String, ProjectConfiguration>,
     ) -> Result<()> {
         let mut pypa_projects: HashMap<String, PypaProjectData> = HashMap::new();
-        let mut project_configs: HashMap<String, (Option<PyProjectClikd>, RepoPathBuf)> = HashMap::new();
+        let mut project_configs: HashMap<String, (Option<PyProjectClikd>, RepoPathBuf)> =
+            HashMap::new();
 
         for dirname in &self.dirs_of_interest {
             let mut name = None;
@@ -326,17 +327,21 @@ impl PypaLoader {
                     }
                 }
 
-                pypa_projects.insert(name.clone(), PypaProjectData {
-                    ident,
-                    internal_reqs: internal_reqs.clone(),
-                });
+                pypa_projects.insert(
+                    name.clone(),
+                    PypaProjectData {
+                        ident,
+                        internal_reqs: internal_reqs.clone(),
+                    },
+                );
 
                 project_configs.insert(name, (config, toml_repopath));
             }
         }
 
         for (project_name, project_data) in &pypa_projects {
-            let (config, toml_repopath) = project_configs.get(project_name)
+            let (config, toml_repopath) = project_configs
+                .get(project_name)
                 .expect("BUG: project_configs should contain all pypa_projects");
 
             for req_name in &project_data.internal_reqs {

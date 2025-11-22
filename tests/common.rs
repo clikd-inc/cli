@@ -35,8 +35,7 @@ impl TestRepo {
             .join(fixture_name);
 
         let dest_path = path.join(fixture_name);
-        Self::copy_dir_all(&fixture_path, &dest_path)
-            .expect("failed to copy fixture");
+        Self::copy_dir_all(&fixture_path, &dest_path).expect("failed to copy fixture");
 
         TestRepo {
             _dir: dir,

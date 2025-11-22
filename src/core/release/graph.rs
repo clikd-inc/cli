@@ -698,8 +698,7 @@ mod tests {
 
     #[test]
     fn name_assignment_1() {
-        do_name_assignment_test(&[(&["A", "B"], "A")])
-            .expect("BUG: test should succeed");
+        do_name_assignment_test(&[(&["A", "B"], "A")]).expect("BUG: test should succeed");
     }
 
     #[test]

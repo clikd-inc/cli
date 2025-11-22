@@ -167,8 +167,9 @@ impl VersionBumpScheme {
             match version {
                 Version::Semver(v) => {
                     let code = format!("{:04}{:02}{:02}", local.year(), local.month(), local.day());
-                    v.build = semver::BuildMetadata::new(&code)
-                        .expect("BUG: YYYYMMDD date format should always be valid semver build metadata");
+                    v.build = semver::BuildMetadata::new(&code).expect(
+                        "BUG: YYYYMMDD date format should always be valid semver build metadata",
+                    );
                 }
 
                 Version::Pep440(v) => {

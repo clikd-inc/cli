@@ -140,7 +140,9 @@ impl CargoLoader {
                 let maybe_versions = pkg.metadata.get("internal_dep_versions");
                 let manifest_repopath = app.repo.convert_path(&pkg.manifest_path)?;
 
-                let dep_map: HashMap<_, _> = pkg.dependencies.iter()
+                let dep_map: HashMap<_, _> = pkg
+                    .dependencies
+                    .iter()
                     .map(|cargo_dep| {
                         let name = cargo_dep.rename.as_ref().unwrap_or(&cargo_dep.name);
                         (name.clone(), cargo_dep.req.to_string())
