@@ -33,6 +33,11 @@ use crate::{
     },
 };
 
+struct PypaProjectData {
+    ident: ProjectId,
+    internal_reqs: HashSet<String>,
+}
+
 /// Framework for auto-loading PyPA projects from the repository contents.
 #[derive(Debug, Default)]
 pub struct PypaLoader {
@@ -54,9 +59,8 @@ impl PypaLoader {
         app: &mut AppBuilder,
         pconfig: &HashMap<String, ProjectConfiguration>,
     ) -> Result<()> {
-        if self.dirs_of_interest.len() > 1 {
-            warn!("multiple Python projects detected. Internal interdependenciess are not yet supported.")
-        }
+        let mut pypa_projects: HashMap<String, PypaProjectData> = HashMap::new();
+        let mut project_configs: HashMap<String, (Option<PyProjectClikd>, RepoPathBuf)> = HashMap::new();
 
         for dirname in &self.dirs_of_interest {
             let mut name = None;
@@ -322,35 +326,56 @@ impl PypaLoader {
                     }
                 }
 
-                // Now that we have *all* of the internal requirements, register them with
-                // the graph.
+                pypa_projects.insert(name.clone(), PypaProjectData {
+                    ident,
+                    internal_reqs: internal_reqs.clone(),
+                });
 
-                for req_name in &internal_reqs {
-                    let req = config
-                        .as_ref()
-                        .and_then(|c| c.internal_dep_versions.get(req_name))
-                        .map(|text| app.repo.parse_history_ref(text))
-                        .transpose()?
-                        .map(|cref| app.repo.resolve_history_ref(&cref, &toml_repopath))
-                        .transpose()?;
+                project_configs.insert(name, (config, toml_repopath));
+            }
+        }
 
-                    if req.is_none() {
-                        warn!(
-                            "missing or invalid key `tool.clikd.internal_dep_versions.{}` in `{}`",
-                            &req_name,
-                            toml_repopath.escaped()
-                        );
-                        warn!("... this is needed to specify the oldest version of `{}` compatible with `{}`",
-                            &req_name, &name);
-                    }
+        for (project_name, project_data) in &pypa_projects {
+            let (config, toml_repopath) = project_configs.get(project_name)
+                .expect("BUG: project_configs should contain all pypa_projects");
 
-                    let req = req.unwrap_or(DepRequirement::Unavailable);
+            for req_name in &project_data.internal_reqs {
+                let is_internal = pypa_projects.contains_key(req_name);
+
+                let req = config
+                    .as_ref()
+                    .and_then(|c| c.internal_dep_versions.get(req_name))
+                    .map(|text| app.repo.parse_history_ref(text))
+                    .transpose()?
+                    .map(|cref| app.repo.resolve_history_ref(&cref, toml_repopath))
+                    .transpose()?;
+
+                if is_internal && req.is_none() {
+                    warn!(
+                        "missing or invalid key `tool.clikd.internal_dep_versions.{}` in `{}`",
+                        &req_name,
+                        toml_repopath.escaped()
+                    );
+                    warn!("... this is needed to specify the oldest version of `{}` compatible with `{}`",
+                        &req_name, &project_name);
+                }
+
+                let req = req.unwrap_or(DepRequirement::Unavailable);
+
+                if let Some(dep_project) = pypa_projects.get(req_name) {
                     app.graph.add_dependency(
-                        ident,
+                        project_data.ident,
+                        DependencyTarget::Ident(dep_project.ident),
+                        "(internal)".to_owned(),
+                        req,
+                    );
+                } else {
+                    app.graph.add_dependency(
+                        project_data.ident,
                         DependencyTarget::Text(req_name.clone()),
                         "(unavailable)".to_owned(),
                         req,
-                    )
+                    );
                 }
             }
         }
@@ -1013,5 +1038,63 @@ version = {attr = "package.__version__"}
 
         assert!(double.contains('"'));
         assert!(single.contains('\''));
+    }
+
+    #[test]
+    fn test_pypa_project_data_creation() {
+        let mut reqs = HashSet::new();
+        reqs.insert("other-package".to_string());
+
+        let data = PypaProjectData {
+            ident: 0,
+            internal_reqs: reqs.clone(),
+        };
+
+        assert_eq!(data.ident, 0);
+        assert_eq!(data.internal_reqs, reqs);
+    }
+
+    #[test]
+    fn test_pypa_project_data_empty_reqs() {
+        let data = PypaProjectData {
+            ident: 5,
+            internal_reqs: HashSet::new(),
+        };
+
+        assert_eq!(data.ident, 5);
+        assert!(data.internal_reqs.is_empty());
+    }
+
+    #[test]
+    fn test_pypa_project_data_multiple_reqs() {
+        let mut reqs = HashSet::new();
+        reqs.insert("package-a".to_string());
+        reqs.insert("package-b".to_string());
+        reqs.insert("package-c".to_string());
+
+        let data = PypaProjectData {
+            ident: 1,
+            internal_reqs: reqs.clone(),
+        };
+
+        assert_eq!(data.internal_reqs.len(), 3);
+        assert!(data.internal_reqs.contains("package-a"));
+        assert!(data.internal_reqs.contains("package-b"));
+        assert!(data.internal_reqs.contains("package-c"));
+    }
+
+    #[test]
+    fn test_internal_reqs_hashset_operations() {
+        let mut reqs1 = HashSet::new();
+        reqs1.insert("shared-lib".to_string());
+        reqs1.insert("utils".to_string());
+
+        let mut reqs2 = HashSet::new();
+        reqs2.insert("shared-lib".to_string());
+
+        assert!(reqs1.contains("shared-lib"));
+        assert!(reqs2.contains("shared-lib"));
+        assert!(reqs1.contains("utils"));
+        assert!(!reqs2.contains("utils"));
     }
 }
