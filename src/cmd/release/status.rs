@@ -1,10 +1,316 @@
+use std::io;
+
 use anyhow::{Context, Result};
+use crossterm::{
+    event::{self, Event, KeyCode, KeyModifiers},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Cell, Row},
+    Terminal,
+};
 use tracing::info;
 
 use crate::atry;
 use crate::cli::ReleaseOutputFormat;
 use crate::core::release::{graph::GraphQueryBuilder, session::AppSession};
-use crate::core::ui::utils::is_interactive_terminal;
+use crate::core::ui::{
+    components::{status_bar::StatusBar, table::Table},
+    theme::AppColors,
+    utils::is_interactive_terminal,
+};
+
+struct ProjectStatus {
+    name: String,
+    version: Option<String>,
+    commits_count: usize,
+    age: Option<usize>,
+    commits: Vec<String>,
+}
+
+struct TuiState {
+    selected_index: usize,
+    project_data: Vec<ProjectStatus>,
+    colors: AppColors,
+    should_quit: bool,
+}
+
+impl TuiState {
+    fn new(project_data: Vec<ProjectStatus>) -> Self {
+        Self {
+            selected_index: 0,
+            project_data,
+            colors: AppColors::default(),
+            should_quit: false,
+        }
+    }
+
+    fn handle_key_event(&mut self, key: KeyCode, modifiers: KeyModifiers) {
+        match (key, modifiers) {
+            (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                self.should_quit = true;
+            }
+            (KeyCode::Down | KeyCode::Char('j'), _) => {
+                if !self.project_data.is_empty() {
+                    self.selected_index = (self.selected_index + 1) % self.project_data.len();
+                }
+            }
+            (KeyCode::Up | KeyCode::Char('k'), _) => {
+                if !self.project_data.is_empty() {
+                    self.selected_index = if self.selected_index == 0 {
+                        self.project_data.len() - 1
+                    } else {
+                        self.selected_index - 1
+                    };
+                }
+            }
+            (KeyCode::Home | KeyCode::Char('g'), _) => {
+                self.selected_index = 0;
+            }
+            (KeyCode::End | KeyCode::Char('G'), KeyModifiers::SHIFT) => {
+                if !self.project_data.is_empty() {
+                    self.selected_index = self.project_data.len() - 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn render(&self, frame: &mut ratatui::Frame) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(1)])
+            .split(frame.area());
+
+        self.render_header(frame, chunks[0]);
+        self.render_projects(frame, chunks[1]);
+        self.render_footer(frame, chunks[2]);
+    }
+
+    fn render_header(&self, frame: &mut ratatui::Frame, area: Rect) {
+        let block = Block::default()
+            .title("Release Status")
+            .borders(Borders::ALL)
+            .style(
+                Style::default()
+                    .fg(self.colors.headers_bar.text)
+                    .bg(self.colors.headers_bar.background),
+            );
+
+        frame.render_widget(block, area);
+    }
+
+    fn render_projects(&self, frame: &mut ratatui::Frame, area: Rect) {
+        if self.project_data.is_empty() {
+            return;
+        }
+
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .split(area);
+
+        self.render_project_list(frame, chunks[0]);
+        self.render_project_details(frame, chunks[1]);
+    }
+
+    fn render_project_list(&self, frame: &mut ratatui::Frame, area: Rect) {
+        let header = Row::new(vec![
+            Cell::from("Project"),
+            Cell::from("Version"),
+            Cell::from("Commits"),
+        ])
+        .style(
+            Style::default()
+                .fg(self.colors.headers_bar.text)
+                .add_modifier(Modifier::BOLD),
+        );
+
+        let rows: Vec<Row> = self
+            .project_data
+            .iter()
+            .enumerate()
+            .map(|(idx, proj)| {
+                let style = if idx == self.selected_index {
+                    Style::default()
+                        .bg(self.colors.containers.background)
+                        .fg(self.colors.containers.text)
+                } else {
+                    Style::default()
+                };
+
+                Row::new(vec![
+                    Cell::from(proj.name.clone()),
+                    Cell::from(proj.version.clone().unwrap_or_else(|| "N/A".to_string())),
+                    Cell::from(proj.commits_count.to_string()),
+                ])
+                .style(style)
+            })
+            .collect();
+
+        let widths = [
+            Constraint::Percentage(50),
+            Constraint::Percentage(30),
+            Constraint::Percentage(20),
+        ];
+
+        let block = Block::default()
+            .title("Projects")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(self.colors.borders.unselected));
+
+        let table = Table::new(rows, &widths)
+            .header(header)
+            .block(block)
+            .highlight_style(
+                Style::default()
+                    .bg(self.colors.containers.background)
+                    .fg(self.colors.containers.text),
+            );
+
+        table.render(frame, area);
+    }
+
+    fn render_project_details(&self, frame: &mut ratatui::Frame, area: Rect) {
+        if let Some(proj) = self.project_data.get(self.selected_index) {
+            let header = Row::new(vec![Cell::from("#"), Cell::from("Commit Summary")])
+                .style(
+                    Style::default()
+                        .fg(self.colors.headers_bar.text)
+                        .add_modifier(Modifier::BOLD),
+                );
+
+            let rows: Vec<Row> = proj
+                .commits
+                .iter()
+                .enumerate()
+                .map(|(idx, commit)| {
+                    Row::new(vec![
+                        Cell::from((idx + 1).to_string()),
+                        Cell::from(commit.clone()),
+                    ])
+                })
+                .collect();
+
+            let widths = [Constraint::Length(5), Constraint::Percentage(95)];
+
+            let title = if let Some(version) = &proj.version {
+                if proj.age.unwrap_or(0) == 0 {
+                    format!(
+                        "{} - {} commit(s) since {}",
+                        proj.name, proj.commits_count, version
+                    )
+                } else {
+                    format!(
+                        "{} - ≤{} commit(s) since {} (inexact)",
+                        proj.name, proj.commits_count, version
+                    )
+                }
+            } else {
+                format!(
+                    "{} - {} commit(s) (no releases)",
+                    proj.name, proj.commits_count
+                )
+            };
+
+            let block = Block::default()
+                .title(title)
+                .borders(Borders::ALL)
+                .style(Style::default().fg(self.colors.borders.unselected));
+
+            if rows.is_empty() {
+                frame.render_widget(block, area);
+            } else {
+                let table = Table::new(rows, &widths).header(header).block(block);
+                table.render(frame, area);
+            }
+        }
+    }
+
+    fn render_footer(&self, frame: &mut ratatui::Frame, area: Rect) {
+        let count_text = if self.project_data.is_empty() {
+            "No projects".to_string()
+        } else {
+            format!(
+                "Project {}/{}",
+                self.selected_index + 1,
+                self.project_data.len()
+            )
+        };
+
+        let status_bar = StatusBar::new(" ↑/k: Up  ↓/j: Down  g: Top  G: Bottom", &count_text, "q: Quit ")
+            .style(
+                Style::default()
+                    .bg(self.colors.headers_bar.background)
+                    .fg(self.colors.headers_bar.text),
+            );
+
+        status_bar.render(frame, area);
+    }
+}
+
+fn run_tui(sess: &AppSession, idents: &[usize]) -> Result<()> {
+    let histories = sess.analyze_histories()?;
+    let mut project_data = Vec::new();
+
+    for ident in idents {
+        let proj = sess.graph().lookup(*ident);
+        let history = histories.lookup(*ident);
+        let n = history.n_commits();
+        let rel_info = history.release_info(&sess.repo)?;
+
+        let mut commits = Vec::new();
+        for cid in history.commits() {
+            let summary = sess.repo.get_commit_summary(*cid)?;
+            commits.push(summary);
+        }
+
+        let (version, age) = if let Some(this_info) = rel_info.lookup_project(proj) {
+            (Some(this_info.version.to_string()), Some(this_info.age))
+        } else {
+            (None, None)
+        };
+
+        project_data.push(ProjectStatus {
+            name: proj.user_facing_name.clone(),
+            version,
+            commits_count: n,
+            age,
+            commits,
+        });
+    }
+
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut state = TuiState::new(project_data);
+
+    loop {
+        terminal.draw(|frame| state.render(frame))?;
+
+        if state.should_quit {
+            break;
+        }
+
+        if event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                state.handle_key_event(key.code, key.modifiers);
+            }
+        }
+    }
+
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
+    Ok(())
+}
 
 pub fn run(format: Option<ReleaseOutputFormat>, no_tui: bool) -> Result<i32> {
     info!(
@@ -31,8 +337,8 @@ pub fn run(format: Option<ReleaseOutputFormat>, no_tui: bool) -> Result<i32> {
         && !no_tui;
 
     if use_tui {
-        eprintln!("TUI mode not yet implemented. Use --format text or --no-tui for now.");
-        eprintln!("Falling back to text mode...\n");
+        run_tui(&sess, &idents)?;
+        return Ok(0);
     }
 
     match format {
