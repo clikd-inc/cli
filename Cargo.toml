@@ -49,6 +49,7 @@ configparser = "3.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_jsonc = "1.0.108"
+erased-serde = "0.4"
 toml = "0.9.8"
 dirs = "6.0"
 minijinja = "2.5"
@@ -78,26 +79,25 @@ uuid = { version = "1.0", features = ["v4"] }
 cansi = "2.2"
 directories = "6.0"
 
-# Release Management Dependencies (from Cranko)
-cargo_metadata = "0.18"
-toml_edit = "0.22"
-petgraph = "0.6"
-atomicwrites = "0.4"
-nom = "7"
-quick-xml = "0.36"
-json5 = "0.4"
-lru = "0.12"
-git-url-parse = "0.4"
-percent-encoding = "2"
-target-lexicon = "0.12"
-textwrap = "0.16"
-base64 = "0.22"
-flate2 = "1.0"
-tar = "0.4"
-zip = { version = "2.2", default-features = false, features = ["deflate", "time"] }
-ci_info = "0.14"
-lazy_static = "1.4"
-dynfmt = { version = "0.1", default-features = false, features = ["curly"] }
+# Release Management Dependencies
+cargo_metadata = "0.23.1"        # Parse Cargo.toml metadata for Rust projects
+toml_edit = "0.23.7"             # Preserve-formatting TOML editing for version bumps
+petgraph = "0.8.3"               # Dependency graph for monorepo release ordering
+atomicwrites = "0.4"           # Atomic file writes to prevent corruption
+nom = "8.0.0"                      # Parser combinators for Python setup.py parsing
+quick-xml = "0.38.4"             # XML parsing for C# .csproj files
+json5 = "0.4"                  # Relaxed JSON parsing for package.json with comments
+lru = "0.16.2"                   # LRU cache for parsed project metadata
+git-url-parse = "0.6.0"          # Parse Git URLs for GitHub release integration
+percent-encoding = "2"         # URL encoding for Git URLs and API calls
+target-lexicon = "0.13.3"        # Platform target detection for cross-platform support
+textwrap = "0.16"              # Text wrapping for changelog formatting
+base64 = "0.22"                # Base64 encoding for GitHub API
+flate2 = "1.0"                 # Gzip compression for archives
+tar = "0.4"                    # TAR archive creation for release artifacts
+zip = { version = "6.0.0", default-features = false, features = ["deflate", "time"] }  # ZIP archives for Windows releases
+ci_info = "0.14"               # CI environment detection (GitHub Actions, etc.)
+lazy_static = "1.4"            # Global regex patterns for version parsing
 
 [dev-dependencies]
 trycmd = "0.15"

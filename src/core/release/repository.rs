@@ -4,8 +4,9 @@
 //! State of the backing version control repository.
 
 use anyhow::{anyhow, bail, Context};
-use dynfmt::{Format, SimpleCurlyFormat};
 use serde::{Deserialize, Serialize};
+
+use super::dynfmt::{Format, SimpleCurlyFormat};
 use std::{
     collections::{HashMap, HashSet},
     fs::File,

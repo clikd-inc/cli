@@ -44,6 +44,7 @@ pub mod core {
     pub mod release {
         pub mod changelog;
         pub mod config;
+        mod dynfmt;
         pub mod env;
         pub mod errors;
         pub mod git_validate;

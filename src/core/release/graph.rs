@@ -662,6 +662,14 @@ impl<'a> Iterator for GraphIterMut<'a> {
         // same project over the course of the iteration. The unsafe bit that
         // allows this. Cf:
         // https://users.rust-lang.org/t/help-with-iterators-yielding-mutable-references/24892
+
+        // SAFETY: This is safe because:
+        // 1. node_idx_iter produces unique NodeIndex values (graph traversal ensures no duplicates)
+        // 2. Each iteration accesses a different project via unique identifiers
+        // 3. The mutable reference lifetime is bound to 'a (the iterator's lifetime)
+        // 4. No two iterations can produce mutable references to the same project
+        // 5. The raw pointer cast extends the lifetime from the temporary &mut self
+        //    to 'a, which is sound given the uniqueness guarantee from the graph structure
         Some(unsafe { &mut *(self.graph.lookup_mut(ident) as *mut _) })
     }
 }

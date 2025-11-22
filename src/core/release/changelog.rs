@@ -9,7 +9,6 @@
 //! release(s). That's exactly the information contained in a release changelog.
 
 use chrono::{offset::Local, Datelike};
-use dynfmt::{Format, SimpleCurlyFormat};
 use std::{
     collections::HashMap,
     fs::File,
@@ -17,6 +16,8 @@ use std::{
     path::PathBuf,
 };
 use thiserror::Error as ThisError;
+
+use super::dynfmt::{Format, SimpleCurlyFormat};
 
 use crate::core::release::{
     errors::{Error, Result},
