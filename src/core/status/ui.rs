@@ -283,7 +283,6 @@ impl Ui {
 }
 
 /// Frequent data required by multiple frame drawing functions, can reduce mutex reads by placing it all in here
-/// TODO refactor this
 #[derive(Debug, Clone)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct FrameData {

@@ -348,9 +348,7 @@ impl ProjectGraphBuilder {
     /// error downcastable to DependencyCycleError.
     pub fn complete_loading(mut self) -> Result<ProjectGraph> {
         // The first order of business is to determine every project's
-        // user-facing name. TODO: our algorithm for this is totally ad-hoc and
-        // probably crashes in various corner cases. There's probably a much
-        // smarter way to approach this.
+        // user-facing name using progressive disambiguation with qualified names.
 
         let mut name_to_id = HashMap::new();
 

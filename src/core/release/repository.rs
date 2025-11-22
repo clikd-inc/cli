@@ -400,11 +400,9 @@ impl Repository {
 
             let blame = repo.repo.blame_file(ref_source_path.as_path(), None)?;
             let hunk = blame.get_line(line_no).ok_or_else(|| {
-                // TODO: this happens if the line in question hasn't yet been
-                // committed. Need to figure out how to handle that
-                // circumstance.
                 anyhow!(
-                    "commit-ref key `{}` found in non-existent line {} of file {}??",
+                    "commit-ref key `{}` found in uncommitted or non-existent line {} of file {}. \
+                     The line must be committed before it can be referenced.",
                     salt,
                     line_no,
                     ref_source_path.escaped()
@@ -670,14 +668,31 @@ impl Repository {
             }
         }
 
-        // TODO: summary should say (e.g.) "Release clikd 0.1.0" if possible.
+        let summary = if info.projects.len() == 1 {
+            let proj = &info.projects[0];
+            let name = proj.qnames.last().map(|s| s.as_str()).unwrap_or("project");
+            format!("Release {} {}", name, proj.version)
+        } else {
+            let new_releases: Vec<_> = info.projects.iter().filter(|p| p.age == 0).collect();
+            if new_releases.len() == 1 {
+                let proj = new_releases[0];
+                let name = proj.qnames.last().map(|s| s.as_str()).unwrap_or("project");
+                format!("Release {} {}", name, proj.version)
+            } else if new_releases.len() > 1 {
+                format!("Release {} projects", new_releases.len())
+            } else {
+                "Release commit created with Clikd".to_string()
+            }
+        };
+
         let message = format!(
-            "Release commit created with Clikd.
+            "{}.
 
 +++ clikd-release-info-v1
 {}
 +++
 ",
+            summary,
             toml::to_string(&info)?
         );
 
@@ -1017,7 +1032,12 @@ impl Repository {
                 {
                     changes.add_path(path);
                     saw_changelog = true;
-                } // TODO: handle/complain about some other statuses
+                } else if status.is_wt_deleted() || status.is_wt_renamed() || status.is_wt_typechange() {
+                    bail!(
+                        "changelog file `{}` has unexpected status (deleted, renamed, or typechange)",
+                        path.escaped()
+                    );
+                }
             } else if status.is_ignored() || status.is_wt_new() || status == git2::Status::CURRENT {
             } else if !dirty_allowed {
                 return Err(DirtyRepositoryError(path.to_owned()).into());
@@ -1356,7 +1376,6 @@ impl ReleaseCommitInfo {
     /// Information may be missing if the project was only added to the
     /// repository after this information was recorded.
     pub fn lookup_project(&self, proj: &Project) -> Option<&ReleasedProjectInfo> {
-        // TODO: any more sophisticated search to try?
         self.projects
             .iter()
             .find(|&rpi| rpi.qnames == *proj.qualified_names())
@@ -1410,8 +1429,6 @@ pub struct RcCommitInfo {
 impl RcCommitInfo {
     /// Attempt to find info for a release request for the specified project.
     pub fn lookup_project(&self, proj: &Project) -> Option<&RcProjectInfo> {
-        // TODO: redundant with ReleaseCommitInfo::lookup_project()
-        // TODO: any more sophisticated search to try?
         self.projects
             .iter()
             .find(|&rci| rci.qnames == *proj.qualified_names())

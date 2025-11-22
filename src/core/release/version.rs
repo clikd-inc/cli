@@ -704,8 +704,6 @@ pub mod pep440 {
         /// Try to parse a "local identifier".
         fn parse_local_identifier(i: &str) -> IResult<&str, Segment> {
             let (i, _) = tag("+")(i)?;
-            // TODO: we don't normalize and validate these rigorously right now, but
-            // maybe we will later => allocate a String.
             let (i, text) = alpha_or_separator(i)?;
             Ok((i, Segment::LocalIdentifier(text.to_owned())))
         }

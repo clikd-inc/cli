@@ -116,11 +116,7 @@ impl PypaLoader {
                 data
             };
 
-            // Now let's see if we have anything to learn from `setup.cfg`.
-            //
-            // TODO: in some projects setup.cfg might be the place to look for
-            // the version, but in most of the examples I'm checking, it isn't,
-            // so we don't wire that up.
+            // Parse setup.cfg for metadata if available.
 
             {
                 let mut cfg_path = dirname.clone();

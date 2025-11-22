@@ -168,9 +168,8 @@ impl DockerData {
                 (None, None)
             };
 
-            // TODO is hardcoded eth0 a good idea here?
-            let (rx, tx) = stats.networks.as_ref().map_or((0, 0), |i| {
-                i.get("eth0").map_or((0, 0), |x| {
+            let (rx, tx) = stats.networks.as_ref().map_or((0, 0), |networks| {
+                networks.values().next().map_or((0, 0), |x| {
                     (
                         x.rx_bytes.unwrap_or_default(),
                         x.tx_bytes.unwrap_or_default(),

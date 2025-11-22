@@ -16,7 +16,6 @@ use crate::core::status::{
 use super::{max_line_width, popup};
 
 /// Draw info box in one of the 9 BoxLocations
-// TODO is this broken - I don't think so
 pub fn draw(
     colors: AppColors,
     f: &mut Frame,
