@@ -85,6 +85,8 @@ pub mod core {
 
     pub mod status;
 
+    pub mod ui;
+
     pub mod config {
         pub mod images;
         pub mod loader;
