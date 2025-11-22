@@ -1,3 +1,15 @@
+# [0.4.0](https://github.com/clikd-inc/cli/compare/v0.3.0...v0.4.0) (2025-11-09)
+
+
+### Features
+
+* add interactive TUI for container monitoring ([#7](https://github.com/clikd-inc/cli/issues/7)) ([92799c1](https://github.com/clikd-inc/cli/commit/92799c1c3017dc4cceacf83a3c9b72d2e1ebfbcc)), closes [#0d1117](https://github.com/clikd-inc/cli/issues/0d1117)
+
+
+### BREAKING CHANGES
+
+* db and logs commands have been removed
+
 # [0.3.0](https://github.com/clikd-inc/cli/compare/v0.2.7...v0.3.0) (2025-11-08)
 
 
