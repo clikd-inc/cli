@@ -1770,6 +1770,81 @@ impl std::convert::AsRef<[u8]> for RepoPathBuf {
     }
 }
 
+fn validate_safe_repo_path(path: &Path) -> Result<()> {
+    use std::path::Component;
+
+    if path.as_os_str().is_empty() {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let bytes = path.as_os_str().as_bytes();
+        if bytes.contains(&0) {
+            bail!("path contains null byte: `{}`", path.display());
+        }
+
+        if bytes.windows(2).any(|w| w == b"/.") || bytes.starts_with(b".") {
+            if bytes.split(|&b| b == b'/').any(|seg| seg == b"." || seg == b"..") {
+                bail!("path contains current or parent directory reference (. or ..): `{}`",
+                      path.display());
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        if let Some(path_str) = path.to_str() {
+            if path_str.contains('\0') {
+                bail!("path contains null byte: `{}`", path.display());
+            }
+
+            if path_str.split(|c| c == '/' || c == '\\').any(|seg| seg == "." || seg == "..") {
+                bail!("path contains current or parent directory reference (. or ..): `{}`",
+                      path_str);
+            }
+        }
+
+        let reserved_names = ["CON", "PRN", "AUX", "NUL",
+                               "COM1", "COM2", "COM3", "COM4", "COM5",
+                               "COM6", "COM7", "COM8", "COM9",
+                               "LPT1", "LPT2", "LPT3", "LPT4", "LPT5",
+                               "LPT6", "LPT7", "LPT8", "LPT9"];
+
+        for component in path.components() {
+            if let Component::Normal(comp) = component {
+                if let Some(comp_str) = comp.to_str() {
+                    let base = comp_str.split('.').next().unwrap_or("");
+                    if reserved_names.iter().any(|&r| base.eq_ignore_ascii_case(r)) {
+                        bail!("path contains reserved Windows filename: `{}`",
+                              path.display());
+                    }
+                }
+            }
+        }
+    }
+
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                bail!("path contains parent directory reference (..): `{}`",
+                      path.display());
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                bail!("path must be relative: `{}`", path.display());
+            }
+            Component::CurDir => {
+                bail!("path contains current directory reference (.): `{}`",
+                      path.display());
+            }
+            Component::Normal(_) => {}
+        }
+    }
+
+    Ok(())
+}
+
 impl RepoPathBuf {
     pub fn new(b: &[u8]) -> Self {
         RepoPathBuf(b.to_vec())
@@ -1782,7 +1857,11 @@ impl RepoPathBuf {
     #[allow(clippy::unnecessary_wraps)]
     fn from_path<P: AsRef<Path>>(p: P) -> Result<Self> {
         use std::os::unix::ffi::OsStrExt;
-        Ok(Self::new(p.as_ref().as_os_str().as_bytes()))
+        let path = p.as_ref();
+
+        validate_safe_repo_path(path)?;
+
+        Ok(Self::new(path.as_os_str().as_bytes()))
     }
 
     /// Create a RepoPathBuf from a Path-like. It is assumed that the path is
@@ -1790,10 +1869,14 @@ impl RepoPathBuf {
     /// funny business like ".." in it.
     #[cfg(windows)]
     fn from_path<P: AsRef<Path>>(p: P) -> Result<Self> {
+        let path = p.as_ref();
+
+        validate_safe_repo_path(path)?;
+
         let mut first = true;
         let mut b = Vec::new();
 
-        for cmpt in p.as_ref().components() {
+        for cmpt in path.components() {
             if first {
                 first = false;
             } else {
@@ -1808,7 +1891,7 @@ impl RepoPathBuf {
             } else {
                 bail!(
                     "path with unexpected components: `{}`",
-                    p.as_ref().display()
+                    path.display()
                 );
             }
         }
@@ -1845,11 +1928,40 @@ impl std::ops::Deref for RepoPathBuf {
 /// be returned. Otherwise, bytes that aren't printable ASCII will be
 /// backslash-escaped, and the whole string will be wrapped in double quotes.
 ///
-/// **Note**: we should probably only do a direct conversion if it's printable
-/// ASCII without whitespaces, etc. To be refined.
+/// Special handling for security-relevant characters (null bytes, control chars).
 pub fn escape_pathlike(b: &[u8]) -> String {
+    if b.contains(&0) {
+        let mut buf = String::from("\"<path-with-null-byte:");
+        for (i, &byte) in b.iter().enumerate() {
+            if byte == 0 {
+                buf.push_str(&format!("\\0@{}", i));
+            }
+        }
+        buf.push_str(">\"");
+        return buf;
+    }
+
     if let Ok(s) = std::str::from_utf8(b) {
-        s.to_owned()
+        if s.chars().all(|c| {
+            (c.is_ascii_graphic() && c != '"' && c != '\\') || c == '/' || c == '-' || c == '_' || c == '.'
+        }) {
+            return s.to_owned();
+        }
+
+        let mut buf = String::from("\"");
+        for ch in s.chars() {
+            match ch {
+                '"' => buf.push_str("\\\""),
+                '\\' => buf.push_str("\\\\"),
+                '\n' => buf.push_str("\\n"),
+                '\r' => buf.push_str("\\r"),
+                '\t' => buf.push_str("\\t"),
+                c if c.is_control() => buf.push_str(&format!("\\u{{{:04x}}}", c as u32)),
+                c => buf.push(c),
+            }
+        }
+        buf.push('"');
+        buf
     } else {
         let mut buf = vec![b'\"'];
         buf.extend(b.iter().flat_map(|c| std::ascii::escape_default(*c)));
@@ -1858,3 +1970,7 @@ pub fn escape_pathlike(b: &[u8]) -> String {
             .expect("BUG: ASCII escape sequences should always be valid UTF-8")
     }
 }
+
+#[cfg(test)]
+#[path = "repository_tests.rs"]
+mod repository_tests;
