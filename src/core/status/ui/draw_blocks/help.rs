@@ -478,7 +478,7 @@ mod tests {
                     tz.as_ref(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -507,7 +507,7 @@ mod tests {
                     tz.as_ref(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -524,10 +524,10 @@ mod tests {
                     f,
                     &Keymap::new(),
                     true,
-                    Some(&TimeZone::get("asia/tokyo").unwrap()),
+                    Some(&TimeZone::get("asia/tokyo").expect("BUG: test case should succeed")),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }

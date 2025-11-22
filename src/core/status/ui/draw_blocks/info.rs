@@ -83,7 +83,7 @@ mod tests {
                     "test".to_owned(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -119,7 +119,7 @@ mod tests {
                     "test".to_owned(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
         for (row_index, result_row) in get_result(&setup) {

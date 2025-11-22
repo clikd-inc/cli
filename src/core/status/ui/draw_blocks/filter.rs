@@ -97,7 +97,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &setup.fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -143,7 +143,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &setup.fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         // Test when char added to search term
         setup.app_data.lock().filter_term_push('c');
@@ -155,7 +155,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -203,7 +203,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &setup.fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -262,7 +262,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 

@@ -280,7 +280,7 @@ mod tests {
             assert!(super::Config::parse_timezone(i).is_none());
         }
 
-        let expected = Some(TimeZone::get("Asia/Tokyo").unwrap());
+        let expected = Some(TimeZone::get("Asia/Tokyo").expect("BUG: test case should succeed"));
         // string case ignored
         for i in ["ASIA/TOKYO", "asia/tokyo", "aSiA/tOkYo"] {
             let result = super::Config::parse_timezone(Some(i.to_owned()));

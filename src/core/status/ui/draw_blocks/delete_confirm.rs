@@ -156,7 +156,7 @@ mod tests {
                     &ContainerName::from("container_1"),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
         for (row_index, result_row) in get_result(&setup) {
@@ -195,7 +195,7 @@ mod tests {
             .draw(|f| {
                 super::draw(colors, f, &setup.gui_state, keymap, &name);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
         for (row_index, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
@@ -238,7 +238,7 @@ mod tests {
                     &ContainerName::from("container_1"),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -281,7 +281,7 @@ mod tests {
                     &ContainerName::from("container_1"),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
     }
     #[test]
@@ -302,7 +302,7 @@ mod tests {
                     &ContainerName::from("container_1"),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
     }
     #[test]
@@ -323,7 +323,7 @@ mod tests {
                     &ContainerName::from("container_1"),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
     }
 }
