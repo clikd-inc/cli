@@ -32,8 +32,25 @@ struct ProjectStatus {
     commits: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelectablePanel {
+    Projects,
+    Commits,
+}
+
+impl SelectablePanel {
+    fn next(self) -> Self {
+        match self {
+            Self::Projects => Self::Commits,
+            Self::Commits => Self::Projects,
+        }
+    }
+}
+
 struct TuiState {
-    selected_index: usize,
+    selected_panel: SelectablePanel,
+    selected_project_index: usize,
+    commit_scroll_offset: usize,
     project_data: Vec<ProjectStatus>,
     colors: AppColors,
     should_quit: bool,
@@ -42,11 +59,20 @@ struct TuiState {
 impl TuiState {
     fn new(project_data: Vec<ProjectStatus>) -> Self {
         Self {
-            selected_index: 0,
+            selected_panel: SelectablePanel::Projects,
+            selected_project_index: 0,
+            commit_scroll_offset: 0,
             project_data,
             colors: AppColors::default(),
             should_quit: false,
         }
+    }
+
+    fn current_project_commits(&self) -> usize {
+        self.project_data
+            .get(self.selected_project_index)
+            .map(|p| p.commits.len())
+            .unwrap_or(0)
     }
 
     fn handle_key_event(&mut self, key: KeyCode, modifiers: KeyModifiers) {
@@ -54,26 +80,78 @@ impl TuiState {
             (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
+            (KeyCode::Tab, _) | (KeyCode::BackTab, _) => {
+                self.selected_panel = self.selected_panel.next();
+            }
             (KeyCode::Down | KeyCode::Char('j'), _) => {
-                if !self.project_data.is_empty() {
-                    self.selected_index = (self.selected_index + 1) % self.project_data.len();
+                match self.selected_panel {
+                    SelectablePanel::Projects => {
+                        if !self.project_data.is_empty() {
+                            self.selected_project_index =
+                                (self.selected_project_index + 1) % self.project_data.len();
+                            self.commit_scroll_offset = 0;
+                        }
+                    }
+                    SelectablePanel::Commits => {
+                        let total_commits = self.current_project_commits();
+                        if total_commits > 0 {
+                            self.commit_scroll_offset =
+                                (self.commit_scroll_offset + 1).min(total_commits.saturating_sub(1));
+                        }
+                    }
                 }
             }
             (KeyCode::Up | KeyCode::Char('k'), _) => {
-                if !self.project_data.is_empty() {
-                    self.selected_index = if self.selected_index == 0 {
-                        self.project_data.len() - 1
-                    } else {
-                        self.selected_index - 1
-                    };
+                match self.selected_panel {
+                    SelectablePanel::Projects => {
+                        if !self.project_data.is_empty() {
+                            self.selected_project_index = if self.selected_project_index == 0 {
+                                self.project_data.len() - 1
+                            } else {
+                                self.selected_project_index - 1
+                            };
+                            self.commit_scroll_offset = 0;
+                        }
+                    }
+                    SelectablePanel::Commits => {
+                        if self.commit_scroll_offset > 0 {
+                            self.commit_scroll_offset -= 1;
+                        }
+                    }
                 }
             }
             (KeyCode::Home | KeyCode::Char('g'), _) => {
-                self.selected_index = 0;
+                match self.selected_panel {
+                    SelectablePanel::Projects => self.selected_project_index = 0,
+                    SelectablePanel::Commits => self.commit_scroll_offset = 0,
+                }
             }
             (KeyCode::End | KeyCode::Char('G'), KeyModifiers::SHIFT) => {
-                if !self.project_data.is_empty() {
-                    self.selected_index = self.project_data.len() - 1;
+                match self.selected_panel {
+                    SelectablePanel::Projects => {
+                        if !self.project_data.is_empty() {
+                            self.selected_project_index = self.project_data.len() - 1;
+                        }
+                    }
+                    SelectablePanel::Commits => {
+                        let total_commits = self.current_project_commits();
+                        if total_commits > 0 {
+                            self.commit_scroll_offset = total_commits.saturating_sub(1);
+                        }
+                    }
+                }
+            }
+            (KeyCode::PageDown, _) => {
+                if self.selected_panel == SelectablePanel::Commits {
+                    let total_commits = self.current_project_commits();
+                    if total_commits > 0 {
+                        self.commit_scroll_offset = (self.commit_scroll_offset + 10).min(total_commits.saturating_sub(1));
+                    }
+                }
+            }
+            (KeyCode::PageUp, _) => {
+                if self.selected_panel == SelectablePanel::Commits {
+                    self.commit_scroll_offset = self.commit_scroll_offset.saturating_sub(10);
                 }
             }
             _ => {}
@@ -135,7 +213,7 @@ impl TuiState {
             .iter()
             .enumerate()
             .map(|(idx, proj)| {
-                let style = if idx == self.selected_index {
+                let style = if idx == self.selected_project_index {
                     Style::default()
                         .bg(self.colors.containers.background)
                         .fg(self.colors.containers.text)
@@ -158,10 +236,16 @@ impl TuiState {
             Constraint::Percentage(20),
         ];
 
+        let border_color = if self.selected_panel == SelectablePanel::Projects {
+            self.colors.borders.selected
+        } else {
+            self.colors.borders.unselected
+        };
+
         let block = Block::default()
             .title("Projects")
             .borders(Borders::ALL)
-            .style(Style::default().fg(self.colors.borders.unselected));
+            .border_style(Style::default().fg(border_color));
 
         let table = Table::new(rows, &widths)
             .header(header)
@@ -176,7 +260,7 @@ impl TuiState {
     }
 
     fn render_project_details(&self, frame: &mut ratatui::Frame, area: Rect) {
-        if let Some(proj) = self.project_data.get(self.selected_index) {
+        if let Some(proj) = self.project_data.get(self.selected_project_index) {
             let header = Row::new(vec![Cell::from("#"), Cell::from("Commit Summary")])
                 .style(
                     Style::default()
@@ -184,10 +268,16 @@ impl TuiState {
                         .add_modifier(Modifier::BOLD),
                 );
 
+            let available_height = area.height.saturating_sub(3);
+            let visible_start = self.commit_scroll_offset;
+            let visible_end = (visible_start + available_height as usize).min(proj.commits.len());
+
             let rows: Vec<Row> = proj
                 .commits
                 .iter()
                 .enumerate()
+                .skip(visible_start)
+                .take(available_height as usize)
                 .map(|(idx, commit)| {
                     Row::new(vec![
                         Cell::from((idx + 1).to_string()),
@@ -198,29 +288,46 @@ impl TuiState {
 
             let widths = [Constraint::Length(5), Constraint::Percentage(95)];
 
+            let scroll_indicator = if proj.commits.len() > available_height as usize {
+                format!(
+                    " [{}-{}/{}]",
+                    visible_start + 1,
+                    visible_end,
+                    proj.commits.len()
+                )
+            } else {
+                String::new()
+            };
+
             let title = if let Some(version) = &proj.version {
                 if proj.age.unwrap_or(0) == 0 {
                     format!(
-                        "{} - {} commit(s) since {}",
-                        proj.name, proj.commits_count, version
+                        "{} - {} commit(s) since {}{}",
+                        proj.name, proj.commits_count, version, scroll_indicator
                     )
                 } else {
                     format!(
-                        "{} - ≤{} commit(s) since {} (inexact)",
-                        proj.name, proj.commits_count, version
+                        "{} - ≤{} commit(s) since {} (inexact){}",
+                        proj.name, proj.commits_count, version, scroll_indicator
                     )
                 }
             } else {
                 format!(
-                    "{} - {} commit(s) (no releases)",
-                    proj.name, proj.commits_count
+                    "{} - {} commit(s) (no releases){}",
+                    proj.name, proj.commits_count, scroll_indicator
                 )
+            };
+
+            let border_color = if self.selected_panel == SelectablePanel::Commits {
+                self.colors.borders.selected
+            } else {
+                self.colors.borders.unselected
             };
 
             let block = Block::default()
                 .title(title)
                 .borders(Borders::ALL)
-                .style(Style::default().fg(self.colors.borders.unselected));
+                .border_style(Style::default().fg(border_color));
 
             if rows.is_empty() {
                 frame.render_widget(block, area);
@@ -232,22 +339,48 @@ impl TuiState {
     }
 
     fn render_footer(&self, frame: &mut ratatui::Frame, area: Rect) {
-        let count_text = if self.project_data.is_empty() {
-            "No projects".to_string()
+        let (panel_name, count_text) = if self.project_data.is_empty() {
+            ("Projects", "No projects".to_string())
         } else {
-            format!(
-                "Project {}/{}",
-                self.selected_index + 1,
-                self.project_data.len()
-            )
+            match self.selected_panel {
+                SelectablePanel::Projects => (
+                    "Projects",
+                    format!(
+                        "Project {}/{}",
+                        self.selected_project_index + 1,
+                        self.project_data.len()
+                    ),
+                ),
+                SelectablePanel::Commits => {
+                    let total_commits = self.current_project_commits();
+                    if total_commits > 0 {
+                        (
+                            "Commits",
+                            format!(
+                                "Commit {}/{}",
+                                self.commit_scroll_offset + 1,
+                                total_commits
+                            ),
+                        )
+                    } else {
+                        ("Commits", "No commits".to_string())
+                    }
+                }
+            }
         };
 
-        let status_bar = StatusBar::new(" ↑/k: Up  ↓/j: Down  g: Top  G: Bottom", &count_text, "q: Quit ")
-            .style(
-                Style::default()
-                    .bg(self.colors.headers_bar.background)
-                    .fg(self.colors.headers_bar.text),
-            );
+        let center_text = format!("[{}] {}", panel_name, count_text);
+
+        let status_bar = StatusBar::new(
+            " Tab: Switch Panel  ↑/↓: Scroll  PgUp/PgDn  g/G: Top/Bottom",
+            &center_text,
+            "q: Quit ",
+        )
+        .style(
+            Style::default()
+                .bg(self.colors.headers_bar.background)
+                .fg(self.colors.headers_bar.text),
+        );
 
         status_bar.render(frame, area);
     }
