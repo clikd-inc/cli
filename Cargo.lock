@@ -458,7 +458,7 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "atomicwrites",
- "base64 0.22.1",
+ "base64",
  "bollard",
  "cansi",
  "cargo_metadata",
