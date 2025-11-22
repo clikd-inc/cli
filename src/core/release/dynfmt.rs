@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! A crate for formatting strings dynamically.
 //!
 //! `dynfmt2` provides several implementations for formats that implement a subset of the
@@ -10,7 +12,7 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use dynfmt2::{Format, NoopFormat};
 //!
 //! let formatted = NoopFormat.format("hello, world", &["unused"]);
@@ -38,7 +40,7 @@
 //! which must return an iterator over [`ArgumentSpec`] structs. Based on the capabilities of the
 //! format, the specs can be parameterized with formatting parameters.
 //!
-//! ```rust
+//! ```rust,ignore
 //! use std::str::MatchIndices;
 //! use dynfmt2::{ArgumentSpec, Format, Error};
 //!
@@ -84,11 +86,11 @@ use erased_serde::Serialize as Serializable;
 use serde::ser::Serialize;
 use thiserror::Error;
 
-mod formatter;
 mod curly;
+mod formatter;
 
-use self::formatter::{FormatError, Formatter};
 pub use self::curly::SimpleCurlyFormat;
+use self::formatter::{FormatError, Formatter};
 
 /// Refers to an argument within an argument list.
 ///
@@ -696,7 +698,7 @@ pub trait Format<'f> {
     /// Individual arguments must implement [`Debug`] and [`serde::Serialize`]. The arguments
     /// container must implement the [`FormatArgs`] trait.
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use dynfmt2::{Format, NoopFormat};
     ///
     /// let formatted = NoopFormat.format("hello, world", &["unused"]);
@@ -721,12 +723,12 @@ pub trait Format<'f> {
 
         for spec in iter {
             let spec = spec?;
-            buffer.extend(format[last_match..spec.start()].as_bytes());
+            buffer.extend(&format.as_bytes()[last_match..spec.start()]);
             spec.format_into(&mut buffer, &mut access)?;
             last_match = spec.end();
         }
 
-        buffer.extend(format[last_match..].as_bytes());
+        buffer.extend(&format.as_bytes()[last_match..]);
         Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(buffer) }))
     }
 }

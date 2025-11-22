@@ -65,7 +65,7 @@ impl<'f> Iterator for SimpleCurlyIter<'f> {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use dynfmt2::{Format, SimpleCurlyFormat};
 ///
 /// let formatted = SimpleCurlyFormat.format("hello, {}", &["world"]);

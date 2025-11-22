@@ -207,7 +207,7 @@ impl CsProjLoader {
                     Ok(Event::Text(ref t)) => match state {
                         State::GuidText => {
                             let mut g = atry!(
-                                t.unescape();
+                                t.decode();
                                 ["unable to decode XML text in ProjectGuid of `{}`", p.display()]
                             )
                             .into_owned();
@@ -218,7 +218,7 @@ impl CsProjLoader {
 
                         State::NameText => {
                             name = Some(atry!(
-                                t.unescape();
+                                t.decode();
                                 ["unable to decode XML text in AssemblyName of `{}`", p.display()]
                             ).into_owned());
                             state = State::Scanning;
@@ -226,7 +226,7 @@ impl CsProjLoader {
 
                         State::DepGuidText => {
                             let mut g = atry!(
-                                t.unescape();
+                                t.decode();
                                 ["unable to decode XML text in <Project> of `{}`", p.display()]
                             )
                             .into_owned();
@@ -237,7 +237,7 @@ impl CsProjLoader {
 
                         State::DepReqText => {
                             let r = atry!(
-                                t.unescape();
+                                t.decode();
                                 ["unable to decode XML text in ClikdInternalDepVersion of `{}`", p.display()]
                             );
                             let (guid, reqtext) = a_ok_or!(

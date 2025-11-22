@@ -104,7 +104,7 @@ impl CargoLoader {
             let manifest_repopath = app.repo.convert_path(&pkg.manifest_path)?;
             let (prefix, _) = manifest_repopath.split_basename();
 
-            let qnames = vec![pkg.name.to_owned(), "cargo".to_owned()];
+            let qnames = vec![pkg.name.to_string(), "cargo".to_owned()];
 
             if let Some(ident) = app.graph.try_add_project(qnames, pconfig) {
                 let proj = app.graph.lookup_mut(ident);

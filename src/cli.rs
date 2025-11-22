@@ -82,7 +82,11 @@ pub enum Commands {
         shell: clap_complete::Shell,
     },
 
-    #[command(subcommand, about = "Release management commands")]
+    #[command(
+        subcommand,
+        about = "Release management commands",
+        long_about = "Powerful release management for monorepos and multi-language projects.\n\nSupported languages:\n  • Rust (Cargo.toml)\n  • Node.js (package.json)\n  • Python (setup.py, pyproject.toml)\n  • Go (go.mod)\n  • Elixir (mix.exs)\n  • C# (.csproj)\n\nFeatures:\n  • Automatic version bumping\n  • Dependency graph resolution\n  • Changelog generation from Git commits\n  • Multi-project coordination\n\nTypical workflow:\n  1. clikd release init\n  2. Make changes and commit\n  3. clikd release status\n  4. clikd release prepare [major|minor|patch]\n  5. Review, commit, tag, and push"
+    )]
     Release(ReleaseCommands),
 }
 
@@ -106,7 +110,10 @@ pub enum AuthCommands {
 
 #[derive(Subcommand)]
 pub enum ReleaseCommands {
-    #[command(about = "Initialize Clikd release management")]
+    #[command(
+        about = "Initialize Clikd release management",
+        long_about = "Initialize release management in your repository.\n\nThis command:\n  • Detects all projects in your monorepo (Rust, Node.js, Python, Go, Elixir, C#)\n  • Creates .clikd/release.toml configuration\n  • Analyzes project dependencies and builds dependency graph\n  • Sets up changelog tracking\n\nRequires a clean Git working directory unless --force is used."
+    )]
     Init {
         #[arg(short, long, help = "Force operation even in unexpected conditions")]
         force: bool,
@@ -115,10 +122,16 @@ pub enum ReleaseCommands {
         upstream: Option<String>,
     },
 
-    #[command(about = "Show release status and changelog")]
+    #[command(
+        about = "Show release status and changelog",
+        long_about = "Display current release status and preview upcoming changes.\n\nShows:\n  • Projects with uncommitted changes\n  • Projects ready for release\n  • Dependency order for releases\n  • Preview of changelog entries based on Git commits\n\nUse this before 'prepare' to verify what will be released."
+    )]
     Status,
 
-    #[command(about = "Prepare a release (bump versions)")]
+    #[command(
+        about = "Prepare a release (bump versions)",
+        long_about = "Prepare a new release by bumping versions and updating changelogs.\n\nBump types:\n  • major: Breaking changes (1.0.0 → 2.0.0)\n  • minor: New features (1.0.0 → 1.1.0)\n  • patch: Bug fixes (1.0.0 → 1.0.1)\n  • manual: Prompt for each project version\n\nThis command:\n  • Updates version numbers in all affected project files\n  • Generates/updates CHANGELOG.md for each project\n  • Updates dependency versions in dependent projects\n  • Creates a commit-ready state (you still need to commit and tag)"
+    )]
     Prepare {
         #[arg(help = "Version bump type: major, minor, patch, or manual")]
         bump: Option<String>,

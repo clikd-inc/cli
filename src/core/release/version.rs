@@ -656,14 +656,14 @@ pub mod pep440 {
             character::complete::{char, digit1, multispace0, one_of},
             combinator::{all_consuming, map, map_res, opt},
             error::ErrorKind,
-            AsChar, IResult, InputTakeAtPosition,
+            AsChar, IResult, Input, Parser,
         };
 
         use super::*;
 
         /// Parse an unsigned integer.
         fn unsigned(i: &str) -> IResult<&str, usize> {
-            map_res(digit1, |s: &str| s.parse::<usize>())(i)
+            map_res(digit1, |s: &str| s.parse::<usize>()).parse(i)
         }
 
         /// Parse a PEP440 separator: one of ".", "-", or "_"
@@ -711,25 +711,25 @@ pub mod pep440 {
 
         /// Try to parse a development release tag
         fn dev_tag(i: &str) -> IResult<&str, Segment> {
-            let (i, _) = opt(separator)(i)?;
+            let (i, _) = opt(separator).parse(i)?;
             let (i, _) = tag("dev")(i)?;
-            let (i, _) = opt(separator)(i)?;
-            let (i, n) = map(opt(unsigned), |o| o.unwrap_or(0))(i)?;
+            let (i, _) = opt(separator).parse(i)?;
+            let (i, n) = map(opt(unsigned), |o| o.unwrap_or(0)).parse(i)?;
             Ok((i, Segment::DevRelease(n)))
         }
 
         /// Try to parse a post-release that is explicitly tagged
         fn explicit_post_tag(i: &str) -> IResult<&str, Segment> {
-            let (i, _) = opt(separator)(i)?;
-            let (i, _) = alt((tag("post"), tag("r"), tag("rev")))(i)?;
-            let (i, _) = opt(separator)(i)?;
-            let (i, n) = map(opt(unsigned), |o| o.unwrap_or(0))(i)?;
+            let (i, _) = opt(separator).parse(i)?;
+            let (i, _) = alt((tag("post"), tag("r"), tag("rev"))).parse(i)?;
+            let (i, _) = opt(separator).parse(i)?;
+            let (i, n) = map(opt(unsigned), |o| o.unwrap_or(0)).parse(i)?;
             Ok((i, Segment::PostRelease(n)))
         }
 
         /// Try to parse a prerelease tag
         fn pre_tag(i: &str) -> IResult<&str, Segment> {
-            let (i, _) = opt(separator)(i)?;
+            let (i, _) = opt(separator).parse(i)?;
             // order is important here: when there's a common prefix,
             // the longer item must come first:
             let (i, tag_text) = alt((
@@ -741,9 +741,10 @@ pub mod pep440 {
                 tag("rc"),
                 tag("preview"),
                 tag("pre"),
-            ))(i)?;
-            let (i, _) = opt(separator)(i)?;
-            let (i, n) = map(opt(unsigned), |o| o.unwrap_or(0))(i)?;
+            ))
+            .parse(i)?;
+            let (i, _) = opt(separator).parse(i)?;
+            let (i, n) = map(opt(unsigned), |o| o.unwrap_or(0)).parse(i)?;
 
             let pr = match tag_text {
                 "a" | "alpha" => Pep440Prerelease::Alpha(n),
@@ -765,8 +766,8 @@ pub mod pep440 {
         /// Try to parse a complete PEP440 version.
         pub fn version(i: &str) -> IResult<&str, Pep440Version> {
             let (i, _) = multispace0(i)?;
-            let (i, _) = opt(tag("v"))(i)?;
-            let (i, epoch) = opt(epoch)(i)?;
+            let (i, _) = opt(tag("v")).parse(i)?;
+            let (i, epoch) = opt(epoch).parse(i)?;
             let epoch = epoch.unwrap_or(0);
 
             let mut segments = Vec::new();
@@ -789,22 +790,23 @@ pub mod pep440 {
                             parse_local_identifier,
                             unlabeled_post_tag,
                             map(dot_unsigned, Segment::Release),
-                        )))(i)
+                        )))
+                        .parse(i)
                     }
 
                     Segment::PreRelease(n) => {
                         pre_release = Some(n);
-                        opt(alt((explicit_post_tag, dev_tag, parse_local_identifier)))(i)
+                        opt(alt((explicit_post_tag, dev_tag, parse_local_identifier))).parse(i)
                     }
 
                     Segment::PostRelease(n) => {
                         post_release = Some(n);
-                        opt(alt((dev_tag, parse_local_identifier)))(i)
+                        opt(alt((dev_tag, parse_local_identifier))).parse(i)
                     }
 
                     Segment::DevRelease(n) => {
                         dev_release = Some(n);
-                        opt(parse_local_identifier)(i)
+                        opt(parse_local_identifier).parse(i)
                     }
 
                     Segment::LocalIdentifier(s) => {
@@ -822,7 +824,7 @@ pub mod pep440 {
                 }
             }
 
-            let (i, _) = all_consuming(multispace0)(i)?;
+            let (i, _) = all_consuming(multispace0).parse(i)?;
 
             Ok((
                 i,

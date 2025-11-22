@@ -5,6 +5,7 @@
 
 use anyhow::{anyhow, Context};
 use clap::Parser;
+use git_url_parse::types::provider::GenericProvider;
 use json::{object, JsonValue};
 use std::{fs::File, path::PathBuf};
 use tracing::{error, info, warn};
@@ -33,7 +34,10 @@ impl GitHubInformation {
         let upstream_url = git_url_parse::GitUrl::parse(&upstream_url)
             .map_err(|e| anyhow!("cannot parse upstream Git URL `{}`: {}", upstream_url, e))?;
 
-        let slug = upstream_url.fullname;
+        let provider: GenericProvider = upstream_url
+            .provider_info()
+            .map_err(|e| anyhow!("cannot extract provider info from Git URL: {}", e))?;
+        let slug = format!("{}/{}", provider.owner(), provider.repo());
 
         Ok(GitHubInformation { slug, token })
     }
