@@ -1,5 +1,13 @@
-use anyhow::{bail, Result};
-use log::info;
+use anyhow::{Context, Result};
+use tracing::{info, warn};
+
+use crate::{
+    atry,
+    core::release::{
+        graph::GraphQueryBuilder,
+        session::AppSession,
+    },
+};
 
 pub fn run(bump: Option<String>) -> Result<i32> {
     info!(
@@ -7,9 +15,109 @@ pub fn run(bump: Option<String>) -> Result<i32> {
         env!("CARGO_PKG_VERSION")
     );
 
-    if let Some(bump_type) = bump {
-        info!("bump type: {}", bump_type);
+    let bump_scheme_text = bump.as_deref().unwrap_or("micro bump");
+    info!("version bump scheme: {}", bump_scheme_text);
+
+    let mut sess = atry!(
+        AppSession::initialize_default();
+        ["could not initialize app and project graph"]
+    );
+
+    if let Some(dirty) = atry!(
+        sess.repo.check_if_dirty(&[]);
+        ["failed to check repository for modified files"]
+    ) {
+        warn!(
+            "preparing release with uncommitted changes in the repository (e.g.: `{}`)",
+            dirty.escaped()
+        );
     }
 
-    bail!("release prepare not yet fully implemented - use `clikd release` commands");
+    let q = GraphQueryBuilder::default();
+    let idents = sess.graph().query(q).context("could not select projects")?;
+
+    if idents.is_empty() {
+        info!("no projects found in repository");
+        return Ok(0);
+    }
+
+    let histories = atry!(
+        sess.analyze_histories();
+        ["failed to analyze project histories"]
+    );
+
+    let mut n_prepared = 0;
+    let mut n_skipped = 0;
+
+    for ident in &idents {
+        let proj = sess.graph().lookup(*ident);
+        let history = histories.lookup(*ident);
+        let n_commits = history.n_commits();
+
+        if n_commits == 0 {
+            info!(
+                "{}: no changes since last release, skipping",
+                proj.user_facing_name
+            );
+            n_skipped += 1;
+            continue;
+        }
+
+        let bump_scheme = proj.version
+            .parse_bump_scheme(bump_scheme_text)
+            .with_context(|| format!(
+                "invalid bump scheme \"{}\" for project {}",
+                bump_scheme_text, proj.user_facing_name
+            ))?;
+
+        let proj_mut = sess.graph_mut().lookup_mut(*ident);
+        let old_version = proj_mut.version.clone();
+
+        atry!(
+            bump_scheme.apply(&mut proj_mut.version);
+            ["failed to apply version bump to {}", proj_mut.user_facing_name]
+        );
+
+        info!(
+            "{}: {} -> {} ({} commit{})",
+            proj_mut.user_facing_name,
+            old_version,
+            proj_mut.version,
+            n_commits,
+            if n_commits == 1 { "" } else { "s" }
+        );
+
+        n_prepared += 1;
+    }
+
+    if n_prepared == 0 {
+        info!("no projects needed version bumps");
+        return Ok(0);
+    }
+
+    info!("updating project files with new versions...");
+
+    let changes = atry!(
+        sess.rewrite();
+        ["failed to update project files"]
+    );
+
+    if changes.paths().count() > 0 {
+        println!();
+        info!("modified files:");
+        for path in changes.paths() {
+            println!("  {}", path.escaped());
+        }
+    }
+
+    println!();
+    info!(
+        "prepared {} project{} for release ({} skipped)",
+        n_prepared,
+        if n_prepared == 1 { "" } else { "s" },
+        n_skipped
+    );
+    info!("review changes and commit when ready");
+
+    Ok(0)
 }

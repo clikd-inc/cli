@@ -62,7 +62,8 @@ impl Version {
                 v.major = 0;
                 v.minor = 0;
                 v.patch = 0;
-                v.pre = semver::Prerelease::new("dev.0").unwrap();
+                v.pre = semver::Prerelease::new("dev.0")
+                    .expect("BUG: 'dev.0' is a valid semver prerelease");
                 v.build = semver::BuildMetadata::EMPTY;
             }
 
@@ -166,7 +167,8 @@ impl VersionBumpScheme {
             match version {
                 Version::Semver(v) => {
                     let code = format!("{:04}{:02}{:02}", local.year(), local.month(), local.day());
-                    v.build = semver::BuildMetadata::new(&code).unwrap();
+                    v.build = semver::BuildMetadata::new(&code)
+                        .expect("BUG: YYYYMMDD date format should always be valid semver build metadata");
                 }
 
                 Version::Pep440(v) => {
@@ -343,7 +345,7 @@ pub mod dotnet {
                 _ => bail!("failed to parse `{}` as a .NET version", s),
             }
 
-            let pieces = pieces.unwrap();
+            let pieces = pieces.expect("BUG: pieces should be Ok after match validation");
 
             Ok(DotNetVersion {
                 major: pieces[0],
@@ -368,8 +370,12 @@ pub mod dotnet {
             ];
 
             for (l_text, g_text) in CASES {
-                let lesser = l_text.parse::<DotNetVersion>().unwrap();
-                let greater = g_text.parse::<DotNetVersion>().unwrap();
+                let lesser = l_text
+                    .parse::<DotNetVersion>()
+                    .expect("BUG: test case should parse");
+                let greater = g_text
+                    .parse::<DotNetVersion>()
+                    .expect("BUG: test case should parse");
                 assert!(lesser < greater);
                 assert!(greater > lesser);
             }
@@ -1035,7 +1041,9 @@ pub mod pep440 {
 
             for (text, cexp) in PARSE_CASES {
                 let expected = cexp.to_owned();
-                let observed = text.parse::<Pep440Version>().unwrap();
+                let observed = text
+                    .parse::<Pep440Version>()
+                    .expect("BUG: test case should parse");
                 assert_eq!(expected, observed);
             }
         }
@@ -1073,8 +1081,12 @@ pub mod pep440 {
             ];
 
             for (l_text, g_text) in CASES {
-                let lesser = l_text.parse::<Pep440Version>().unwrap();
-                let greater = g_text.parse::<Pep440Version>().unwrap();
+                let lesser = l_text
+                    .parse::<Pep440Version>()
+                    .expect("BUG: test case should parse");
+                let greater = g_text
+                    .parse::<Pep440Version>()
+                    .expect("BUG: test case should parse");
                 assert!(lesser < greater);
                 assert!(greater > lesser);
             }
@@ -1096,8 +1108,12 @@ pub mod pep440 {
             ];
 
             for (l_text, r_text) in CASES {
-                let left = l_text.parse::<Pep440Version>().unwrap();
-                let right = r_text.parse::<Pep440Version>().unwrap();
+                let left = l_text
+                    .parse::<Pep440Version>()
+                    .expect("BUG: test case should parse");
+                let right = r_text
+                    .parse::<Pep440Version>()
+                    .expect("BUG: test case should parse");
                 assert_eq!(left, right);
             }
         }
@@ -1107,8 +1123,13 @@ pub mod pep440 {
             const CASES: &[&str] = &["0!0", "1.0.0.0.0.0", "1RC0", "1.0+SOME_TEXT", "1.0-0"];
 
             for text in CASES {
-                let orig = text.parse::<Pep440Version>().unwrap();
-                let roundtripped = orig.to_string().parse().unwrap();
+                let orig = text
+                    .parse::<Pep440Version>()
+                    .expect("BUG: test case should parse");
+                let roundtripped = orig
+                    .to_string()
+                    .parse()
+                    .expect("BUG: roundtripped value should parse");
                 assert_eq!(orig, roundtripped);
             }
         }

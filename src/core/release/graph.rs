@@ -478,7 +478,6 @@ impl ProjectGraphBuilder {
         let mut projects = Vec::with_capacity(self.projects.len());
 
         for (ident, mut proj_builder) in self.projects.drain(..).enumerate() {
-            // TODO: more lame linear indexing.
             let mut name = None;
 
             for (i_name, i_ident) in &name_to_id {
@@ -488,7 +487,7 @@ impl ProjectGraphBuilder {
                 }
             }
 
-            let name = name.unwrap();
+            let name = name.expect("BUG: every project should have a user-facing name assigned");
             let mut internal_deps = Vec::with_capacity(proj_builder.internal_deps.len());
             let depender_nix = self.node_ixs[ident];
 
@@ -612,6 +611,14 @@ impl<'a> Iterator for TopoSortIterMut<'a> {
         if self.index < self.graph.toposorted_ids.len() {
             let ident = self.graph.toposorted_ids[self.index];
             self.index += 1;
+
+            // SAFETY: This is safe because:
+            // 1. toposorted_ids contains unique ProjectId values (no duplicates)
+            // 2. Each iteration produces a different index, guaranteeing unique project access
+            // 3. The mutable reference lifetime is bound to 'a (the iterator's lifetime)
+            // 4. No two iterations can produce mutable references to the same project
+            // 5. The raw pointer cast extends the lifetime from the temporary &mut self
+            //    to 'a, which is sound given the uniqueness guarantee
             Some(unsafe { &mut *(self.graph.lookup_mut(ident) as *mut _) })
         } else {
             None
@@ -673,7 +680,9 @@ mod tests {
 
         for (qnames, user_facing) in spec {
             let qnames = qnames.iter().map(|s| (*s).to_owned()).collect();
-            let projid = graph.try_add_project(qnames, &empty_config).unwrap();
+            let projid = graph
+                .try_add_project(qnames, &empty_config)
+                .expect("BUG: test project should be added successfully");
             let b = graph.lookup_mut(projid);
             b.version = Some(Version::Semver(semver::Version::new(0, 0, 0)));
             b.prefix = Some(RepoPathBuf::new(b""));
@@ -691,12 +700,14 @@ mod tests {
 
     #[test]
     fn name_assignment_1() {
-        do_name_assignment_test(&[(&["A", "B"], "A")]).unwrap();
+        do_name_assignment_test(&[(&["A", "B"], "A")])
+            .expect("BUG: test should succeed");
     }
 
     #[test]
     fn name_assignment_2() {
-        do_name_assignment_test(&[(&["A", "B"], "B:A"), (&["A", "C"], "C:A")]).unwrap();
+        do_name_assignment_test(&[(&["A", "B"], "B:A"), (&["A", "C"], "C:A")])
+            .expect("BUG: test should succeed");
     }
 
     #[test]
@@ -707,12 +718,13 @@ mod tests {
             (&["D", "B"], "D"),
             (&["E"], "E"),
         ])
-        .unwrap();
+        .expect("BUG: test should succeed");
     }
 
     #[test]
     fn name_assignment_4() {
-        do_name_assignment_test(&[(&["A", "A"], "A:A"), (&["A"], "A")]).unwrap();
+        do_name_assignment_test(&[(&["A", "A"], "A:A"), (&["A"], "A")])
+            .expect("BUG: test should succeed");
     }
 
     #[test]
@@ -723,6 +735,6 @@ mod tests {
             (&["A", "B", "C"], "C:B:A"),
             (&["A", "B", "C", "D"], "D:C:B:A"),
         ])
-        .unwrap();
+        .expect("BUG: test should succeed");
     }
 }

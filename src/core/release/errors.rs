@@ -3,7 +3,7 @@
 
 //! Error handling for release management.
 
-use log::error;
+use tracing::error;
 use thiserror::Error as ThisError;
 
 /// The generic error type, for complex operations that can fail for a wide

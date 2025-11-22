@@ -46,6 +46,7 @@ pub mod core {
         pub mod config;
         pub mod env;
         pub mod errors;
+        pub mod git_validate;
         pub mod graph;
         pub mod project;
         pub mod repository;

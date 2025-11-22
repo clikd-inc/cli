@@ -34,17 +34,31 @@ impl TestRepo {
             .join("fixtures")
             .join(fixture_name);
 
-        Command::new("cp")
-            .args(["-R", fixture_path.to_str().unwrap(), path.to_str().unwrap()])
-            .output()
+        let dest_path = path.join(fixture_name);
+        Self::copy_dir_all(&fixture_path, &dest_path)
             .expect("failed to copy fixture");
-
-        let actual_path = path.join(fixture_name);
 
         TestRepo {
             _dir: dir,
-            path: actual_path,
+            path: dest_path,
         }
+    }
+
+    fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+        std::fs::create_dir_all(dst)?;
+        for entry in std::fs::read_dir(src)? {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+
+            if file_type.is_dir() {
+                Self::copy_dir_all(&src_path, &dst_path)?;
+            } else {
+                std::fs::copy(&src_path, &dst_path)?;
+            }
+        }
+        Ok(())
     }
 
     fn init_git(path: &Path) {

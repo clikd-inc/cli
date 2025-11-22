@@ -128,39 +128,28 @@ impl CargoLoader {
             cargoid_to_index.insert(pkg.id.clone(), index);
         }
 
-        for node in &cargo_meta.resolve.unwrap().nodes {
+        let resolve = cargo_meta
+            .resolve
+            .as_ref()
+            .ok_or_else(|| anyhow!("cargo metadata did not include dependency resolution"))?;
+
+        for node in &resolve.nodes {
             let pkg = &cargo_meta.packages[cargoid_to_index[&node.id]];
 
             if let Some(depender_id) = cargo_to_graph.get(&node.id) {
                 let maybe_versions = pkg.metadata.get("internal_dep_versions");
                 let manifest_repopath = app.repo.convert_path(&pkg.manifest_path)?;
 
+                let dep_map: HashMap<_, _> = pkg.dependencies.iter()
+                    .map(|cargo_dep| {
+                        let name = cargo_dep.rename.as_ref().unwrap_or(&cargo_dep.name);
+                        (name.clone(), cargo_dep.req.to_string())
+                    })
+                    .collect();
+
                 for dep in &node.deps {
                     if let Some(dependee_id) = cargo_to_graph.get(&dep.pkg) {
-                        // Find the literal dependency info that Cargo sees. In
-                        // typical cases this should be "0.0.0-dev.0" or its
-                        // equivalent, but during bootstrap it might be a "real"
-                        // version.
-                        //
-                        // XXX: Repeated linear search is lame.
-
-                        let mut literal = None;
-
-                        for cargo_dep in &pkg.dependencies[..] {
-                            let cmp_name = cargo_dep.rename.as_ref().unwrap_or(&cargo_dep.name);
-
-                            if cmp_name == &dep.name {
-                                literal = Some(cargo_dep.req.to_string());
-                                break;
-                            }
-                        }
-
-                        let literal = literal.unwrap_or_else(|| {
-                            // We only rarely actually use this information, so
-                            // I think it's resonable to warn here and hope for
-                            // the best, rather than hard-erroring out, since
-                            // I'm not 100% sure that our analysis above will
-                            // always be reliable.
+                        let literal = dep_map.get(&dep.name).cloned().unwrap_or_else(|| {
                             warn!("cannot find Cargo version requirement for dependency of `{}` on `{}`", &pkg.name, &dep.name);
                             "UNDEFINED".to_owned()
                         });
@@ -607,12 +596,17 @@ impl PackageReleasedBinariesCommand {
             let mut child = cmd
                 .spawn()
                 .with_context(|| format!("failed to spawn subcommand: {cmd:?}"))?;
-            let reader = BufReader::new(child.stdout.take().unwrap());
+            let reader = BufReader::new(
+                child
+                    .stdout
+                    .take()
+                    .expect("BUG: stdout should be piped after setting Stdio::piped"),
+            );
 
             let mut binaries = Vec::new();
 
             for message in Message::parse_stream(reader) {
-                match message.unwrap() {
+                match message.context("failed to parse cargo message")? {
                     Message::CompilerMessage(msg) => {
                         println!("{msg}");
                     }

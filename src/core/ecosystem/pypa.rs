@@ -383,7 +383,9 @@ fn scan_rewritten_file(
         );
 
         if simple_py_parse::has_commented_marker(&line, "clikd internal-req") {
-            let idx = line.find("clikd internal-req").unwrap();
+            let idx = line
+                .find("clikd internal-req")
+                .expect("BUG: marker should exist after has_commented_marker check");
             let mut pieces = line[idx..].split_whitespace();
             pieces.next(); // skip "clikd"
             pieces.next(); // skip "internal-req"
@@ -428,7 +430,12 @@ pub(crate) mod simple_py_parse {
         }
 
         let inside = if let Some(sq_left) = sq_loc {
-            let sq_right = line.rfind('\'').unwrap();
+            let sq_right = line.rfind('\'').ok_or_else(|| {
+                anyhow!(
+                    "expected a closing quote in Python line `{}`, but found none",
+                    line
+                )
+            })?;
             if sq_right <= sq_left {
                 bail!(
                     "expected a string literal in Python line `{}`, but only found one quote?",
@@ -438,7 +445,12 @@ pub(crate) mod simple_py_parse {
 
             &line[sq_left + 1..sq_right]
         } else if let Some(dq_left) = dq_loc {
-            let dq_right = line.rfind('"').unwrap();
+            let dq_right = line.rfind('"').ok_or_else(|| {
+                anyhow!(
+                    "expected a closing quote in Python line `{}`, but found none",
+                    line
+                )
+            })?;
             if dq_right <= dq_left {
                 bail!(
                     "expected a string literal in Python line `{}`, but only found one quote?",
@@ -475,7 +487,12 @@ pub(crate) mod simple_py_parse {
         }
 
         let (left_idx, right_idx) = if let Some(sq_left) = sq_loc {
-            let sq_right = line.rfind('\'').unwrap();
+            let sq_right = line.rfind('\'').ok_or_else(|| {
+                anyhow!(
+                    "expected a closing quote in Python line `{}`, but found none",
+                    line
+                )
+            })?;
             if sq_right <= sq_left {
                 bail!(
                     "expected a string literal in Python line `{}`, but only found one quote?",
@@ -485,7 +502,12 @@ pub(crate) mod simple_py_parse {
 
             (sq_left, sq_right)
         } else if let Some(dq_left) = dq_loc {
-            let dq_right = line.rfind('"').unwrap();
+            let dq_right = line.rfind('"').ok_or_else(|| {
+                anyhow!(
+                    "expected a closing quote in Python line `{}`, but found none",
+                    line
+                )
+            })?;
             if dq_right <= dq_left {
                 bail!(
                     "expected a string literal in Python line `{}`, but only found one quote?",
@@ -663,7 +685,9 @@ impl Rewriter for PythonRewriter {
                 } else if  simple_py_parse::has_commented_marker(&line, "clikd internal-req") {
                     did_anything = true;
 
-                    let idx = line.find("clikd internal-req").unwrap();
+                    let idx = line
+                        .find("clikd internal-req")
+                        .expect("BUG: marker should exist after has_commented_marker check");
                     let mut pieces = line[idx..].split_whitespace();
                     pieces.next(); // skip "clikd"
                     pieces.next(); // skip "internal-req"
@@ -930,7 +954,7 @@ version = "0.1.0"
         let parsed: std::result::Result<Value, toml::de::Error> = toml::from_str(content);
         assert!(parsed.is_ok());
 
-        let table = parsed.unwrap();
+        let table = parsed.expect("BUG: parsed should be Ok after assertion");
         let project = table.get("project");
         assert!(project.is_some());
     }
@@ -949,7 +973,7 @@ version = {attr = "package.__version__"}
         let parsed: std::result::Result<Value, toml::de::Error> = toml::from_str(content);
         assert!(parsed.is_ok());
 
-        let table = parsed.unwrap();
+        let table = parsed.expect("BUG: parsed should be Ok after assertion");
         let dynamic = table
             .get("project")
             .and_then(|p| p.get("dynamic"))

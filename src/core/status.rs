@@ -53,7 +53,7 @@ pub mod tests {
 
     pub fn gen_item(id: &ContainerId, index: usize) -> ContainerItem {
         ContainerItem::new(
-            u64::try_from(index).unwrap(),
+            u64::try_from(index).expect("BUG: test index should fit in u64"),
             id.clone(),
             format!("image_{index}"),
             false,
@@ -101,7 +101,7 @@ pub mod tests {
             image: Some(format!("image_{index}")),
             image_id: Some(format!("{index}")),
             command: None,
-            created: Some(i64::try_from(index).unwrap()),
+            created: Some(i64::try_from(index).expect("BUG: test index should fit in i64")),
             ports: Some(vec![Port {
                 ip: None,
                 private_port: u16::try_from(index).unwrap_or(1) + 8000,
@@ -111,7 +111,10 @@ pub mod tests {
             size_rw: None,
             size_root_fs: None,
             labels: None,
-            state: Some(bollard::secret::ContainerSummaryStateEnum::from_str(state).unwrap()),
+            state: Some(
+                bollard::secret::ContainerSummaryStateEnum::from_str(state)
+                    .expect("BUG: test state string should be valid"),
+            ),
             status: Some(format!("Up {index} hour")),
             host_config: None,
             network_settings: None,

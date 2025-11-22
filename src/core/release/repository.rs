@@ -3,7 +3,7 @@
 
 //! State of the backing version control repository.
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Context};
 use dynfmt::{Format, SimpleCurlyFormat};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -129,7 +129,10 @@ impl Repository {
 
     /// Set up the upstream info in when bootstrapping.
     pub fn bootstrap_upstream(&mut self, name: Option<&str>) -> Result<String> {
-        // Figure out the upstream URL.
+        if let Some(name) = name {
+            crate::core::release::git_validate::validate_remote_name(name)
+                .context("invalid remote name")?;
+        }
 
         let upstream_url = if let Some(name) = name {
             let remote = atry!(
@@ -234,7 +237,7 @@ impl Repository {
         self.upstream_name = if let Some(n) = url_matched {
             n
         } else if n_remotes == 1 {
-            first_upstream_name.unwrap()
+            first_upstream_name.ok_or_else(|| anyhow!("remote name is not valid UTF-8"))?
         } else if saw_origin {
             "origin".to_owned()
         } else {
@@ -415,7 +418,11 @@ impl Repository {
     /// Resolve a `RepoPath` repository path to a filesystem path in the working
     /// directory.
     pub fn resolve_workdir(&self, p: &RepoPath) -> PathBuf {
-        let mut fullpath = self.repo.workdir().unwrap().to_owned();
+        let mut fullpath = self
+            .repo
+            .workdir()
+            .expect("BUG: workdir() should never be None as bare repos are rejected at open()")
+            .to_owned();
         fullpath.push(p.as_path());
         fullpath
     }
@@ -431,7 +438,11 @@ impl Repository {
     /// Some external tools (e.g. `cargo metadata`) make it so that it is useful
     /// to be able to do this reverse conversion.
     pub fn convert_path<P: AsRef<Path>>(&self, p: P) -> Result<RepoPathBuf> {
-        let c_root = self.repo.workdir().unwrap().canonicalize()?;
+        let c_root = self
+            .repo
+            .workdir()
+            .expect("BUG: workdir() should never be None as bare repos are rejected at open()")
+            .canonicalize()?;
         let c_p = p.as_ref().canonicalize()?;
         let rel = c_p.strip_prefix(&c_root).map_err(|_| {
             anyhow!(
@@ -842,8 +853,13 @@ impl Repository {
         // efficient. (I haven't done any testing to see how much the caching
         // helps, though ...)
 
-        let mut commit_data = lru::LruCache::new(std::num::NonZeroUsize::new(512).unwrap());
-        let mut trees = lru::LruCache::new(std::num::NonZeroUsize::new(3).unwrap());
+        let mut commit_data = lru::LruCache::new(
+            std::num::NonZeroUsize::new(512)
+                .expect("BUG: 512 is a non-zero constant"),
+        );
+        let mut trees = lru::LruCache::new(
+            std::num::NonZeroUsize::new(3).expect("BUG: 3 is a non-zero constant"),
+        );
 
         let mut dopts = git2::DiffOptions::new();
         dopts.include_typechange(true);
@@ -935,8 +951,9 @@ impl Repository {
                     commit_data.put(oid, hit_buf);
                 }
 
-                // OK, now the commit data is definitely in the cache.
-                let hits = commit_data.get(&oid).unwrap();
+                let hits = commit_data
+                    .get(&oid)
+                    .expect("BUG: commit data should be in cache after put()");
 
                 if hits[proj_idx] {
                     histories[proj_idx].commits.push(CommitId(oid));
@@ -1200,7 +1217,11 @@ impl Repository {
         info!(
             "created tag {} pointing at HEAD ({})",
             &tagname,
-            head_commit.as_object().short_id()?.as_str().unwrap()
+            head_commit
+                .as_object()
+                .short_id()?
+                .as_str()
+                .expect("BUG: git short_id should always be valid UTF-8")
         );
 
         Ok(())
@@ -1622,9 +1643,11 @@ impl RepoPath {
     /// contains no separator. Otherwise, it will end with the path separator.
     /// It is always true that `self = concat(dirname, basename)`.
     pub fn split_basename(&self) -> (&RepoPath, &RepoPath) {
-        // Have to index the dirname manually since split() and friends don't
-        // include the separating items, which we want.
-        let basename = self.0.rsplit(|c| *c == b'/').next().unwrap();
+        let basename = self
+            .0
+            .rsplit(|c| *c == b'/')
+            .next()
+            .expect("BUG: rsplit always returns at least one element");
         let ndir = self.0.len() - basename.len();
         (self.0[..ndir].as_ref(), basename.as_ref())
     }
@@ -1708,7 +1731,9 @@ fn bytes2path(b: &[u8]) -> &Path {
 #[cfg(windows)]
 fn bytes2path(b: &[u8]) -> &Path {
     use std::str;
-    Path::new(str::from_utf8(b).unwrap())
+    Path::new(
+        str::from_utf8(b).expect("BUG: git paths should be valid UTF-8 on Windows"),
+    )
 }
 
 /// An owned reference to a pathname as understood by the backing repository.
@@ -1759,7 +1784,10 @@ impl RepoPathBuf {
             }
 
             if let std::path::Component::Normal(c) = cmpt {
-                b.extend(c.to_str().unwrap().as_bytes());
+                let s = c.to_str().ok_or_else(|| {
+                    anyhow!("path component `{:?}` is not valid UTF-8", c)
+                })?;
+                b.extend(s.as_bytes());
             } else {
                 bail!(
                     "path with unexpected components: `{}`",
@@ -1809,6 +1837,7 @@ pub fn escape_pathlike(b: &[u8]) -> String {
         let mut buf = vec![b'\"'];
         buf.extend(b.iter().flat_map(|c| std::ascii::escape_default(*c)));
         buf.push(b'\"');
-        String::from_utf8(buf).unwrap()
+        String::from_utf8(buf)
+            .expect("BUG: ASCII escape sequences should always be valid UTF-8")
     }
 }

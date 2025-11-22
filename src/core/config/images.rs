@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn test_parse_dockerfile() {
-        let images = parse_dockerfile().unwrap();
+        let images = parse_dockerfile().expect("BUG: should parse dockerfile");
 
         assert!(images.contains_key("gate"));
         assert!(images.contains_key("rig"));
@@ -70,12 +70,14 @@ mod tests {
     fn test_get_image() {
         let gate_image = get_image("gate");
         assert!(gate_image.is_some());
-        assert!(gate_image.unwrap().starts_with("ghcr.io/clikd-inc/gate:"));
+        assert!(gate_image
+            .expect("BUG: gate_image should be Some after assertion")
+            .starts_with("ghcr.io/clikd-inc/gate:"));
     }
 
     #[test]
     fn test_image_format() {
-        let images = parse_dockerfile().unwrap();
+        let images = parse_dockerfile().expect("BUG: should parse dockerfile");
 
         for (service, image) in images.iter() {
             assert!(

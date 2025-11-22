@@ -412,9 +412,12 @@ fn nats_service(_branch: &str, config: &Config) -> ServiceDefinition {
 
 fn render_apisix_routes() -> String {
     let mut env = Environment::new();
-    env.add_template("routes", APISIX_ROUTES_TEMPLATE).unwrap();
+    env.add_template("routes", APISIX_ROUTES_TEMPLATE)
+        .expect("BUG: APISIX_ROUTES_TEMPLATE should be valid");
 
-    let template = env.get_template("routes").unwrap();
+    let template = env
+        .get_template("routes")
+        .expect("BUG: routes template should exist after adding");
     template
         .render(minijinja::context! {
             gate_host => "gate",
@@ -422,7 +425,7 @@ fn render_apisix_routes() -> String {
             rig_host => "rig",
             rig_port => 8082,
         })
-        .unwrap()
+        .expect("BUG: template render should succeed with valid context")
 }
 
 fn apisix_service(_branch: &str, config: &Config) -> ServiceDefinition {

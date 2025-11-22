@@ -143,7 +143,8 @@ mod tests {
 
     #[test]
     fn test_extract_version() {
-        let version = VersionManager::extract_version("ghcr.io/clikd-inc/gate:1.0.0").unwrap();
+        let version = VersionManager::extract_version("ghcr.io/clikd-inc/gate:1.0.0")
+            .expect("BUG: test image string should extract version");
         assert_eq!(version, "1.0.0");
     }
 

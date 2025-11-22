@@ -418,7 +418,7 @@ mod tests {
 
         let result = SimpleCurlyFormat
             .format(&changelog.release_header_format, &args)
-            .unwrap();
+            .expect("BUG: format should succeed with valid args");
 
         assert_eq!(result, "# my-project 1.2.3 (2025-01-15)\n");
     }
@@ -431,7 +431,7 @@ mod tests {
 
         let result = SimpleCurlyFormat
             .format(&changelog.stage_header_format, &args)
-            .unwrap();
+            .expect("BUG: format should succeed with valid args");
 
         assert_eq!(result, "# rc: minor bump\n");
     }
@@ -442,7 +442,11 @@ mod tests {
         let spec = line.strip_prefix("# rc:");
 
         assert_eq!(spec, Some(" micro bump"));
-        assert_eq!(spec.unwrap().trim(), "micro bump");
+        assert_eq!(
+            spec.expect("BUG: spec should be Some after assertion")
+                .trim(),
+            "micro bump"
+        );
     }
 
     #[test]
