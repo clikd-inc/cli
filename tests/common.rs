@@ -205,21 +205,22 @@ serde = {{ version = "1.0", features = ["derive"] }}
 }
 
 pub fn create_python_project(repo: &TestRepo, dir: &str, name: &str, version: &str) {
-    let setup_py = format!(
-        r#"from setuptools import setup, find_packages
+    let setup_py = r#"from setuptools import setup, find_packages
 
 setup(
-    name="{}",
-    version="{}",
     packages=find_packages(),
     install_requires=[
         "requests>=2.28.0",
     ],
 )
-"#,
+"#;
+    repo.write_file(&format!("{}/setup.py", dir), setup_py);
+
+    let setup_cfg = format!(
+        "[metadata]\nname = {}\nversion = {}\n",
         name, version
     );
-    repo.write_file(&format!("{}/setup.py", dir), &setup_py);
+    repo.write_file(&format!("{}/setup.cfg", dir), &setup_cfg);
 }
 
 pub fn create_pyproject_toml(repo: &TestRepo, dir: &str, name: &str, version: &str) {

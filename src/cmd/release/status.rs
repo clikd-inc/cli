@@ -1,54 +1,73 @@
-use anyhow::Result;
-use log::info;
+use anyhow::{Context, Result};
+use tracing::info;
 
 use crate::atry;
-use crate::core::release::session::AppSession;
+use crate::core::release::{
+    session::AppSession,
+    graph::GraphQueryBuilder,
+};
 
 pub fn run() -> Result<i32> {
     info!("checking release status with clikd version {}", env!("CARGO_PKG_VERSION"));
-
-    let _repo = atry!(
-        crate::core::release::repository::Repository::open_from_env();
-        ["clikd is not being run from a Git working directory"]
-    );
 
     let sess = atry!(
         AppSession::initialize_default();
         ["could not initialize app and project graph"]
     );
 
-    let mut seen_any = false;
+    let mut q = GraphQueryBuilder::default();
+    let idents = sess
+        .graph()
+        .query(q)
+        .context("cannot get requested statuses")?;
 
-    for ident in sess.graph().toposorted() {
+    let histories = sess.analyze_histories()?;
+
+    for ident in idents {
         let proj = sess.graph().lookup(ident);
+        let history = histories.lookup(ident);
+        let n = history.n_commits();
+        let rel_info = history.release_info(&sess.repo)?;
 
-        if !seen_any {
-            info!("Projects in repository:");
-            println!();
-            seen_any = true;
+        if let Some(this_info) = rel_info.lookup_project(proj) {
+            if this_info.age == 0 {
+                if n == 0 {
+                    println!(
+                        "{}: no relevant commits since {}",
+                        proj.user_facing_name, this_info.version
+                    );
+                } else {
+                    println!(
+                        "{}: {} relevant commit(s) since {}",
+                        proj.user_facing_name,
+                        n,
+                        this_info.version
+                    );
+                }
+            } else {
+                println!(
+                    "{}: no more than {} relevant commit(s) since {} (unable to track in detail)",
+                    proj.user_facing_name,
+                    n,
+                    this_info.version
+                );
+            }
+        } else {
+            println!(
+                "{}: {} relevant commit(s) since start of history (no releases on record)",
+                proj.user_facing_name, n
+            );
         }
 
-        let loc_desc = {
-            let p = proj.prefix();
+        for (idx, cid) in history.commits().into_iter().enumerate() {
+            let summary = sess.repo.get_commit_summary(*cid)?;
+            println!("    {}. {}", idx + 1, summary);
+        }
 
-            if p.len() == 0 {
-                "root".to_owned()
-            } else {
-                format!("`{}`", p.escaped())
-            }
-        };
-
-        println!(
-            "  {} @ {} ({})",
-            proj.user_facing_name, proj.version, loc_desc
-        );
+        if n > 0 {
+            println!();
+        }
     }
 
-    if !seen_any {
-        info!("No projects detected in repository");
-        return Ok(1);
-    }
-
-    println!();
     Ok(0)
 }

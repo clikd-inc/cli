@@ -16,7 +16,15 @@ fn test_changelog_generation_single_commit() {
     let output = repo.run_clikd_command(&["release", "status"]);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("new feature") || stdout.contains("feat"), "Feature commit not detected");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !output.status.success() {
+        panic!("Command failed. stderr: {}", stderr);
+    }
+
+    println!("STDOUT: {}", stdout);
+    println!("STDERR: {}", stderr);
+    assert!(stdout.contains("new feature") || stdout.contains("feat"), "Feature commit not detected. stdout: {}", stdout);
 }
 
 #[test]
@@ -69,6 +77,7 @@ fn test_changelog_respects_project_scope() {
 
     create_rust_project(&repo, "crates/web", "web", "0.1.0");
     create_rust_project(&repo, "crates/api", "api", "0.1.0");
+    repo.write_file("Cargo.toml", "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);

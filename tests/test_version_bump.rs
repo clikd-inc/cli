@@ -59,10 +59,15 @@ fn test_version_bump_preserves_format() {
     create_rust_project(&repo, ".", "test-crate", "1.2.3");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
-
     let original_cargo = repo.read_file("Cargo.toml");
     assert!(original_cargo.contains("version = \"1.2.3\""), "Original version not correct");
+
+    repo.run_clikd_command(&["release", "init", "--force"]);
+
+    let after_init_cargo = repo.read_file("Cargo.toml");
+    println!("After init Cargo.toml:\n{}", after_init_cargo);
+    assert!(after_init_cargo.contains("version = \"0.0.0-dev.0\"") || after_init_cargo.contains("version = \"1.2.3-dev.0\""),
+        "Dev version not set correctly. Got: {}", after_init_cargo);
 
     repo.write_file("src/fix.rs", "pub fn fix() {}");
     repo.commit("fix: bug fix");
@@ -112,6 +117,7 @@ fn test_version_bump_multiple_projects() {
 
     create_rust_project(&repo, "crates/web", "web", "0.1.0");
     create_rust_project(&repo, "crates/api", "api", "0.2.0");
+    repo.write_file("Cargo.toml", "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
