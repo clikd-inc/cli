@@ -19,10 +19,10 @@ use std::{
 use thiserror::Error as ThisError;
 
 use crate::core::release::{
-    session::AppSession,
     errors::{Error, Result},
     project::Project,
     repository::{ChangeList, CommitId, PathMatcher, RcProjectInfo, RepoPathBuf, Repository},
+    session::AppSession,
 };
 
 /// A type that defines how the changelog for a given project is managed.
@@ -517,7 +517,8 @@ mod tests {
 
     #[test]
     fn test_scan_changelog_stops_at_second_header() {
-        let content = "# Version 1.0.0\n\n- Feature A\n- Feature B\n\n# Version 0.9.0\n\n- Old feature";
+        let content =
+            "# Version 1.0.0\n\n- Feature A\n- Feature B\n\n# Version 0.9.0\n\n- Old feature";
 
         let mut entries = Vec::new();
         let mut in_first_section = false;

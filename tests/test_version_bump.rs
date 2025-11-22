@@ -1,5 +1,5 @@
 mod common;
-use common::{TestRepo, create_rust_project, create_npm_project, create_python_project};
+use common::{create_npm_project, create_python_project, create_rust_project, TestRepo};
 
 #[test]
 fn test_version_bump_patch() {
@@ -15,7 +15,11 @@ fn test_version_bump_patch() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -32,7 +36,11 @@ fn test_version_bump_minor() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -49,7 +57,11 @@ fn test_version_bump_major_breaking_change() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -60,21 +72,32 @@ fn test_version_bump_preserves_format() {
     repo.commit("Initial commit");
 
     let original_cargo = repo.read_file("Cargo.toml");
-    assert!(original_cargo.contains("version = \"1.2.3\""), "Original version not correct");
+    assert!(
+        original_cargo.contains("version = \"1.2.3\""),
+        "Original version not correct"
+    );
 
     repo.run_clikd_command(&["release", "init", "--force"]);
 
     let after_init_cargo = repo.read_file("Cargo.toml");
     println!("After init Cargo.toml:\n{}", after_init_cargo);
-    assert!(after_init_cargo.contains("version = \"0.0.0-dev.0\"") || after_init_cargo.contains("version = \"1.2.3-dev.0\""),
-        "Dev version not set correctly. Got: {}", after_init_cargo);
+    assert!(
+        after_init_cargo.contains("version = \"0.0.0-dev.0\"")
+            || after_init_cargo.contains("version = \"1.2.3-dev.0\""),
+        "Dev version not set correctly. Got: {}",
+        after_init_cargo
+    );
 
     repo.write_file("src/fix.rs", "pub fn fix() {}");
     repo.commit("fix: bug fix");
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -91,7 +114,11 @@ fn test_version_bump_npm_package() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -108,7 +135,11 @@ fn test_version_bump_python_package() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -117,7 +148,10 @@ fn test_version_bump_multiple_projects() {
 
     create_rust_project(&repo, "crates/web", "web", "0.1.0");
     create_rust_project(&repo, "crates/api", "api", "0.2.0");
-    repo.write_file("Cargo.toml", "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n");
+    repo.write_file(
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n",
+    );
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -130,31 +164,44 @@ fn test_version_bump_multiple_projects() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
 fn test_version_bump_respects_dependencies() {
     let repo = TestRepo::new();
 
-    repo.write_file("Cargo.toml", r#"[workspace]
+    repo.write_file(
+        "Cargo.toml",
+        r#"[workspace]
 members = ["common", "app"]
-"#);
+"#,
+    );
 
-    repo.write_file("common/Cargo.toml", r#"[package]
+    repo.write_file(
+        "common/Cargo.toml",
+        r#"[package]
 name = "common"
 version = "0.1.0"
 edition = "2021"
-"#);
+"#,
+    );
 
-    repo.write_file("app/Cargo.toml", r#"[package]
+    repo.write_file(
+        "app/Cargo.toml",
+        r#"[package]
 name = "app"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 common = { path = "../common" }
-"#);
+"#,
+    );
 
     repo.write_file("common/src/lib.rs", "pub fn shared() {}");
     repo.write_file("app/src/lib.rs", "use common::shared;");
@@ -168,5 +215,9 @@ common = { path = "../common" }
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

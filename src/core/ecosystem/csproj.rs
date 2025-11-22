@@ -6,24 +6,23 @@
 //! We currently "manually" update `Properties/AssemblyInfo.cs`.
 
 use anyhow::bail;
-use tracing::{info, warn};
 use quick_xml::{events::Event, Reader};
 use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader, Write},
 };
+use tracing::{info, warn};
 
 use crate::{
-    a_ok_or,
-    atry,
+    a_ok_or, atry,
     core::release::{
-        session::{AppBuilder, AppSession},
         config::syntax::ProjectConfiguration,
         errors::Result,
         project::{DepRequirement, DependencyTarget, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf, Repository},
         rewriters::Rewriter,
+        session::{AppBuilder, AppSession},
         version::Version,
     },
 };

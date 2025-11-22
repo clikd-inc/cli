@@ -4,10 +4,10 @@
 //! Release automation utilities related to the GitHub service.
 
 use anyhow::{anyhow, Context};
-use json::{object, JsonValue};
-use tracing::{error, info, warn};
-use std::{fs::File, path::PathBuf};
 use clap::Parser;
+use json::{object, JsonValue};
+use std::{fs::File, path::PathBuf};
+use tracing::{error, info, warn};
 
 use crate::core::release::{
     env::require_var,

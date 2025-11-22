@@ -2,20 +2,20 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use crate::atry;
-use crate::core::release::{
-    session::AppSession,
-    graph::GraphQueryBuilder,
-};
+use crate::core::release::{graph::GraphQueryBuilder, session::AppSession};
 
 pub fn run() -> Result<i32> {
-    info!("checking release status with clikd version {}", env!("CARGO_PKG_VERSION"));
+    info!(
+        "checking release status with clikd version {}",
+        env!("CARGO_PKG_VERSION")
+    );
 
     let sess = atry!(
         AppSession::initialize_default();
         ["could not initialize app and project graph"]
     );
 
-    let mut q = GraphQueryBuilder::default();
+    let q = GraphQueryBuilder::default();
     let idents = sess
         .graph()
         .query(q)
@@ -39,17 +39,13 @@ pub fn run() -> Result<i32> {
                 } else {
                     println!(
                         "{}: {} relevant commit(s) since {}",
-                        proj.user_facing_name,
-                        n,
-                        this_info.version
+                        proj.user_facing_name, n, this_info.version
                     );
                 }
             } else {
                 println!(
                     "{}: no more than {} relevant commit(s) since {} (unable to track in detail)",
-                    proj.user_facing_name,
-                    n,
-                    this_info.version
+                    proj.user_facing_name, n, this_info.version
                 );
             }
         } else {

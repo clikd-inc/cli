@@ -16,7 +16,6 @@ use petgraph::{
 use std::collections::{HashMap, HashSet};
 use thiserror::Error as ThisError;
 
-use crate::{a_ok_or, atry};
 use crate::core::release::{
     config::syntax::ProjectConfiguration,
     errors::Result,
@@ -26,6 +25,7 @@ use crate::core::release::{
     },
     repository::{ReleaseCommitInfo, RepoHistory, Repository},
 };
+use crate::{a_ok_or, atry};
 
 type OurNodeIndex = NodeIndex<DefaultIx>;
 
@@ -74,7 +74,7 @@ impl ProjectGraph {
     /// Iterate over all projects in the graph, in no particular order.
     ///
     /// In many cases [[`Self::toposorted`]] may be preferable.
-    pub fn projects(&self) -> GraphIter {
+    pub fn projects(&self) -> GraphIter<'_> {
         GraphIter {
             graph: self,
             node_idxs_iter: self
@@ -93,7 +93,7 @@ impl ProjectGraph {
     /// dependency graph contains cycles — i.e., if project B depends on project
     /// A and project A depends on project B. This shouldn't happen but isn't
     /// strictly impossible.
-    pub fn toposorted(&self) -> TopoSortIdentIter {
+    pub fn toposorted(&self) -> TopoSortIdentIter<'_> {
         TopoSortIdentIter {
             graph: self,
             index: 0,
@@ -104,7 +104,7 @@ impl ProjectGraph {
     /// sorted order, mutably.
     ///
     /// See `toposort()` for details. This function is the mutable variant.
-    pub fn toposorted_mut(&mut self) -> TopoSortIterMut {
+    pub fn toposorted_mut(&mut self) -> TopoSortIterMut<'_> {
         TopoSortIterMut {
             graph: self,
             index: 0,

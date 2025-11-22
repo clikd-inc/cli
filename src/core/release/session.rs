@@ -4,9 +4,9 @@
 //! State for the Clikd CLI application.
 
 use anyhow::{anyhow, Context};
-use tracing::{error, info, warn};
 use std::collections::HashMap;
 use thiserror::Error as ThisError;
+use tracing::{error, info, warn};
 
 use crate::{
     atry,

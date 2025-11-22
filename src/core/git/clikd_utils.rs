@@ -4,8 +4,8 @@
 //! Utilities for Git.
 
 use anyhow::Context;
-use std::path::PathBuf;
 use clap::Parser;
+use std::path::PathBuf;
 
 use crate::core::release::errors::Result;
 
@@ -51,14 +51,7 @@ impl RebootBranchCommand {
             .context("couldn't recover new tree")?;
 
         let commit_id = repo
-            .commit(
-                None,
-                &sig,
-                &sig,
-                &self.message,
-                &tree,
-                &[],
-            )
+            .commit(None, &sig, &sig, &self.message, &tree, &[])
             .context("couldn't create new commit")?;
 
         repo.reference(&ref_name, commit_id, true, "reboot branch")?;

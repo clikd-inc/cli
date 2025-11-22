@@ -1,20 +1,28 @@
+// Shared test utilities used across multiple test binaries.
+// Each test file compiles as a separate binary, causing clippy to see these as unused
+// in individual compilation units even though they are used across the test suite.
+#![allow(dead_code)]
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::TempDir;
 
 pub struct TestRepo {
-    pub dir: TempDir,
+    // Held to keep temp directory alive (RAII guard)
+    _dir: TempDir,
     pub path: PathBuf,
 }
 
 impl TestRepo {
+    // Can panic if temp directory creation fails - intentionally not implementing Default
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_path_buf();
 
         Self::init_git(&path);
 
-        TestRepo { dir, path }
+        TestRepo { _dir: dir, path }
     }
 
     pub fn from_fixture(fixture_name: &str) -> Self {
@@ -34,7 +42,7 @@ impl TestRepo {
         let actual_path = path.join(fixture_name);
 
         TestRepo {
-            dir,
+            _dir: dir,
             path: actual_path,
         }
     }
@@ -59,7 +67,12 @@ impl TestRepo {
             .expect("failed to set git name");
 
         Command::new("git")
-            .args(["remote", "add", "origin", "https://github.com/test/repo.git"])
+            .args([
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/test/repo.git",
+            ])
             .current_dir(path)
             .output()
             .expect("failed to add remote");
@@ -102,8 +115,7 @@ impl TestRepo {
     }
 
     pub fn read_file(&self, relative_path: &str) -> String {
-        std::fs::read_to_string(self.path.join(relative_path))
-            .expect("failed to read file")
+        std::fs::read_to_string(self.path.join(relative_path)).expect("failed to read file")
     }
 
     pub fn has_config_dir(&self) -> bool {
@@ -216,10 +228,7 @@ setup(
 "#;
     repo.write_file(&format!("{}/setup.py", dir), setup_py);
 
-    let setup_cfg = format!(
-        "[metadata]\nname = {}\nversion = {}\n",
-        name, version
-    );
+    let setup_cfg = format!("[metadata]\nname = {}\nversion = {}\n", name, version);
     repo.write_file(&format!("{}/setup.cfg", dir), &setup_cfg);
 }
 

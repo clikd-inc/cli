@@ -1,20 +1,33 @@
 mod common;
-use common::{TestRepo, create_rust_project};
+use common::{create_rust_project, TestRepo};
 
 #[test]
 fn test_release_init_creates_config_directory() {
     let repo = TestRepo::new();
 
-    repo.write_file("Cargo.toml", "[package]\nname = \"test\"\nversion = \"0.1.0\"\nedition = \"2021\"\n");
+    repo.write_file(
+        "Cargo.toml",
+        "[package]\nname = \"test\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
     repo.write_file("src/lib.rs", "pub fn hello() {}");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(output.status.success(), "Command failed: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Command failed: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(repo.has_config_dir(), "clikd directory not created");
-    assert!(repo.file_exists("clikd/config.toml"), "config.toml not created");
-    assert!(repo.file_exists("clikd/bootstrap.toml"), "bootstrap.toml not created");
+    assert!(
+        repo.file_exists("clikd/config.toml"),
+        "config.toml not created"
+    );
+    assert!(
+        repo.file_exists("clikd/bootstrap.toml"),
+        "bootstrap.toml not created"
+    );
 }
 
 #[test]
@@ -29,7 +42,10 @@ fn test_release_init_detects_single_cargo_project() {
     assert!(output.status.success());
 
     let bootstrap = repo.read_file("clikd/bootstrap.toml");
-    assert!(bootstrap.contains("my-crate"), "Project name not in bootstrap.toml");
+    assert!(
+        bootstrap.contains("my-crate"),
+        "Project name not in bootstrap.toml"
+    );
     assert!(bootstrap.contains("0.1.0"), "Version not in bootstrap.toml");
 }
 
@@ -45,8 +61,14 @@ fn test_release_init_sets_upstream_url() {
     assert!(output.status.success());
 
     let config = repo.read_file("clikd/config.toml");
-    assert!(config.contains("upstream_urls"), "upstream_urls not in config");
-    assert!(config.contains("github.com/test/repo"), "upstream URL not set correctly");
+    assert!(
+        config.contains("upstream_urls"),
+        "upstream_urls not in config"
+    );
+    assert!(
+        config.contains("github.com/test/repo"),
+        "upstream URL not set correctly"
+    );
 }
 
 #[test]
@@ -95,5 +117,8 @@ fn test_release_init_does_not_overwrite_existing_config() {
 
     assert!(output.status.success());
     let new_config = repo.read_file("clikd/config.toml");
-    assert_eq!(original_config, new_config, "Config should not be overwritten");
+    assert_eq!(
+        original_config, new_config,
+        "Config should not be overwritten"
+    );
 }

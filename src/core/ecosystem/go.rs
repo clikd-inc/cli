@@ -1,20 +1,19 @@
 use anyhow::anyhow;
-use tracing::warn;
 use std::{
     collections::HashMap,
     fs::File,
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, Write},
 };
 
 use crate::{
     atry,
     core::release::{
-        session::{AppBuilder, AppSession},
         config::syntax::ProjectConfiguration,
         errors::Result,
         project::ProjectId,
         repository::{ChangeList, RepoPath, RepoPathBuf},
         rewriters::Rewriter,
+        session::{AppBuilder, AppSession},
         version::Version,
     },
 };
@@ -56,8 +55,8 @@ impl GoLoader {
                 let line = line_result?;
                 let trimmed = line.trim();
 
-                if trimmed.starts_with("module ") {
-                    module_name = Some(trimmed[7..].trim().to_string());
+                if let Some(stripped) = trimmed.strip_prefix("module ") {
+                    module_name = Some(stripped.trim().to_string());
                     break;
                 }
             }
@@ -98,6 +97,7 @@ impl GoModRewriter {
 impl Rewriter for GoModRewriter {
     fn rewrite(&self, app: &AppSession, changes: &mut ChangeList) -> Result<()> {
         let fs_path = app.repo.resolve_workdir(&self.repo_path);
+        let _proj = app.graph().lookup(self.proj_id);
 
         let f = atry!(
             File::open(&fs_path);
@@ -146,7 +146,10 @@ mod tests {
         loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
 
         assert_eq!(loader.go_mod_paths.len(), 1);
-        assert_eq!(<RepoPathBuf as AsRef<[u8]>>::as_ref(&loader.go_mod_paths[0]), b"backend/go.mod");
+        assert_eq!(
+            <RepoPathBuf as AsRef<[u8]>>::as_ref(&loader.go_mod_paths[0]),
+            b"backend/go.mod"
+        );
     }
 
     #[test]
@@ -184,8 +187,8 @@ mod tests {
         let mut module_name = None;
         for line in lines {
             let trimmed = line.trim();
-            if trimmed.starts_with("module ") {
-                module_name = Some(trimmed[7..].trim().to_string());
+            if let Some(stripped) = trimmed.strip_prefix("module ") {
+                module_name = Some(stripped.trim().to_string());
                 break;
             }
         }
@@ -201,8 +204,8 @@ mod tests {
         let mut module_name = None;
         for line in lines {
             let trimmed = line.trim();
-            if trimmed.starts_with("module ") {
-                module_name = Some(trimmed[7..].trim().to_string());
+            if let Some(stripped) = trimmed.strip_prefix("module ") {
+                module_name = Some(stripped.trim().to_string());
                 break;
             }
         }
@@ -218,8 +221,8 @@ mod tests {
         let mut module_name = None;
         for line in lines {
             let trimmed = line.trim();
-            if trimmed.starts_with("module ") {
-                module_name = Some(trimmed[7..].trim().to_string());
+            if let Some(stripped) = trimmed.strip_prefix("module ") {
+                module_name = Some(stripped.trim().to_string());
                 break;
             }
         }

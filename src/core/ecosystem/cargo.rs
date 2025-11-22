@@ -8,7 +8,7 @@
 
 use anyhow::{anyhow, Context};
 use cargo_metadata::MetadataCommand;
-use tracing::{info, warn};
+use clap::Parser;
 use std::{
     collections::HashMap,
     ffi::OsString,
@@ -17,19 +17,19 @@ use std::{
     path::{Path, PathBuf},
     process, thread, time,
 };
-use clap::Parser;
 use toml_edit::{DocumentMut, Item, Table};
+use tracing::{info, warn};
 
 use crate::{
     atry,
     core::release::{
-        session::{AppBuilder, AppSession},
         config::syntax::ProjectConfiguration,
         errors::Result,
         graph::GraphQueryBuilder,
         project::{DepRequirement, DependencyTarget, Project, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf},
         rewriters::Rewriter,
+        session::{AppBuilder, AppSession},
         version::Version,
     },
 };
@@ -350,11 +350,7 @@ impl Rewriter for CargoRewriter {
     }
 
     /// Rewriting just the special Clikd requirement metadata.
-    fn rewrite_clikd_requirements(
-        &self,
-        app: &AppSession,
-        changes: &mut ChangeList,
-    ) -> Result<()> {
+    fn rewrite_clikd_requirements(&self, app: &AppSession, changes: &mut ChangeList) -> Result<()> {
         // Short-circuit if no deps. Note that we can only do this if,
         // as done below, we don't clear unexpected entries in the
         // internal_dep_versions block. Should we do that?

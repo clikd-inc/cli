@@ -4,8 +4,8 @@
 //! Python Packaging Authority (PyPA) projects.
 
 use anyhow::{anyhow, bail, Context};
+use clap::Parser;
 use configparser::ini::Ini;
-use tracing::warn;
 use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
@@ -15,24 +15,23 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
     process,
 };
-use clap::Parser;
 use toml::Value;
+use tracing::warn;
 
+use crate::core::release::version::pep440::Pep440Version;
 use crate::{
-    a_ok_or,
-    atry,
+    a_ok_or, atry,
     core::release::{
-        session::{AppBuilder, AppSession},
         config::syntax::ProjectConfiguration,
         errors::{Error, Result},
         graph::GraphQueryBuilder,
         project::{DepRequirement, DependencyTarget, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf},
         rewriters::Rewriter,
+        session::{AppBuilder, AppSession},
         version::Version,
     },
 };
-use crate::core::release::version::pep440::Pep440Version;
 
 /// Framework for auto-loading PyPA projects from the repository contents.
 #[derive(Debug, Default)]
@@ -64,7 +63,7 @@ impl PypaLoader {
             let mut version = None;
             let mut main_version_file = None;
 
-            let dir_desc = if dirname.len() == 0 {
+            let dir_desc = if dirname.is_empty() {
                 "the toplevel directory".to_owned()
             } else {
                 format!("directory `{}`", dirname.escaped())
@@ -216,10 +215,7 @@ impl PypaLoader {
                         }
 
                         if main_version_in_setup
-                            && simple_py_parse::has_commented_marker(
-                                &line,
-                                "clikd project-version",
-                            )
+                            && simple_py_parse::has_commented_marker(&line, "clikd project-version")
                         {
                             version = Some(atry!(
                                 version_from_line(&line);

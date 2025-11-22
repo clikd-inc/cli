@@ -5,7 +5,6 @@
 
 use anyhow::{anyhow, bail};
 use dynfmt::{Format, SimpleCurlyFormat};
-use tracing::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -14,9 +13,11 @@ use std::{
     path::{Path, PathBuf},
 };
 use thiserror::Error as ThisError;
+use tracing::{info, warn};
 
 use crate::{
     a_ok_or, atry,
+    cmd::release::init::BootstrapConfiguration,
     core::release::{
         config::syntax::RepoConfiguration,
         errors::{Error, Result},
@@ -24,7 +25,6 @@ use crate::{
         project::{DepRequirement, Project},
         version::Version,
     },
-    cmd::release::init::BootstrapConfiguration,
 };
 
 /// Opaque type representing a commit in the repository.
@@ -567,11 +567,11 @@ impl Repository {
         })
     }
 
-    fn get_signature(&self) -> Result<git2::Signature> {
+    fn get_signature(&self) -> Result<git2::Signature<'_>> {
         Ok(git2::Signature::now("clikd", "clikd@devnull")?)
     }
 
-    fn try_get_release_commit(&self) -> Result<Option<git2::Commit>> {
+    fn try_get_release_commit(&self) -> Result<Option<git2::Commit<'_>>> {
         let release_ref = match self.repo.resolve_reference_from_short_name(&format!(
             "{}/{}",
             self.upstream_name, self.upstream_release_name
@@ -590,7 +590,7 @@ impl Repository {
         Ok(Some(release_ref.peel_to_commit()?))
     }
 
-    fn try_get_rc_commit(&self) -> Result<Option<git2::Commit>> {
+    fn try_get_rc_commit(&self) -> Result<Option<git2::Commit<'_>>> {
         let rc_ref = match self.repo.resolve_reference_from_short_name(&format!(
             "{}/{}",
             self.upstream_name, self.upstream_rc_name
@@ -1644,6 +1644,11 @@ impl RepoPath {
     /// Get the length of the path, in bytes
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Check if the path is empty
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Convert the repository path into an OS path.

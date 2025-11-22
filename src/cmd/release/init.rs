@@ -4,10 +4,10 @@
 //! Boostrapping Clikd on a preexisting repository.
 
 use anyhow::bail;
+use clap::Parser;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io::Write};
-use clap::Parser;
 
 use crate::atry;
 use crate::core::release::{
@@ -101,10 +101,7 @@ impl BootstrapCommand {
             );
 
             cfg_path.push("config.toml");
-            info!(
-                "stubbing clikd configuration file `{}`",
-                cfg_path.display(),
-            );
+            info!("stubbing clikd configuration file `{}`", cfg_path.display(),);
 
             let f = match fs::OpenOptions::new()
                 .write(true)
@@ -155,7 +152,7 @@ impl BootstrapCommand {
             let loc_desc = {
                 let p = proj.prefix();
 
-                if p.len() == 0 {
+                if p.is_empty() {
                     "the root directory".to_owned()
                 } else {
                     format!("`{}`", p.escaped())
@@ -206,7 +203,11 @@ impl BootstrapCommand {
             bs_path.push("bootstrap.toml");
             info!("writing versioning bootstrap file `{}`", bs_path.display());
 
-            let f = match fs::OpenOptions::new().write(true).create_new(true).open(&bs_path) {
+            let f = match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&bs_path)
+            {
                 Ok(f) => Some(f),
                 Err(e) => {
                     if e.kind() == std::io::ErrorKind::AlreadyExists {

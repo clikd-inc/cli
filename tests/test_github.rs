@@ -1,5 +1,5 @@
 mod common;
-use common::{TestRepo, create_rust_project};
+use common::{create_rust_project, TestRepo};
 
 #[test]
 fn test_github_remote_detection() {
@@ -10,10 +10,17 @@ fn test_github_remote_detection() {
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to init: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let config = repo.read_file("clikd/config.toml");
-    assert!(config.contains("github.com/test/repo"), "GitHub URL not detected from remote");
+    assert!(
+        config.contains("github.com/test/repo"),
+        "GitHub URL not detected from remote"
+    );
 }
 
 #[test]
@@ -25,11 +32,21 @@ fn test_github_upstream_url_configured() {
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to init: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let config = repo.read_file("clikd/config.toml");
-    assert!(config.contains("upstream_urls"), "upstream_urls not in config");
-    assert!(config.contains("github.com"), "GitHub domain not in upstream_urls");
+    assert!(
+        config.contains("upstream_urls"),
+        "upstream_urls not in config"
+    );
+    assert!(
+        config.contains("github.com"),
+        "GitHub domain not in upstream_urls"
+    );
 }
 
 #[test]
@@ -41,10 +58,17 @@ fn test_github_release_tag_format() {
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to init: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let config = repo.read_file("clikd/config.toml");
-    assert!(config.contains("release_tag_name_format") || !config.is_empty(), "Config created");
+    assert!(
+        config.contains("release_tag_name_format") || !config.is_empty(),
+        "Config created"
+    );
 }
 
 #[test]
@@ -56,10 +80,17 @@ fn test_multiple_remotes_prefers_origin() {
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to init: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let config = repo.read_file("clikd/config.toml");
-    assert!(config.contains("github.com/test/repo"), "Origin remote not preferred");
+    assert!(
+        config.contains("github.com/test/repo"),
+        "Origin remote not preferred"
+    );
 }
 
 #[test]
@@ -71,10 +102,17 @@ fn test_github_https_url_format() {
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(output.status.success(), "Failed to init: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to init: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let config = repo.read_file("clikd/config.toml");
-    assert!(config.contains("https://github.com/test/repo"), "HTTPS URL format not preserved");
+    assert!(
+        config.contains("https://github.com/test/repo"),
+        "HTTPS URL format not preserved"
+    );
 }
 
 #[test]
@@ -86,5 +124,9 @@ fn test_github_integration_without_remote() {
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(output.status.success(), "Should succeed even without proper remote: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Should succeed even without proper remote: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

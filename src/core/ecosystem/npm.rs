@@ -9,7 +9,7 @@
 //! fix that.
 
 use anyhow::{anyhow, Context};
-use tracing::warn;
+use clap::Parser;
 use std::{
     collections::HashMap,
     env,
@@ -18,18 +18,18 @@ use std::{
     io::Write,
     process,
 };
-use clap::Parser;
+use tracing::warn;
 
 use crate::{
     atry,
     core::release::{
-        session::{AppBuilder, AppSession},
         config::syntax::ProjectConfiguration,
         errors::Result,
         graph::GraphQueryBuilder,
         project::{DepRequirement, DependencyTarget, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf, Repository},
         rewriters::Rewriter,
+        session::{AppBuilder, AppSession},
         version::Version,
     },
 };
@@ -304,11 +304,7 @@ impl Rewriter for PackageJsonRewriter {
     }
 
     /// Rewriting just the special Clikd requirement metadata.
-    fn rewrite_clikd_requirements(
-        &self,
-        app: &AppSession,
-        changes: &mut ChangeList,
-    ) -> Result<()> {
+    fn rewrite_clikd_requirements(&self, app: &AppSession, changes: &mut ChangeList) -> Result<()> {
         // Short-circuit if no deps. Note that we can only do this if,
         // as done below, we don't clear unexpected entries in the
         // internal_dep_versions block. Should we do that?
@@ -573,8 +569,6 @@ impl LernaWorkaroundCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_parse_package_json_name() {
         let json = r#"{"name": "@scope/package", "version": "1.0.0"}"#;

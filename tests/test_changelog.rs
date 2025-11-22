@@ -1,5 +1,5 @@
 mod common;
-use common::{TestRepo, create_rust_project};
+use common::{create_rust_project, TestRepo};
 
 #[test]
 fn test_changelog_generation_single_commit() {
@@ -24,7 +24,11 @@ fn test_changelog_generation_single_commit() {
 
     println!("STDOUT: {}", stdout);
     println!("STDERR: {}", stderr);
-    assert!(stdout.contains("new feature") || stdout.contains("feat"), "Feature commit not detected. stdout: {}", stdout);
+    assert!(
+        stdout.contains("new feature") || stdout.contains("feat"),
+        "Feature commit not detected. stdout: {}",
+        stdout
+    );
 }
 
 #[test]
@@ -47,8 +51,11 @@ fn test_changelog_with_multiple_commits() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -68,7 +75,11 @@ fn test_changelog_excludes_non_release_commits() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -77,7 +88,10 @@ fn test_changelog_respects_project_scope() {
 
     create_rust_project(&repo, "crates/web", "web", "0.1.0");
     create_rust_project(&repo, "crates/api", "api", "0.1.0");
-    repo.write_file("Cargo.toml", "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n");
+    repo.write_file(
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n",
+    );
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -90,7 +104,11 @@ fn test_changelog_respects_project_scope() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -107,7 +125,11 @@ fn test_changelog_with_breaking_changes() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -119,7 +141,10 @@ fn test_changelog_preserves_manual_edits() {
 
     repo.run_clikd_command(&["release", "init", "--force"]);
 
-    repo.write_file("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\nManually added note\n\n");
+    repo.write_file(
+        "CHANGELOG.md",
+        "# Changelog\n\n## [Unreleased]\n\nManually added note\n\n",
+    );
     repo.commit("docs: add CHANGELOG");
 
     repo.write_file("src/feature.rs", "pub fn feature() {}");
@@ -127,5 +152,9 @@ fn test_changelog_preserves_manual_edits() {
 
     let output = repo.run_clikd_command(&["release", "status"]);
 
-    assert!(output.status.success(), "Failed to get status: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to get status: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

@@ -13,8 +13,8 @@ pub mod cmd {
 
     pub mod release {
         pub mod init;
-        pub mod status;
         pub mod prepare;
+        pub mod status;
     }
 }
 
@@ -37,8 +37,8 @@ pub mod core {
 
     pub mod git {
         pub mod branch;
-        pub mod gitignore;
         pub mod clikd_utils;
+        pub mod gitignore;
     }
 
     pub mod release {
@@ -56,12 +56,12 @@ pub mod core {
 
     pub mod ecosystem {
         pub mod cargo;
-        pub mod npm;
-        pub mod pypa;
-        pub mod go;
-        pub mod elixir;
         #[cfg(feature = "csharp")]
         pub mod csproj;
+        pub mod elixir;
+        pub mod go;
+        pub mod npm;
+        pub mod pypa;
     }
 
     pub mod github {

@@ -1,20 +1,20 @@
 use anyhow::anyhow;
-use tracing::warn;
 use std::{
     collections::HashMap,
     fs::File,
     io::{Read, Write},
 };
+use tracing::warn;
 
 use crate::{
     atry,
     core::release::{
-        session::{AppBuilder, AppSession},
         config::syntax::ProjectConfiguration,
         errors::Result,
         project::ProjectId,
         repository::{ChangeList, RepoPath, RepoPathBuf},
         rewriters::Rewriter,
+        session::{AppBuilder, AppSession},
         version::Version,
     },
 };
@@ -61,8 +61,8 @@ impl ElixirLoader {
                 ["failed to parse app name from `{}`", fs_path.display()]
             );
 
-            let version_str = Self::extract_version(&contents)
-                .unwrap_or_else(|| String::from("0.1.0"));
+            let version_str =
+                Self::extract_version(&contents).unwrap_or_else(|| String::from("0.1.0"));
 
             let qnames = vec![app_name, "elixir".to_owned()];
 
@@ -72,7 +72,10 @@ impl ElixirLoader {
                 let version = match semver::Version::parse(&version_str) {
                     Ok(v) => Version::Semver(v),
                     Err(_) => {
-                        warn!("failed to parse version `{}` from mix.exs, using default", version_str);
+                        warn!(
+                            "failed to parse version `{}` from mix.exs, using default",
+                            version_str
+                        );
                         Version::Semver(semver::Version::new(0, 1, 0))
                     }
                 };
@@ -201,7 +204,10 @@ mod tests {
         loader.process_index_item(dirname_buf.as_ref(), basename_buf.as_ref());
 
         assert_eq!(loader.mix_exs_paths.len(), 1);
-        assert_eq!(<RepoPathBuf as AsRef<[u8]>>::as_ref(&loader.mix_exs_paths[0]), b"backend/mix.exs");
+        assert_eq!(
+            <RepoPathBuf as AsRef<[u8]>>::as_ref(&loader.mix_exs_paths[0]),
+            b"backend/mix.exs"
+        );
     }
 
     #[test]
