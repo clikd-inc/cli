@@ -142,8 +142,8 @@ pub async fn execute(cli: Cli) -> Result<()> {
                 }
                 Ok(())
             }
-            cli::ReleaseCommands::Status => {
-                let exit_code = cmd::release::status::run()?;
+            cli::ReleaseCommands::Status { format, no_tui } => {
+                let exit_code = cmd::release::status::run(format, no_tui)?;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
                 }

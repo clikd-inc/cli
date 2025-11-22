@@ -126,7 +126,19 @@ pub enum ReleaseCommands {
         about = "Show release status and changelog",
         long_about = "Display current release status and preview upcoming changes.\n\nShows:\n  • Projects with uncommitted changes\n  • Projects ready for release\n  • Dependency order for releases\n  • Preview of changelog entries based on Git commits\n\nUse this before 'prepare' to verify what will be released."
     )]
-    Status,
+    Status {
+        #[arg(
+            short,
+            long,
+            value_enum,
+            default_value = "table",
+            help = "Output format"
+        )]
+        format: Option<ReleaseOutputFormat>,
+
+        #[arg(long, help = "Force text mode even in TTY")]
+        no_tui: bool,
+    },
 
     #[command(
         about = "Prepare a release (bump versions)",
@@ -181,6 +193,16 @@ pub enum OutputFormat {
     Json,
     #[value(help = "Environment variables")]
     Env,
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum ReleaseOutputFormat {
+    #[value(help = "Interactive table (TUI mode)")]
+    Table,
+    #[value(help = "Plain text output")]
+    Text,
+    #[value(help = "JSON output")]
+    Json,
 }
 
 #[derive(Args)]
