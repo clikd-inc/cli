@@ -43,6 +43,7 @@ pub mod core {
 
     pub mod release {
         pub mod changelog;
+        pub mod commit_analyzer;
         pub mod config;
         mod dynfmt;
         pub mod env;
@@ -149,8 +150,8 @@ pub async fn execute(cli: Cli) -> Result<()> {
                 }
                 Ok(())
             }
-            cli::ReleaseCommands::Prepare { bump } => {
-                let exit_code = cmd::release::prepare::run(bump)?;
+            cli::ReleaseCommands::Prepare { bump, no_tui } => {
+                let exit_code = cmd::release::prepare::run(bump, no_tui)?;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
                 }

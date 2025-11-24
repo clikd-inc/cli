@@ -43,6 +43,7 @@ open = "5.3"
 ratatui = "0.29"
 crossterm = { version = "0.29", features = ["event-stream"] }
 color-eyre = "0.6"
+pulldown-cmark = "0.13.0"
 
 config = "0.15.19"
 configparser = "3.0"
@@ -83,6 +84,8 @@ directories = "6.0"
 cargo_metadata = "0.23.1"        # Parse Cargo.toml metadata for Rust projects
 toml_edit = "0.23.7"             # Preserve-formatting TOML editing for version bumps
 petgraph = "0.8.3"               # Dependency graph for monorepo release ordering
+git-conventional = "0.12"        # Parse conventional commits (feat, fix, BREAKING)
+next_version = "0.2"             # Calculate semantic version bumps from commits
 atomicwrites = "0.4"           # Atomic file writes to prevent corruption
 nom = "8.0.0"                      # Parser combinators for Python setup.py parsing
 quick-xml = "0.38.4"             # XML parsing for C# .csproj files

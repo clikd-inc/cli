@@ -37,90 +37,213 @@ use crate::{
 /// Framework for auto-loading Cargo projects from the repository contents.
 #[derive(Debug, Default)]
 pub struct CargoLoader {
-    shortest_toml_dirname: Option<RepoPathBuf>,
+    cargo_toml_paths: Vec<RepoPathBuf>,
 }
 
 impl CargoLoader {
-    /// Process items in the Git index while auto-loading projects. Since we use
-    /// `cargo metadata` to get project information, all we do here is find the
-    /// toplevel `Cargo.toml` file and assume that it represents a single
-    /// project root, as far as Cargo is concerned. If you have some weird repo
-    /// structure that doesn't have a single toplevel Cargo.toml (either a
-    /// workspace, or a single project), we'll have trouble with that.
+    /// Process items in the Git index while auto-loading projects.
+    /// Collects ALL Cargo.toml files to detect multiple workspace roots.
     pub fn process_index_item(&mut self, dirname: &RepoPath, basename: &RepoPath) {
         if basename.as_ref() != b"Cargo.toml" {
             return;
         }
 
-        if let Some(ref mut prev) = self.shortest_toml_dirname {
-            // Find the longest common prefix of the two dirnames.
-            let bytes0: &[u8] = prev.as_ref();
-            let bytes1: &[u8] = dirname.as_ref();
-            let len = bytes0
-                .iter()
-                .zip(bytes1)
-                .take_while(|&(a, b)| a == b)
-                .count();
-            prev.truncate(len);
-        } else {
-            self.shortest_toml_dirname = Some(dirname.to_owned());
-        }
+        let mut full_path = dirname.to_owned();
+        full_path.push(basename);
+        self.cargo_toml_paths.push(full_path);
     }
 
     /// Finalize autoloading any Cargo projects. Consumes this object.
     ///
-    /// If this repository contains one or more `Cargo.toml` files, the
-    /// `cargo_metadata` crate will be used to load project information.
+    /// Discovers ALL workspace roots and loads each one separately.
     pub fn finalize(
         self,
         app: &mut AppBuilder,
         pconfig: &HashMap<String, ProjectConfiguration>,
     ) -> Result<()> {
-        let shortest_toml_dirname = match self.shortest_toml_dirname {
-            Some(d) => d,
-            None => return Ok(()),
-        };
+        if self.cargo_toml_paths.is_empty() {
+            return Ok(());
+        }
 
-        let mut toml_path = app.repo.resolve_workdir(&shortest_toml_dirname);
-        toml_path.push("Cargo.toml");
-        let mut cmd = MetadataCommand::new();
-        cmd.manifest_path(&toml_path);
-        cmd.features(cargo_metadata::CargoOpt::AllFeatures);
-        let cargo_meta = atry!(
-            cmd.exec();
-            ["failed to fetch Cargo metadata using the `cargo metadata` command"]
-        );
+        let workspace_roots = self.discover_workspace_roots(app)?;
 
-        // Fill in the packages
+        if workspace_roots.is_empty() {
+            info!("no Cargo workspace roots found in repository");
+            return Ok(());
+        }
 
-        let mut cargo_to_graph = HashMap::new();
+        info!("found {} Cargo workspace root(s)", workspace_roots.len());
 
-        for pkg in &cargo_meta.packages {
-            if pkg.source.is_some() {
-                continue; // This is an external package; not to be tracked.
+        let mut all_cargo_to_graph = HashMap::new();
+
+        for workspace_root in &workspace_roots {
+            info!("loading Cargo workspace: {}", workspace_root.display());
+
+            let mut cmd = MetadataCommand::new();
+            cmd.manifest_path(workspace_root);
+            cmd.features(cargo_metadata::CargoOpt::AllFeatures);
+
+            let cargo_meta = atry!(
+                cmd.exec();
+                ["failed to fetch Cargo metadata from `{}`", workspace_root.display()]
+            );
+
+            self.process_workspace_metadata(
+                app,
+                pconfig,
+                &cargo_meta,
+                workspace_root,
+                &mut all_cargo_to_graph,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn discover_workspace_roots(&self, app: &AppBuilder) -> Result<Vec<PathBuf>> {
+        let mut workspace_roots = Vec::new();
+        let mut seen_packages = std::collections::HashSet::new();
+
+        for toml_repopath in &self.cargo_toml_paths {
+            let toml_path = app.repo.resolve_workdir(toml_repopath);
+
+            if !toml_path.exists() {
+                continue;
             }
 
-            // Plan to auto-register a rewriter to update this package's Cargo.toml.
-            let manifest_repopath = app.repo.convert_path(&pkg.manifest_path)?;
-            let (prefix, _) = manifest_repopath.split_basename();
+            let content = match std::fs::read_to_string(&toml_path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
 
-            let qnames = vec![pkg.name.to_string(), "cargo".to_owned()];
+            let doc: DocumentMut = match content.parse() {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
 
-            if let Some(ident) = app.graph.try_add_project(qnames, pconfig) {
-                let proj = app.graph.lookup_mut(ident);
+            if doc.contains_key("workspace") {
+                let mut cmd = MetadataCommand::new();
+                cmd.manifest_path(&toml_path);
+                cmd.features(cargo_metadata::CargoOpt::AllFeatures);
+                cmd.no_deps();
 
-                // Q: should we include a registry name as a qualifier?
-                proj.version = Some(Version::Semver(pkg.version.clone()));
-                proj.prefix = Some(prefix.to_owned());
-                cargo_to_graph.insert(pkg.id.clone(), ident);
+                if let Ok(meta) = cmd.exec() {
+                    let mut has_new_packages = false;
 
-                // Auto-register a rewriter to update this package's Cargo.toml.
-                let cargo_rewrite = CargoRewriter::new(ident, manifest_repopath);
-                proj.rewriters.push(Box::new(cargo_rewrite));
+                    for pkg in &meta.workspace_packages() {
+                        let pkg_id = format!("{}:{}", pkg.name, pkg.version);
+                        if seen_packages.insert(pkg_id) {
+                            has_new_packages = true;
+                        }
+                    }
+
+                    if has_new_packages {
+                        workspace_roots.push(toml_path.clone());
+                    }
+                }
             }
         }
 
-        // Now establish the interdependencies.
+        if workspace_roots.is_empty() && !self.cargo_toml_paths.is_empty() {
+            let first_toml = app.repo.resolve_workdir(&self.cargo_toml_paths[0]);
+            workspace_roots.push(first_toml);
+        }
+
+        Ok(workspace_roots)
+    }
+
+    fn is_workspace_project(&self, doc: &DocumentMut) -> bool {
+        doc.get("workspace")
+            .and_then(|ws| ws.as_table())
+            .and_then(|ws_table| ws_table.get("package"))
+            .and_then(|pkg| pkg.as_table())
+            .and_then(|pkg_table| pkg_table.get("version"))
+            .is_some()
+    }
+
+    fn process_workspace_metadata(
+        &self,
+        app: &mut AppBuilder,
+        pconfig: &HashMap<String, ProjectConfiguration>,
+        cargo_meta: &cargo_metadata::Metadata,
+        workspace_root: &Path,
+        cargo_to_graph: &mut HashMap<cargo_metadata::PackageId, ProjectId>,
+    ) -> Result<()> {
+        let content = std::fs::read_to_string(workspace_root)?;
+        let doc: DocumentMut = content.parse()?;
+        let is_ws_project = self.is_workspace_project(&doc);
+
+        if is_ws_project {
+            info!("workspace {} is a single project (has [workspace.package].version)", workspace_root.display());
+
+            let ws_name = doc.get("workspace")
+                .and_then(|ws| ws.as_table())
+                .and_then(|ws_table| ws_table.get("package"))
+                .and_then(|pkg| pkg.as_table())
+                .and_then(|pkg_table| pkg_table.get("name"))
+                .and_then(|n| n.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    workspace_root
+                        .parent()
+                        .and_then(|p| p.file_name())
+                        .and_then(|n| n.to_str())
+                        .map(|s| s.to_string())
+                });
+
+            let ws_version = doc.get("workspace")
+                .and_then(|ws| ws.as_table())
+                .and_then(|ws_table| ws_table.get("package"))
+                .and_then(|pkg| pkg.as_table())
+                .and_then(|pkg_table| pkg_table.get("version"))
+                .and_then(|v| v.as_str())
+                .and_then(|v| v.parse::<semver::Version>().ok());
+
+            if let (Some(name), Some(version)) = (ws_name, ws_version) {
+                let manifest_repopath = app.repo.convert_path(workspace_root)?;
+                let (prefix, _) = manifest_repopath.split_basename();
+
+                let qnames = vec![name.clone(), "cargo".to_owned()];
+
+                if let Some(ident) = app.graph.try_add_project(qnames, pconfig) {
+                    let proj = app.graph.lookup_mut(ident);
+
+                    proj.version = Some(Version::Semver(version));
+                    proj.prefix = Some(prefix.to_owned());
+
+                    let cargo_rewrite = CargoRewriter::new(ident, manifest_repopath);
+                    proj.rewriters.push(Box::new(cargo_rewrite));
+                }
+            }
+        } else {
+            info!("workspace {} has separate projects for each member", workspace_root.display());
+
+            for pkg in &cargo_meta.packages {
+                if pkg.source.is_some() {
+                    continue;
+                }
+
+                if cargo_to_graph.contains_key(&pkg.id) {
+                    continue;
+                }
+
+                let manifest_repopath = app.repo.convert_path(&pkg.manifest_path)?;
+                let (prefix, _) = manifest_repopath.split_basename();
+
+                let qnames = vec![pkg.name.to_string(), "cargo".to_owned()];
+
+                if let Some(ident) = app.graph.try_add_project(qnames, pconfig) {
+                    let proj = app.graph.lookup_mut(ident);
+
+                    proj.version = Some(Version::Semver(pkg.version.clone()));
+                    proj.prefix = Some(prefix.to_owned());
+                    cargo_to_graph.insert(pkg.id.clone(), ident);
+
+                    let cargo_rewrite = CargoRewriter::new(ident, manifest_repopath);
+                    proj.rewriters.push(Box::new(cargo_rewrite));
+                }
+            }
+        }
 
         let mut cargoid_to_index = HashMap::new();
 
