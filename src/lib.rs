@@ -43,6 +43,7 @@ pub mod core {
 
     pub mod release {
         pub mod changelog;
+        pub mod changelog_generator;
         pub mod commit_analyzer;
         pub mod config;
         mod dynfmt;

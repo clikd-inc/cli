@@ -28,39 +28,31 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum WizardStep {
     ProjectSelection,
-    BumpStrategy,
-    ChangelogPreview,
+    ProjectConfig { project_index: usize },
     Confirmation,
 }
 
 impl WizardStep {
-    fn title(&self) -> &'static str {
+    fn step_number(&self, total_projects: usize) -> String {
         match self {
-            Self::ProjectSelection => "Step 1/4: Select Projects",
-            Self::BumpStrategy => "Step 2/4: Choose Bump Strategy",
-            Self::ChangelogPreview => "Step 3/4: Preview Changelog",
-            Self::Confirmation => "Step 4/4: Confirm Changes",
+            Self::ProjectSelection => "Step 1".to_string(),
+            Self::ProjectConfig { project_index } => {
+                format!("Step {} of {}", project_index + 2, total_projects + 2)
+            }
+            Self::Confirmation => format!("Step {}", total_projects + 2),
         }
     }
 
-    fn next(&self) -> Option<Self> {
+    fn title(&self, project_name: Option<&str>) -> String {
         match self {
-            Self::ProjectSelection => Some(Self::BumpStrategy),
-            Self::BumpStrategy => Some(Self::ChangelogPreview),
-            Self::ChangelogPreview => Some(Self::Confirmation),
-            Self::Confirmation => None,
-        }
-    }
-
-    fn prev(&self) -> Option<Self> {
-        match self {
-            Self::ProjectSelection => None,
-            Self::BumpStrategy => Some(Self::ProjectSelection),
-            Self::ChangelogPreview => Some(Self::BumpStrategy),
-            Self::Confirmation => Some(Self::ChangelogPreview),
+            Self::ProjectSelection => "Select Projects".to_string(),
+            Self::ProjectConfig { .. } => {
+                format!("Configure: {}", project_name.unwrap_or("Unknown"))
+            }
+            Self::Confirmation => "Confirm Changes".to_string(),
         }
     }
 }
@@ -71,6 +63,8 @@ struct ProjectItem {
     selected: bool,
     commit_count: usize,
     suggested_bump: BumpRecommendation,
+    chosen_bump: Option<BumpStrategy>,
+    commit_messages: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,8 +103,8 @@ struct WizardState {
     step: WizardStep,
     projects: Vec<ProjectItem>,
     project_list_state: ListState,
-    selected_bump: BumpStrategy,
     bump_list_state: ListState,
+    show_changelog: bool,
     show_help: bool,
 }
 
@@ -128,10 +122,36 @@ impl WizardState {
             step: WizardStep::ProjectSelection,
             projects,
             project_list_state,
-            selected_bump: BumpStrategy::Auto,
             bump_list_state,
+            show_changelog: false,
             show_help: false,
         }
+    }
+
+    fn get_current_project(&self) -> Option<&ProjectItem> {
+        if let WizardStep::ProjectConfig { project_index } = self.step {
+            self.projects
+                .iter()
+                .filter(|p| p.selected)
+                .nth(project_index)
+        } else {
+            None
+        }
+    }
+
+    fn get_current_project_mut(&mut self) -> Option<&mut ProjectItem> {
+        if let WizardStep::ProjectConfig { project_index } = self.step {
+            self.projects
+                .iter_mut()
+                .filter(|p| p.selected)
+                .nth(project_index)
+        } else {
+            None
+        }
+    }
+
+    fn selected_count(&self) -> usize {
+        self.projects.iter().filter(|p| p.selected).count()
     }
 
     fn toggle_help(&mut self) {
@@ -139,20 +159,68 @@ impl WizardState {
     }
 
     fn next_step(&mut self) -> bool {
-        if let Some(next) = self.step.next() {
-            self.step = next;
-            true
-        } else {
-            false
+        match &self.step {
+            WizardStep::ProjectSelection => {
+                if self.selected_count() == 0 {
+                    return false;
+                }
+                self.step = WizardStep::ProjectConfig { project_index: 0 };
+                self.show_changelog = false;
+                self.bump_list_state.select(Some(0));
+                true
+            }
+            WizardStep::ProjectConfig { project_index } => {
+                if !self.show_changelog {
+                    if let Some(selected) = self.bump_list_state.selected() {
+                        if let Some(project) = self.get_current_project_mut() {
+                            project.chosen_bump = Some(BumpStrategy::all()[selected]);
+                        }
+                    }
+                    self.show_changelog = true;
+                    true
+                } else {
+                    if *project_index + 1 < self.selected_count() {
+                        self.step = WizardStep::ProjectConfig {
+                            project_index: project_index + 1,
+                        };
+                        self.show_changelog = false;
+                        self.bump_list_state.select(Some(0));
+                    } else {
+                        self.step = WizardStep::Confirmation;
+                    }
+                    true
+                }
+            }
+            WizardStep::Confirmation => false,
         }
     }
 
     fn prev_step(&mut self) -> bool {
-        if let Some(prev) = self.step.prev() {
-            self.step = prev;
-            true
-        } else {
-            false
+        match &self.step {
+            WizardStep::ProjectSelection => false,
+            WizardStep::ProjectConfig { project_index } => {
+                if self.show_changelog {
+                    self.show_changelog = false;
+                    true
+                } else if *project_index == 0 {
+                    self.step = WizardStep::ProjectSelection;
+                    true
+                } else {
+                    self.step = WizardStep::ProjectConfig {
+                        project_index: project_index - 1,
+                    };
+                    self.show_changelog = true;
+                    true
+                }
+            }
+            WizardStep::Confirmation => {
+                let last_idx = self.selected_count().saturating_sub(1);
+                self.step = WizardStep::ProjectConfig {
+                    project_index: last_idx,
+                };
+                self.show_changelog = true;
+                true
+            }
         }
     }
 
@@ -198,38 +266,40 @@ impl WizardState {
         false
     }
 
-    fn handle_key_bump_strategy(&mut self, key: KeyCode) -> bool {
+    fn handle_key_project_config(&mut self, key: KeyCode) -> bool {
         match key {
-            KeyCode::Up => {
+            KeyCode::Tab => {
+                self.show_changelog = !self.show_changelog;
+                if !self.show_changelog {
+                    if let Some(project) = self.get_current_project() {
+                        if let Some(chosen) = project.chosen_bump {
+                            let idx = BumpStrategy::all()
+                                .iter()
+                                .position(|s| *s == chosen)
+                                .unwrap_or(0);
+                            self.bump_list_state.select(Some(idx));
+                        }
+                    }
+                }
+                false
+            }
+            KeyCode::Up if !self.show_changelog => {
                 if let Some(selected) = self.bump_list_state.selected() {
                     if selected > 0 {
                         self.bump_list_state.select(Some(selected - 1));
-                        self.selected_bump = BumpStrategy::all()[selected - 1];
                     }
                 }
+                false
             }
-            KeyCode::Down => {
+            KeyCode::Down if !self.show_changelog => {
                 if let Some(selected) = self.bump_list_state.selected() {
                     let strategies = BumpStrategy::all();
                     if selected < strategies.len() - 1 {
                         self.bump_list_state.select(Some(selected + 1));
-                        self.selected_bump = strategies[selected + 1];
                     }
                 }
+                false
             }
-            KeyCode::Enter => {
-                return self.next_step();
-            }
-            KeyCode::Backspace | KeyCode::Esc => {
-                return self.prev_step();
-            }
-            _ => {}
-        }
-        false
-    }
-
-    fn handle_key_changelog(&mut self, key: KeyCode) -> bool {
-        match key {
             KeyCode::Enter => self.next_step(),
             KeyCode::Backspace | KeyCode::Esc => self.prev_step(),
             _ => false,
@@ -302,6 +372,8 @@ pub fn run() -> Result<i32> {
             selected: true,
             commit_count: n_commits,
             suggested_bump: analysis.recommendation,
+            chosen_bump: None,
+            commit_messages,
         });
     }
 
@@ -312,8 +384,8 @@ pub fn run() -> Result<i32> {
 
     let wizard_result = run_wizard_ui(projects)?;
 
-    let (selected_projects, bump_strategy) = match wizard_result {
-        Some(result) => result,
+    let selected_projects = match wizard_result {
+        Some(projects) => projects,
         None => {
             info!("release preparation cancelled by user");
             return Ok(1);
@@ -321,15 +393,16 @@ pub fn run() -> Result<i32> {
     };
 
     info!(
-        "applying version bumps to {} project(s) with strategy: {}",
-        selected_projects.len(),
-        bump_strategy.as_str()
+        "applying version bumps to {} project(s)",
+        selected_projects.len()
     );
 
     let mut n_prepared = 0;
 
     for project_item in &selected_projects {
         let proj = sess.graph().lookup(project_item.ident);
+
+        let bump_strategy = project_item.chosen_bump.unwrap_or(BumpStrategy::Auto);
 
         let bump_scheme_text = match bump_strategy {
             BumpStrategy::Auto => project_item.suggested_bump.as_str(),
@@ -396,20 +469,46 @@ pub fn run() -> Result<i32> {
         }
     }
 
+    info!("collecting project versions for tagging...");
+    let mut project_versions = Vec::new();
+    for item in &selected_projects {
+        let proj = sess.graph().lookup(item.ident);
+        project_versions.push((proj.user_facing_name.clone(), proj.version.to_string()));
+    }
+
+    info!("creating release commit...");
+    let commit_message = format!(
+        "chore(release): prepare release for {} project{}",
+        n_prepared,
+        if n_prepared == 1 { "" } else { "s" }
+    );
+
+    atry!(
+        sess.repo.create_commit(&commit_message, changes.paths().collect::<Vec<_>>().as_slice());
+        ["failed to create release commit"]
+    );
+
+    info!("creating release tags...");
+    atry!(
+        sess.repo.create_release_tags(&project_versions);
+        ["failed to create release tags"]
+    );
+
     println!();
     info!(
         "prepared {} project{} for release",
         n_prepared,
         if n_prepared == 1 { "" } else { "s" }
     );
-    info!("review changes and commit when ready");
+    info!("commit created and tags applied successfully");
+    info!("push to remote with: git push && git push --tags");
 
     Ok(0)
 }
 
 fn run_wizard_ui(
     projects: Vec<ProjectItem>,
-) -> Result<Option<(Vec<ProjectItem>, BumpStrategy)>> {
+) -> Result<Option<Vec<ProjectItem>>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -429,7 +528,7 @@ fn run_wizard_ui(
             .into_iter()
             .filter(|p| p.selected)
             .collect();
-        Ok(Some((selected, state.selected_bump)))
+        Ok(Some(selected))
     } else {
         Ok(None)
     }
@@ -462,10 +561,9 @@ fn run_app(
                 continue;
             }
 
-            let result = match state.step {
+            let result = match &state.step {
                 WizardStep::ProjectSelection => state.handle_key_project_selection(code),
-                WizardStep::BumpStrategy => state.handle_key_bump_strategy(code),
-                WizardStep::ChangelogPreview => state.handle_key_changelog(code),
+                WizardStep::ProjectConfig { .. } => state.handle_key_project_config(code),
                 WizardStep::Confirmation => {
                     let (step_changed, confirmed) = state.handle_key_confirmation(code);
                     if confirmed {
@@ -502,7 +600,13 @@ fn ui(f: &mut Frame, state: &mut WizardState) {
 }
 
 fn render_header(f: &mut Frame, area: Rect, state: &WizardState) {
-    let title = format!("Release Preparation Wizard - {}", state.step.title());
+    let project_name = state.get_current_project().map(|p| p.name.as_str());
+    let step_number = state.step.step_number(state.selected_count());
+    let title = format!(
+        "Release Preparation Wizard - {} - {}",
+        step_number,
+        state.step.title(project_name)
+    );
     let header = Paragraph::new(title)
         .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .block(Block::default().borders(Borders::ALL));
@@ -510,12 +614,17 @@ fn render_header(f: &mut Frame, area: Rect, state: &WizardState) {
 }
 
 fn render_footer(f: &mut Frame, area: Rect, state: &WizardState) {
-    let help_text = match state.step {
+    let help_text = match &state.step {
         WizardStep::ProjectSelection => {
             "↑/↓: Navigate | Space: Toggle | A: Toggle All | Enter: Next | Q: Quit | ?: Help"
         }
-        WizardStep::BumpStrategy => "↑/↓: Navigate | Enter: Next | Esc: Back | Q: Quit | ?: Help",
-        WizardStep::ChangelogPreview => "Enter: Next | Esc: Back | Q: Quit | ?: Help",
+        WizardStep::ProjectConfig { .. } => {
+            if state.show_changelog {
+                "Tab: Back to Bump | Enter: Next Project | Esc: Back | Q: Quit | ?: Help"
+            } else {
+                "↑/↓: Navigate | Tab: Preview Changelog | Enter: Next | Esc: Back | Q: Quit | ?: Help"
+            }
+        }
         WizardStep::Confirmation => "Enter: Confirm | Esc: Back | Q: Quit | ?: Help",
     };
 
@@ -526,10 +635,15 @@ fn render_footer(f: &mut Frame, area: Rect, state: &WizardState) {
 }
 
 fn render_step(f: &mut Frame, area: Rect, state: &mut WizardState) {
-    match state.step {
+    match &state.step {
         WizardStep::ProjectSelection => render_project_selection(f, area, state),
-        WizardStep::BumpStrategy => render_bump_strategy(f, area, state),
-        WizardStep::ChangelogPreview => render_changelog_preview(f, area, state),
+        WizardStep::ProjectConfig { .. } => {
+            if state.show_changelog {
+                render_project_changelog(f, area, state);
+            } else {
+                render_project_bump_strategy(f, area, state);
+            }
+        }
         WizardStep::Confirmation => render_confirmation(f, area, state),
     }
 }
@@ -576,29 +690,17 @@ fn render_project_selection(f: &mut Frame, area: Rect, state: &mut WizardState) 
     f.render_stateful_widget(list, area, &mut state.project_list_state);
 }
 
-fn render_bump_strategy(f: &mut Frame, area: Rect, state: &mut WizardState) {
+fn render_project_bump_strategy(f: &mut Frame, area: Rect, state: &mut WizardState) {
     let strategies = BumpStrategy::all();
-    let selected_projects = state.selected_projects();
 
-    let auto_suggestions: Vec<String> = selected_projects
-        .iter()
-        .map(|p| {
-            format!(
-                "  • {}: {}",
-                p.name,
-                match p.suggested_bump {
-                    BumpRecommendation::Major => "MAJOR",
-                    BumpRecommendation::Minor => "MINOR",
-                    BumpRecommendation::Patch => "PATCH",
-                    BumpRecommendation::None => "NO BUMP",
-                }
-            )
-        })
-        .collect();
+    let (project_name, suggested_bump, commit_count) = match state.get_current_project() {
+        Some(p) => (p.name.clone(), p.suggested_bump, p.commit_count),
+        None => return,
+    };
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
         .split(area);
 
     let items: Vec<ListItem> = strategies
@@ -613,7 +715,7 @@ fn render_bump_strategy(f: &mut Frame, area: Rect, state: &mut WizardState) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Choose version bump strategy"),
+                .title(format!("Choose version bump for {}", project_name)),
         )
         .highlight_style(
             Style::default()
@@ -624,41 +726,84 @@ fn render_bump_strategy(f: &mut Frame, area: Rect, state: &mut WizardState) {
 
     f.render_stateful_widget(list, chunks[0], &mut state.bump_list_state);
 
-    let suggestions_text = if auto_suggestions.is_empty() {
-        "No suggestions available".to_string()
-    } else {
-        format!("Auto suggestions based on conventional commits:\n\n{}", auto_suggestions.join("\n"))
+    let suggestion_text = match suggested_bump {
+        BumpRecommendation::Major => "MAJOR (breaking changes)",
+        BumpRecommendation::Minor => "MINOR (new features)",
+        BumpRecommendation::Patch => "PATCH (bug fixes)",
+        BumpRecommendation::None => "NO BUMP (no changes)",
     };
 
-    let suggestions = Paragraph::new(suggestions_text)
-        .style(Style::default().fg(Color::Yellow))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Automatic Suggestions"),
-        )
-        .wrap(Wrap { trim: true });
+    let suggestions = Paragraph::new(format!(
+        "Suggested bump based on conventional commits:\n\n  {}\n\nProject has {} commit{}.\n\nPress Tab to preview the changelog.",
+        suggestion_text,
+        commit_count,
+        if commit_count == 1 { "" } else { "s" }
+    ))
+    .style(Style::default().fg(Color::Yellow))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Analysis"),
+    )
+    .wrap(Wrap { trim: true });
 
     f.render_widget(suggestions, chunks[1]);
 }
 
-fn render_changelog_preview(f: &mut Frame, area: Rect, state: &WizardState) {
-    let selected_projects = state.selected_projects();
-
-    let changelog_content = if selected_projects.is_empty() {
-        "# No projects selected\n\nPlease go back and select at least one project.".to_string()
-    } else {
-        let mut content = String::from("# Changelog Preview\n\n");
-        for project in selected_projects {
-            content.push_str(&format!("## {} - {} commits\n\n", project.name, project.commit_count));
-            content.push_str(&format!("**Suggested bump:** `{}`\n\n", project.suggested_bump.as_str()));
-            content.push_str("### Changes\n\n");
-            content.push_str("- Feature additions and improvements\n");
-            content.push_str("- Bug fixes and patches  \n");
-            content.push_str("- Documentation updates\n\n");
-        }
-        content
+fn render_project_changelog(f: &mut Frame, area: Rect, state: &WizardState) {
+    let current_project = match state.get_current_project() {
+        Some(p) => p,
+        None => return,
     };
+
+    let chosen_bump = current_project.chosen_bump.unwrap_or(BumpStrategy::Auto);
+    let bump_text = match chosen_bump {
+        BumpStrategy::Auto => current_project.suggested_bump.as_str(),
+        BumpStrategy::Major => "MAJOR",
+        BumpStrategy::Minor => "MINOR",
+        BumpStrategy::Patch => "PATCH",
+    };
+
+    let categorized = commit_analyzer::categorize_commits(&current_project.commit_messages);
+
+    let mut changelog_content = format!(
+        "# Changelog Preview for {}\n\n\
+        **Selected bump:** `{}`\n\
+        **Commits analyzed:** {}\n\n",
+        current_project.name,
+        bump_text,
+        current_project.commit_count
+    );
+
+    if categorized.is_empty() {
+        changelog_content.push_str(
+            "## No User-Facing Changes\n\n\
+            All commits are internal (docs, chore, ci, test, style).\n\
+            These are typically excluded from user-facing changelogs.\n\n"
+        );
+    } else {
+        use std::collections::BTreeMap;
+        let mut by_category: BTreeMap<commit_analyzer::ChangelogCategory, Vec<&commit_analyzer::CategorizedCommit>> = BTreeMap::new();
+
+        for commit in &categorized {
+            by_category.entry(commit.category).or_default().push(commit);
+        }
+
+        for (category, commits) in by_category {
+            changelog_content.push_str(&format!("## {}\n\n", category.as_str()));
+            for commit in commits {
+                changelog_content.push_str(&commit.format_for_changelog());
+                changelog_content.push('\n');
+            }
+            changelog_content.push('\n');
+        }
+    }
+
+    changelog_content.push_str(
+        "---\n\n\
+        Press Tab to go back to bump selection.\n\
+        Press Enter to continue to the next project."
+    );
 
     let markdown_text = markdown::render_markdown(&changelog_content);
 
@@ -666,7 +811,7 @@ fn render_changelog_preview(f: &mut Frame, area: Rect, state: &WizardState) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Changelog Preview")
+                .title(format!("Changelog Preview: {}", current_project.name))
                 .padding(Padding::horizontal(2)),
         )
         .wrap(Wrap { trim: false })
@@ -694,21 +839,27 @@ fn render_confirmation(f: &mut Frame, area: Rect, state: &WizardState) {
     ];
 
     for project in &selected_projects {
+        let chosen_bump = project.chosen_bump.unwrap_or(BumpStrategy::Auto);
+        let bump_text = match chosen_bump {
+            BumpStrategy::Auto => project.suggested_bump.as_str(),
+            BumpStrategy::Major => "MAJOR",
+            BumpStrategy::Minor => "MINOR",
+            BumpStrategy::Patch => "PATCH",
+        };
+
         confirmation_lines.push(Line::from(vec![
             Span::styled("  • ", Style::default().fg(Color::Gray)),
             Span::styled(&project.name, Style::default().fg(Color::White)),
             Span::styled(
-                format!(" ({} commits)", project.commit_count),
+                format!(" ({} commits) → ", project.commit_count),
                 Style::default().fg(Color::Gray),
+            ),
+            Span::styled(
+                bump_text,
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
             ),
         ]));
     }
-
-    confirmation_lines.push(Line::from(""));
-    confirmation_lines.push(Line::from(Span::styled(
-        format!("Bump strategy: {}", state.selected_bump.as_str()),
-        Style::default().fg(Color::Yellow),
-    )));
 
     confirmation_lines.push(Line::from(""));
     confirmation_lines.push(Line::from(""));
@@ -748,7 +899,7 @@ fn render_confirmation(f: &mut Frame, area: Rect, state: &WizardState) {
 fn render_help_popup(f: &mut Frame, state: &WizardState) {
     let area = centered_rect(60, 70, f.area());
 
-    let help_text = match state.step {
+    let help_text = match &state.step {
         WizardStep::ProjectSelection => {
             "Project Selection Help\n\n\
              • Use ↑/↓ arrows to navigate projects\n\
@@ -757,24 +908,34 @@ fn render_help_popup(f: &mut Frame, state: &WizardState) {
              • Press Enter to proceed to next step\n\
              • At least one project must be selected\n\n\
              The wizard analyzes your commits using\n\
-             Conventional Commits to suggest version bumps."
+             Conventional Commits to suggest version bumps.\n\n\
+             Each selected project will be configured\n\
+             individually in the next steps."
         }
-        WizardStep::BumpStrategy => {
-            "Bump Strategy Help\n\n\
-             • Auto: Use conventional commits analysis\n\
-             • Major: Breaking changes (x.0.0)\n\
-             • Minor: New features (0.x.0)\n\
-             • Patch: Bug fixes (0.0.x)\n\n\
-             The 'Auto' option will apply different\n\
-             bumps to each project based on commit analysis."
-        }
-        WizardStep::ChangelogPreview => {
-            "Changelog Preview Help\n\n\
-             This step shows you what will be added\n\
-             to the CHANGELOG.md files.\n\n\
-             The changelog is generated from your\n\
-             Git commit messages using Conventional\n\
-             Commits format."
+        WizardStep::ProjectConfig { .. } => {
+            if state.show_changelog {
+                "Changelog Preview Help\n\n\
+                 This shows what will be added to the\n\
+                 CHANGELOG.md file for this project.\n\n\
+                 The changelog is generated from your\n\
+                 Git commit messages using Conventional\n\
+                 Commits format.\n\n\
+                 • Press Tab to go back to bump selection\n\
+                 • Press Enter to move to the next project\n\
+                 • Press Esc to go back"
+            } else {
+                "Bump Strategy Help\n\n\
+                 • Auto: Use conventional commits analysis\n\
+                 • Major: Breaking changes (x.0.0)\n\
+                 • Minor: New features (0.x.0)\n\
+                 • Patch: Bug fixes (0.0.x)\n\n\
+                 Each project can have its own bump strategy.\n\
+                 The 'Auto' option uses the suggested bump\n\
+                 based on your commit messages.\n\n\
+                 • Press ↑/↓ to select a bump strategy\n\
+                 • Press Tab to preview the changelog\n\
+                 • Press Enter to confirm and continue"
+            }
         }
         WizardStep::Confirmation => {
             "Confirmation Help\n\n\
@@ -782,6 +943,7 @@ fn render_help_popup(f: &mut Frame, state: &WizardState) {
              • Version numbers in project files\n\
              • CHANGELOG.md entries\n\
              • Dependency version updates\n\n\
+             Each project shows its selected bump strategy.\n\n\
              Press Enter to apply all changes.\n\
              You will still need to commit and tag."
         }

@@ -663,3 +663,40 @@ fn test_escape_multiple_null_bytes_security() {
     let escaped = escape_pathlike(path);
     assert!(escaped.contains("null-byte"));
 }
+
+#[test]
+fn test_parse_version_from_tag() {
+    let tests = vec![
+        ("gate-v1.0.0", semver::Version::new(1, 0, 0)),
+        ("rig-v0.7.0", semver::Version::new(0, 7, 0)),
+        ("my-project-v2.1.3", semver::Version::new(2, 1, 3)),
+        ("invalid-tag", semver::Version::new(0, 0, 0)),
+    ];
+
+    for (tag_name, expected) in tests {
+        let result = super::Repository::parse_version_from_tag(tag_name);
+        assert_eq!(
+            result, expected,
+            "Failed to parse version from tag: {}",
+            tag_name
+        );
+    }
+}
+
+#[test]
+fn test_parse_version_from_tag_edge_cases() {
+    assert_eq!(
+        super::Repository::parse_version_from_tag(""),
+        semver::Version::new(0, 0, 0)
+    );
+
+    assert_eq!(
+        super::Repository::parse_version_from_tag("v1.0.0"),
+        semver::Version::new(0, 0, 0)
+    );
+
+    assert_eq!(
+        super::Repository::parse_version_from_tag("project-v1.0.0-alpha"),
+        semver::Version::parse("1.0.0-alpha").unwrap()
+    );
+}

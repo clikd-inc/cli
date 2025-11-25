@@ -269,11 +269,33 @@ impl BootstrapCommand {
             ["there was a problem adding dependency metadata to the project files"]
         );
 
+        info!("creating baseline tag for commit tracking");
+        atry!(
+            repo.create_baseline_tag();
+            ["failed to create baseline tag"]
+        );
+
+        info!("preserving existing package versions as Git tags");
+        let project_versions: Vec<(String, String)> = bs_cfg
+            .project
+            .iter()
+            .map(|p| (p.qnames[0].clone(), p.version.clone()))
+            .collect();
+
+        atry!(
+            repo.create_release_tags(&project_versions);
+            ["failed to create bootstrap tags"]
+        );
+
+        for (name, version) in &project_versions {
+            info!("  created tag: {}-v{}", name, version);
+        }
+
         info!("modifications complete!");
         println!();
         info!("Review changes, add `clikd/` to the repository, and commit.");
         info!("Then try `clikd release status` for a history summary");
-        info!("   (its results will be imprecise because clikd cannot trace into pre-bootstrap history)");
+        info!("   (Note: commit tracking starts from package-specific tags or 'clikd-baseline')");
         info!("Then begin modifying your CI/CD pipeline to use the `clikd release` commands");
         Ok(0)
     }

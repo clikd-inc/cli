@@ -804,6 +804,129 @@ impl Repository {
         })
     }
 
+    fn find_latest_tag_for_project(&self, project_name: &str) -> Result<Option<(git2::Oid, String)>> {
+        let tags = self.repo.tag_names(None)?;
+
+        let mut matching_tags = Vec::new();
+
+        for tag_name in tags.iter().flatten() {
+            if tag_name.starts_with(&format!("{}-v", project_name)) {
+                if let Ok(tag_ref) = self.repo.find_reference(&format!("refs/tags/{}", tag_name)) {
+                    if let Some(target_oid) = tag_ref.target() {
+                        matching_tags.push((target_oid, tag_name.to_string()));
+                    } else if let Ok(tag_obj) = tag_ref.peel_to_tag() {
+                        matching_tags.push((tag_obj.target_id(), tag_name.to_string()));
+                    }
+                }
+            }
+        }
+
+        if matching_tags.is_empty() {
+            return Ok(None);
+        }
+
+        matching_tags.sort_by(|a, b| {
+            let v1 = Self::parse_version_from_tag(&a.1);
+            let v2 = Self::parse_version_from_tag(&b.1);
+            v2.cmp(&v1)
+        });
+
+        Ok(matching_tags.into_iter().next())
+    }
+
+    fn parse_version_from_tag(tag_name: &str) -> semver::Version {
+        if let Some(version_str) = tag_name.rsplit("-v").next() {
+            if let Ok(version) = semver::Version::parse(version_str) {
+                return version;
+            }
+        }
+        semver::Version::new(0, 0, 0)
+    }
+
+    fn find_baseline_tag(&self) -> Result<Option<git2::Oid>> {
+        match self.repo.find_reference("refs/tags/clikd-baseline") {
+            Ok(tag_ref) => {
+                if let Some(target_oid) = tag_ref.target() {
+                    Ok(Some(target_oid))
+                } else if let Ok(tag_obj) = tag_ref.peel_to_tag() {
+                    Ok(Some(tag_obj.target_id()))
+                } else {
+                    Ok(None)
+                }
+            }
+            Err(_) => Ok(None),
+        }
+    }
+
+    pub fn create_baseline_tag(&self) -> Result<()> {
+        let head = self.repo.head()?;
+        let target_oid = head.target().context("HEAD has no target")?;
+
+        match self.repo.tag_lightweight("clikd-baseline", &self.repo.find_object(target_oid, None)?, false) {
+            Ok(_) => {
+                info!("created baseline tag 'clikd-baseline' at HEAD");
+                Ok(())
+            }
+            Err(e) if e.code() == git2::ErrorCode::Exists => {
+                warn!("baseline tag 'clikd-baseline' already exists, not creating");
+                Ok(())
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_release_tag(&self, project_name: &str, version: &str) -> Result<()> {
+        let tag_name = format!("{}-v{}", project_name, version);
+        let head = self.repo.head()?;
+        let target_oid = head.target().context("HEAD has no target")?;
+
+        match self.repo.tag_lightweight(&tag_name, &self.repo.find_object(target_oid, None)?, false) {
+            Ok(_) => {
+                info!("created release tag '{}' at HEAD", tag_name);
+                Ok(())
+            }
+            Err(e) if e.code() == git2::ErrorCode::Exists => {
+                warn!("release tag '{}' already exists, not creating", tag_name);
+                Ok(())
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn create_release_tags(&self, project_versions: &[(String, String)]) -> Result<()> {
+        for (project_name, version) in project_versions {
+            self.create_release_tag(project_name, version)?;
+        }
+        Ok(())
+    }
+
+    pub fn create_commit(&self, message: &str, files: &[&RepoPath]) -> Result<()> {
+        let mut index = self.repo.index()?;
+
+        for file in files {
+            index.add_path(std::path::Path::new(std::str::from_utf8(&file.0)?))?;
+        }
+
+        index.write()?;
+        let tree_id = index.write_tree()?;
+        let tree = self.repo.find_tree(tree_id)?;
+
+        let parent_commit = self.repo.head()?.peel_to_commit()?;
+        let signature = self.repo.signature()?;
+
+        self.repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            message,
+            &tree,
+            &[&parent_commit],
+        )?;
+
+        info!("created commit: {}", message);
+        Ok(())
+    }
+
     /// Figure out which commits in the history affect each project since its
     /// last release.
     ///
@@ -823,44 +946,23 @@ impl Repository {
             projects.len()
         ];
 
-        // First we dig through the history of the `release` branch to figure
-        // out the most recent release for each project. In `release_commits`,
-        // None indicates that the project has not yet been released. Here we
-        // just naively scan the full project list every time -- unlikely that
-        // it would be worthwhile to try something more clever?
+        let baseline_tag_oid = self.find_baseline_tag()?;
 
-        let latest_release_commit = self.try_get_release_commit()?;
-
-        if let Some(mut commit) = latest_release_commit {
-            let mut n_found = 0;
-
-            loop {
-                let rel_info = self.parse_release_info_from_commit(&commit)?;
-
-                for (i, proj) in projects.iter().enumerate() {
-                    if histories[i].release_commit.is_none()
-                        && rel_info.lookup_if_released(proj).is_some()
-                    {
-                        histories[i].release_commit = Some(CommitId(commit.id()));
-                        n_found += 1;
-                    }
-                }
-
-                if n_found == projects.len() {
-                    break; // ok, we got them all!
-                }
-
-                if commit.parent_count() == 1 {
-                    // If a `release` commit has one parent, it is the first
-                    // Clikd release commit in the project history, and all
-                    // further parent commits are just regular code from
-                    // `master` (because all other Clikd release commits merge
-                    // the main branch into the release branch). Therefore any
-                    // leftover projects must have no Clikd releases on record.
-                    break;
-                }
-
-                commit = commit.parent(0)?;
+        for (i, proj) in projects.iter().enumerate() {
+            if let Some((tag_oid, tag_name)) = self.find_latest_tag_for_project(&proj.user_facing_name)? {
+                info!("found release tag for {}: {}", proj.user_facing_name, tag_name);
+                histories[i].release_commit = Some(CommitId(tag_oid));
+            } else if let Some(baseline_oid) = baseline_tag_oid {
+                info!(
+                    "no release tag for {}, using baseline tag clikd-baseline",
+                    proj.user_facing_name
+                );
+                histories[i].release_commit = Some(CommitId(baseline_oid));
+            } else {
+                warn!(
+                    "no release tag or baseline found for {}, analyzing all commits since repo start",
+                    proj.user_facing_name
+                );
             }
         }
 

@@ -9,6 +9,57 @@ pub enum BumpRecommendation {
     None,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ChangelogCategory {
+    Added,
+    Changed,
+    Deprecated,
+    Removed,
+    Fixed,
+    Security,
+}
+
+impl ChangelogCategory {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Added => "Added",
+            Self::Changed => "Changed",
+            Self::Deprecated => "Deprecated",
+            Self::Removed => "Removed",
+            Self::Fixed => "Fixed",
+            Self::Security => "Security",
+        }
+    }
+
+    pub fn from_conventional_type(commit_type: &Type) -> Option<Self> {
+        match commit_type.as_str() {
+            "feat" => Some(Self::Added),
+            "fix" => Some(Self::Fixed),
+            "perf" => Some(Self::Changed),
+            "refactor" => Some(Self::Changed),
+            "docs" | "chore" | "ci" | "test" | "style" | "build" => None,
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CategorizedCommit {
+    pub category: ChangelogCategory,
+    pub message: String,
+    pub scope: Option<String>,
+    pub breaking: bool,
+    pub original: String,
+}
+
+impl CategorizedCommit {
+    pub fn format_for_changelog(&self) -> String {
+        let scope_part = self.scope.as_ref().map(|s| format!("**{}**: ", s)).unwrap_or_default();
+        let breaking_mark = if self.breaking { " [BREAKING]" } else { "" };
+        format!("- {}{}{}", scope_part, self.message, breaking_mark)
+    }
+}
+
 impl BumpRecommendation {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -137,6 +188,44 @@ pub fn analyze_commit_messages(messages: &[String]) -> Result<CommitAnalysis> {
 pub fn recommend_bump_for_commits(commit_summaries: &[String]) -> Result<BumpRecommendation> {
     let analysis = analyze_commit_messages(commit_summaries)?;
     Ok(analysis.recommendation)
+}
+
+pub fn categorize_commits(messages: &[String]) -> Vec<CategorizedCommit> {
+    let mut categorized = Vec::new();
+
+    for message in messages {
+        let commit_result = Commit::parse(message);
+
+        match commit_result {
+            Ok(commit) => {
+                let commit_type = commit.type_();
+                let breaking = commit.breaking();
+
+                if breaking {
+                    categorized.push(CategorizedCommit {
+                        category: ChangelogCategory::Changed,
+                        message: commit.description().to_string(),
+                        scope: commit.scope().map(|s| s.to_string()),
+                        breaking: true,
+                        original: message.clone(),
+                    });
+                } else if let Some(category) = ChangelogCategory::from_conventional_type(&commit_type) {
+                    categorized.push(CategorizedCommit {
+                        category,
+                        message: commit.description().to_string(),
+                        scope: commit.scope().map(|s| s.to_string()),
+                        breaking: false,
+                        original: message.clone(),
+                    });
+                }
+            }
+            Err(_) => {
+            }
+        }
+    }
+
+    categorized.sort_by_key(|c| c.category);
+    categorized
 }
 
 #[cfg(test)]

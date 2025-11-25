@@ -4,7 +4,7 @@
 //! Version numbers.
 
 use anyhow::bail;
-use chrono::{offset::Local, Datelike};
+use time::OffsetDateTime;
 use std::fmt::{Display, Formatter};
 use thiserror::Error as ThisError;
 
@@ -162,11 +162,11 @@ impl VersionBumpScheme {
 
         #[allow(clippy::unnecessary_wraps)]
         fn apply_dev_datecode(version: &mut Version) -> Result<()> {
-            let local = Local::now();
+            let now = OffsetDateTime::now_utc();
 
             match version {
                 Version::Semver(v) => {
-                    let code = format!("{:04}{:02}{:02}", local.year(), local.month(), local.day());
+                    let code = format!("{:04}{:02}{:02}", now.year(), now.month() as u8, now.day() as u8);
                     v.build = semver::BuildMetadata::new(&code).expect(
                         "BUG: YYYYMMDD date format should always be valid semver build metadata",
                     );
@@ -175,9 +175,9 @@ impl VersionBumpScheme {
                 Version::Pep440(v) => {
                     // Here we use a `dev` series number rather than the `local_identifier` so
                     // that it can be expressed as a version_info tuple if needed.
-                    let num = 10000 * (local.year() as usize)
-                        + 100 * (local.month() as usize)
-                        + (local.day() as usize);
+                    let num = 10000 * (now.year() as usize)
+                        + 100 * (now.month() as usize)
+                        + (now.day() as usize);
                     v.dev_release = Some(num);
                 }
 
@@ -186,7 +186,7 @@ impl VersionBumpScheme {
                     // terms have a maximum value of 65534, so we use a number
                     // that's about the number of days since 1970. That should
                     // take us to about the year 2149.
-                    v.revision = (local.timestamp() / 86400) as i32;
+                    v.revision = (now.unix_timestamp() / 86400) as i32;
                 }
             }
 
