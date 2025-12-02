@@ -165,19 +165,20 @@ pub enum ReleaseCommands {
 
     #[command(
         about = "Show project dependency graph",
-        long_about = "Display the project dependency graph.\n\nInteractive TUI mode (default):\n  • Navigate through projects with arrow keys\n  • View dependency details\n  • Visual dependency tree\n\nNon-interactive mode (--no-tui):\n  • ASCII art graph\n  • DOT format for Graphviz\n  • JSON for programmatic use"
+        long_about = "Display the project dependency graph.\n\nInteractive TUI mode (default):\n  • Navigate through projects with arrow keys\n  • View dependency details\n  • Visual dependency tree\n\nBrowser mode (--web):\n  • Interactive Cytoscape.js graph\n  • Multiple layouts (Hierarchy, Force, Circle)\n  • Search, zoom, export PNG\n\nNon-interactive mode (--no-tui):\n  • ASCII art graph\n  • DOT format for Graphviz\n  • JSON for programmatic use"
     )]
     Graph {
-        #[arg(
-            short,
-            long,
-            value_enum,
-            help = "Output format (only with --no-tui)"
-        )]
+        #[arg(short, long, value_enum, help = "Output format (only with --no-tui)")]
         format: Option<GraphOutputFormat>,
 
         #[arg(long, help = "Skip interactive TUI, output static graph")]
         no_tui: bool,
+
+        #[arg(long, short, help = "Open interactive graph in web browser")]
+        web: bool,
+
+        #[arg(long, short, help = "Save HTML graph to file (implies --web)")]
+        out: Option<String>,
     },
 }
 

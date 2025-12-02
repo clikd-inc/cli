@@ -94,21 +94,11 @@ pub mod syntax {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ConfigurationFile {
     pub repo: syntax::RepoConfiguration,
     pub commit_attribution: syntax::CommitAttributionConfiguration,
     pub projects: HashMap<String, syntax::ProjectConfiguration>,
-}
-
-impl Default for ConfigurationFile {
-    fn default() -> Self {
-        ConfigurationFile {
-            repo: syntax::RepoConfiguration::default(),
-            commit_attribution: syntax::CommitAttributionConfiguration::default(),
-            projects: HashMap::new(),
-        }
-    }
 }
 
 impl ConfigurationFile {

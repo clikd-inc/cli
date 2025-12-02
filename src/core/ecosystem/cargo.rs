@@ -186,9 +186,13 @@ impl CargoLoader {
         let is_ws_project = self.is_workspace_project(&doc);
 
         if is_ws_project {
-            info!("workspace {} is a single project (has [workspace.package].version)", workspace_root.display());
+            info!(
+                "workspace {} is a single project (has [workspace.package].version)",
+                workspace_root.display()
+            );
 
-            let ws_name = doc.get("workspace")
+            let ws_name = doc
+                .get("workspace")
                 .and_then(|ws| ws.as_table())
                 .and_then(|ws_table| ws_table.get("package"))
                 .and_then(|pkg| pkg.as_table())
@@ -203,7 +207,8 @@ impl CargoLoader {
                         .map(|s| s.to_string())
                 });
 
-            let ws_version = doc.get("workspace")
+            let ws_version = doc
+                .get("workspace")
                 .and_then(|ws| ws.as_table())
                 .and_then(|ws_table| ws_table.get("package"))
                 .and_then(|pkg| pkg.as_table())
@@ -238,7 +243,10 @@ impl CargoLoader {
                 }
             }
         } else {
-            info!("workspace {} has separate projects for each member", workspace_root.display());
+            info!(
+                "workspace {} has separate projects for each member",
+                workspace_root.display()
+            );
 
             let workspace_member_ids: std::collections::HashSet<_> =
                 cargo_meta.workspace_members.iter().collect();
@@ -332,9 +340,10 @@ impl CargoLoader {
                             continue;
                         }
 
-                        let literal = dep_map.get(&dep.name).cloned().unwrap_or_else(|| {
-                            "*".to_owned()
-                        });
+                        let literal = dep_map
+                            .get(&dep.name)
+                            .cloned()
+                            .unwrap_or_else(|| "*".to_owned());
 
                         let req = maybe_versions
                             .and_then(|table| table.get(&dep.name))
@@ -428,7 +437,8 @@ impl Rewriter for CargoRewriter {
 
         {
             let ct_root = doc.as_table_mut();
-            let is_workspace = ct_root.contains_key("workspace") && !ct_root.contains_key("package");
+            let is_workspace =
+                ct_root.contains_key("workspace") && !ct_root.contains_key("package");
 
             if is_workspace {
                 let ws_pkg = ct_root
@@ -436,13 +446,20 @@ impl Rewriter for CargoRewriter {
                     .and_then(|ws| ws.as_table_mut())
                     .and_then(|ws| ws.get_mut("package"))
                     .and_then(|pkg| pkg.as_table_mut())
-                    .ok_or_else(|| anyhow!("no [workspace.package] section in {}", self.toml_path.escaped()))?;
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "no [workspace.package] section in {}",
+                            self.toml_path.escaped()
+                        )
+                    })?;
                 ws_pkg["version"] = toml_edit::value(proj.version.to_string());
             } else {
                 let pkg = ct_root
                     .get_mut("package")
                     .and_then(|i| i.as_table_mut())
-                    .ok_or_else(|| anyhow!("no [package] section in {}", self.toml_path.escaped()))?;
+                    .ok_or_else(|| {
+                        anyhow!("no [package] section in {}", self.toml_path.escaped())
+                    })?;
                 pkg["version"] = toml_edit::value(proj.version.to_string());
             }
 
@@ -544,31 +561,46 @@ impl Rewriter for CargoRewriter {
 
         {
             let ct_root = doc.as_table_mut();
-            let is_workspace = ct_root.contains_key("workspace") && !ct_root.contains_key("package");
+            let is_workspace =
+                ct_root.contains_key("workspace") && !ct_root.contains_key("package");
 
             let metadata_parent = if is_workspace {
                 ct_root
                     .get_mut("workspace")
                     .and_then(|ws| ws.as_table_mut())
-                    .ok_or_else(|| anyhow!("no [workspace] section in {}", self.toml_path.escaped()))?
+                    .ok_or_else(|| {
+                        anyhow!("no [workspace] section in {}", self.toml_path.escaped())
+                    })?
             } else {
                 ct_root
                     .get_mut("package")
                     .and_then(|i| i.as_table_mut())
-                    .ok_or_else(|| anyhow!("no [package] section in {}", self.toml_path.escaped()))?
+                    .ok_or_else(|| {
+                        anyhow!("no [package] section in {}", self.toml_path.escaped())
+                    })?
             };
 
             let tbl = metadata_parent
                 .entry("metadata")
                 .or_insert_with(|| Item::Table(Table::new()))
                 .as_table_mut()
-                .ok_or_else(|| anyhow!("failed to create [metadata] section in {}", self.toml_path.escaped()))?;
+                .ok_or_else(|| {
+                    anyhow!(
+                        "failed to create [metadata] section in {}",
+                        self.toml_path.escaped()
+                    )
+                })?;
 
             let tbl = tbl
                 .entry("internal_dep_versions")
                 .or_insert_with(|| Item::Table(Table::new()))
                 .as_table_mut()
-                .ok_or_else(|| anyhow!("failed to create [metadata.internal_dep_versions] in {}", self.toml_path.escaped()))?;
+                .ok_or_else(|| {
+                    anyhow!(
+                        "failed to create [metadata.internal_dep_versions] in {}",
+                        self.toml_path.escaped()
+                    )
+                })?;
 
             let graph = app.graph();
             let proj = graph.lookup(self.proj_id);
@@ -597,4 +629,3 @@ impl Rewriter for CargoRewriter {
         Ok(())
     }
 }
-

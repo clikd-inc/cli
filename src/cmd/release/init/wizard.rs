@@ -19,9 +19,7 @@ use tracing::info;
 use crate::{
     atry,
     core::release::{
-        config::ConfigurationFile,
-        project::DepRequirement,
-        repository::Repository,
+        config::ConfigurationFile, project::DepRequirement, repository::Repository,
         session::AppSession,
     },
 };
@@ -113,7 +111,8 @@ pub fn run(force: bool, upstream: Option<String>) -> Result<i32> {
             dirty.escaped()
         ));
         if !force {
-            state.error_message = Some("Repository has uncommitted changes. Use --force to override.".to_string());
+            state.error_message =
+                Some("Repository has uncommitted changes. Use --force to override.".to_string());
         }
     }
 
@@ -169,7 +168,8 @@ fn run_wizard_loop(
 
         if let Event::Key(key) = event::read()? {
             match (key.code, key.modifiers, state.step) {
-                (KeyCode::Char('c'), KeyModifiers::CONTROL, _) | (KeyCode::Char('q'), _, WizardStep::Welcome) => {
+                (KeyCode::Char('c'), KeyModifiers::CONTROL, _)
+                | (KeyCode::Char('q'), _, WizardStep::Welcome) => {
                     return Ok(1);
                 }
 
@@ -182,7 +182,8 @@ fn run_wizard_loop(
 
                 (KeyCode::Down | KeyCode::Char('j'), _, WizardStep::ProjectSelection) => {
                     if !state.projects.is_empty() {
-                        state.selected_project_idx = (state.selected_project_idx + 1) % state.projects.len();
+                        state.selected_project_idx =
+                            (state.selected_project_idx + 1) % state.projects.len();
                     }
                 }
                 (KeyCode::Up | KeyCode::Char('k'), _, WizardStep::ProjectSelection) => {
@@ -205,7 +206,8 @@ fn run_wizard_loop(
                 }
                 (KeyCode::Enter, _, WizardStep::ProjectSelection) => {
                     if state.selected_projects().is_empty() {
-                        state.error_message = Some("Please select at least one project".to_string());
+                        state.error_message =
+                            Some("Please select at least one project".to_string());
                     } else {
                         state.error_message = None;
                         state.step = WizardStep::UpstreamConfig;
@@ -215,10 +217,14 @@ fn run_wizard_loop(
                     state.step = WizardStep::Welcome;
                 }
 
-                (KeyCode::Char(c), _, WizardStep::UpstreamConfig) if state.upstream_input_active => {
+                (KeyCode::Char(c), _, WizardStep::UpstreamConfig)
+                    if state.upstream_input_active =>
+                {
                     state.upstream_url.push(c);
                 }
-                (KeyCode::Backspace, _, WizardStep::UpstreamConfig) if state.upstream_input_active => {
+                (KeyCode::Backspace, _, WizardStep::UpstreamConfig)
+                    if state.upstream_input_active =>
+                {
                     state.upstream_url.pop();
                 }
                 (KeyCode::Enter, _, WizardStep::UpstreamConfig) => {
@@ -286,7 +292,11 @@ fn execute_bootstrap(state: &WizardState, repo: &Repository) -> Result<String> {
 
     let mut bs_cfg = BootstrapConfiguration::default();
     let mut versions = HashMap::new();
-    let selected_names: Vec<String> = state.selected_projects().iter().map(|p| p.name.clone()).collect();
+    let selected_names: Vec<String> = state
+        .selected_projects()
+        .iter()
+        .map(|p| p.name.clone())
+        .collect();
 
     for proj in sess.graph_mut().toposorted_mut() {
         if !selected_names.contains(&proj.user_facing_name) {
@@ -303,7 +313,12 @@ fn execute_bootstrap(state: &WizardState, repo: &Repository) -> Result<String> {
         versions.insert(proj.ident(), proj.version.clone());
 
         for dep in &mut proj.internal_deps[..] {
-            dep.clikd_requirement = DepRequirement::Manual(versions.get(&dep.ident).map(|v| v.to_string()).unwrap_or_default());
+            dep.clikd_requirement = DepRequirement::Manual(
+                versions
+                    .get(&dep.ident)
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+            );
         }
     }
 
@@ -388,28 +403,42 @@ fn render_header(frame: &mut Frame, area: Rect, state: &WizardState) {
 fn render_welcome(frame: &mut Frame, area: Rect, state: &WizardState) {
     let mut lines = vec![
         Line::from(""),
-        Line::from(Span::styled("Welcome to Clikd Release Management!", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Welcome to Clikd Release Management!",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from("This wizard will help you initialize release management for your repository."),
         Line::from(""),
-        Line::from(format!("Detected {} project(s) in your repository.", state.projects.len())),
+        Line::from(format!(
+            "Detected {} project(s) in your repository.",
+            state.projects.len()
+        )),
         Line::from(""),
     ];
 
     if let Some(ref warning) = state.dirty_warning {
-        lines.push(Line::from(Span::styled(warning.clone(), Style::default().fg(Color::Yellow))));
+        lines.push(Line::from(Span::styled(
+            warning.clone(),
+            Style::default().fg(Color::Yellow),
+        )));
         lines.push(Line::from(""));
     }
 
     if let Some(ref error) = state.error_message {
-        lines.push(Line::from(Span::styled(error.clone(), Style::default().fg(Color::Red))));
+        lines.push(Line::from(Span::styled(
+            error.clone(),
+            Style::default().fg(Color::Red),
+        )));
         lines.push(Line::from(""));
     }
 
     lines.push(Line::from("Press ENTER to continue or 'q' to quit."));
 
-    let para = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(" Welcome "));
+    let para =
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(" Welcome "));
 
     frame.render_widget(para, area);
 }
@@ -421,7 +450,10 @@ fn render_project_selection(frame: &mut Frame, area: Rect, state: &WizardState) 
         .enumerate()
         .map(|(idx, proj)| {
             let checkbox = if proj.selected { "[✓]" } else { "[ ]" };
-            let text = format!("{} {} @ {} ({})", checkbox, proj.name, proj.version, proj.prefix);
+            let text = format!(
+                "{} {} @ {} ({})",
+                checkbox, proj.name, proj.version, proj.prefix
+            );
             let style = if idx == state.selected_project_idx {
                 Style::default().bg(Color::DarkGray).fg(Color::White)
             } else if proj.selected {
@@ -433,8 +465,11 @@ fn render_project_selection(frame: &mut Frame, area: Rect, state: &WizardState) 
         })
         .collect();
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Select Projects (Space=toggle, a=all, n=none) "));
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Select Projects (Space=toggle, a=all, n=none) "),
+    );
 
     frame.render_widget(list, area);
 
@@ -454,15 +489,26 @@ fn render_upstream_config(frame: &mut Frame, area: Rect, state: &WizardState) {
         Line::from("Enter the upstream Git URL for your repository:"),
         Line::from(""),
         Line::from(Span::styled(
-            if state.upstream_url.is_empty() { "(empty)" } else { &state.upstream_url },
-            Style::default().fg(if state.upstream_input_active { Color::Yellow } else { Color::White }),
+            if state.upstream_url.is_empty() {
+                "(empty)"
+            } else {
+                &state.upstream_url
+            },
+            Style::default().fg(if state.upstream_input_active {
+                Color::Yellow
+            } else {
+                Color::White
+            }),
         )),
         Line::from(""),
         Line::from("Press TAB to edit, ENTER to continue."),
     ];
 
-    let para = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(" Upstream Configuration "));
+    let para = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Upstream Configuration "),
+    );
 
     frame.render_widget(para, area);
 }
@@ -471,7 +517,10 @@ fn render_confirmation(frame: &mut Frame, area: Rect, state: &WizardState) {
     let selected = state.selected_projects();
     let mut lines = vec![
         Line::from(""),
-        Line::from(Span::styled("Configuration Summary:", Style::default().add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Configuration Summary:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from(format!("Upstream URL: {}", state.upstream_url)),
         Line::from(format!("Selected Projects: {}", selected.len())),
@@ -483,7 +532,10 @@ fn render_confirmation(frame: &mut Frame, area: Rect, state: &WizardState) {
     }
 
     if selected.len() > 10 {
-        lines.push(Line::from(format!("  ... and {} more", selected.len() - 10)));
+        lines.push(Line::from(format!(
+            "  ... and {} more",
+            selected.len() - 10
+        )));
     }
 
     lines.push(Line::from(""));
@@ -493,10 +545,15 @@ fn render_confirmation(frame: &mut Frame, area: Rect, state: &WizardState) {
     lines.push(Line::from("  • Update project version files"));
     lines.push(Line::from("  • Create baseline Git tags"));
     lines.push(Line::from(""));
-    lines.push(Line::from("Press 'y' or ENTER to confirm, 'n' or ESC to go back."));
+    lines.push(Line::from(
+        "Press 'y' or ENTER to confirm, 'n' or ESC to go back.",
+    ));
 
-    let para = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(" Confirmation "));
+    let para = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Confirmation "),
+    );
 
     frame.render_widget(para, area);
 }
@@ -505,24 +562,29 @@ fn render_processing(frame: &mut Frame, area: Rect) {
     let lines = vec![
         Line::from(""),
         Line::from(""),
-        Line::from(Span::styled("Processing...", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Processing...",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from("Please wait while we initialize your release configuration."),
     ];
 
-    let para = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(" Processing "));
+    let para =
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(" Processing "));
 
     frame.render_widget(para, area);
 }
 
 fn render_complete(frame: &mut Frame, area: Rect, state: &WizardState) {
-    let message = state.success_message.as_deref().unwrap_or("Initialization complete!");
+    let message = state
+        .success_message
+        .as_deref()
+        .unwrap_or("Initialization complete!");
 
-    let lines: Vec<Line> = message
-        .lines()
-        .map(|l| Line::from(l.to_string()))
-        .collect();
+    let lines: Vec<Line> = message.lines().map(|l| Line::from(l.to_string())).collect();
 
     let para = Paragraph::new(lines)
         .style(Style::default().fg(Color::Green))
@@ -534,7 +596,9 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &WizardState) {
 fn render_footer(frame: &mut Frame, area: Rect, state: &WizardState) {
     let help_text = match state.step {
         WizardStep::Welcome => "ENTER: Continue  q: Quit",
-        WizardStep::ProjectSelection => "↑/↓: Navigate  SPACE: Toggle  a: All  n: None  ENTER: Next  ESC: Back",
+        WizardStep::ProjectSelection => {
+            "↑/↓: Navigate  SPACE: Toggle  a: All  n: None  ENTER: Next  ESC: Back"
+        }
         WizardStep::UpstreamConfig => "TAB: Edit  ENTER: Next  ESC: Back",
         WizardStep::Confirmation => "y/ENTER: Confirm  n/ESC: Back",
         WizardStep::Processing => "Please wait...",

@@ -8,9 +8,10 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
-    widgets::{Block, Borders, Cell, Row},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row},
     Terminal,
 };
 use tracing::info;
@@ -54,6 +55,7 @@ struct TuiState {
     project_data: Vec<ProjectStatus>,
     colors: AppColors,
     should_quit: bool,
+    show_help: bool,
 }
 
 impl TuiState {
@@ -65,6 +67,7 @@ impl TuiState {
             project_data,
             colors: AppColors::default(),
             should_quit: false,
+            show_help: false,
         }
     }
 
@@ -76,76 +79,86 @@ impl TuiState {
     }
 
     fn handle_key_event(&mut self, key: KeyCode, modifiers: KeyModifiers) {
+        if self.show_help {
+            match key {
+                KeyCode::Esc
+                | KeyCode::Char('h')
+                | KeyCode::Char('?')
+                | KeyCode::Char('q')
+                | KeyCode::Enter => {
+                    self.show_help = false;
+                }
+                _ => {}
+            }
+            return;
+        }
+
         match (key, modifiers) {
             (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
+            (KeyCode::Char('h'), _) | (KeyCode::Char('?'), _) => {
+                self.show_help = true;
+            }
             (KeyCode::Tab, _) | (KeyCode::BackTab, _) => {
                 self.selected_panel = self.selected_panel.next();
             }
-            (KeyCode::Down | KeyCode::Char('j'), _) => {
-                match self.selected_panel {
-                    SelectablePanel::Projects => {
-                        if !self.project_data.is_empty() {
-                            self.selected_project_index =
-                                (self.selected_project_index + 1) % self.project_data.len();
-                            self.commit_scroll_offset = 0;
-                        }
-                    }
-                    SelectablePanel::Commits => {
-                        let total_commits = self.current_project_commits();
-                        if total_commits > 0 {
-                            self.commit_scroll_offset =
-                                (self.commit_scroll_offset + 1).min(total_commits.saturating_sub(1));
-                        }
+            (KeyCode::Down | KeyCode::Char('j'), _) => match self.selected_panel {
+                SelectablePanel::Projects => {
+                    if !self.project_data.is_empty() {
+                        self.selected_project_index =
+                            (self.selected_project_index + 1) % self.project_data.len();
+                        self.commit_scroll_offset = 0;
                     }
                 }
-            }
-            (KeyCode::Up | KeyCode::Char('k'), _) => {
-                match self.selected_panel {
-                    SelectablePanel::Projects => {
-                        if !self.project_data.is_empty() {
-                            self.selected_project_index = if self.selected_project_index == 0 {
-                                self.project_data.len() - 1
-                            } else {
-                                self.selected_project_index - 1
-                            };
-                            self.commit_scroll_offset = 0;
-                        }
-                    }
-                    SelectablePanel::Commits => {
-                        if self.commit_scroll_offset > 0 {
-                            self.commit_scroll_offset -= 1;
-                        }
+                SelectablePanel::Commits => {
+                    let total_commits = self.current_project_commits();
+                    if total_commits > 0 {
+                        self.commit_scroll_offset =
+                            (self.commit_scroll_offset + 1).min(total_commits.saturating_sub(1));
                     }
                 }
-            }
-            (KeyCode::Home | KeyCode::Char('g'), _) => {
-                match self.selected_panel {
-                    SelectablePanel::Projects => self.selected_project_index = 0,
-                    SelectablePanel::Commits => self.commit_scroll_offset = 0,
-                }
-            }
-            (KeyCode::End | KeyCode::Char('G'), KeyModifiers::SHIFT) => {
-                match self.selected_panel {
-                    SelectablePanel::Projects => {
-                        if !self.project_data.is_empty() {
-                            self.selected_project_index = self.project_data.len() - 1;
-                        }
-                    }
-                    SelectablePanel::Commits => {
-                        let total_commits = self.current_project_commits();
-                        if total_commits > 0 {
-                            self.commit_scroll_offset = total_commits.saturating_sub(1);
-                        }
+            },
+            (KeyCode::Up | KeyCode::Char('k'), _) => match self.selected_panel {
+                SelectablePanel::Projects => {
+                    if !self.project_data.is_empty() {
+                        self.selected_project_index = if self.selected_project_index == 0 {
+                            self.project_data.len() - 1
+                        } else {
+                            self.selected_project_index - 1
+                        };
+                        self.commit_scroll_offset = 0;
                     }
                 }
-            }
+                SelectablePanel::Commits => {
+                    if self.commit_scroll_offset > 0 {
+                        self.commit_scroll_offset -= 1;
+                    }
+                }
+            },
+            (KeyCode::Home | KeyCode::Char('g'), _) => match self.selected_panel {
+                SelectablePanel::Projects => self.selected_project_index = 0,
+                SelectablePanel::Commits => self.commit_scroll_offset = 0,
+            },
+            (KeyCode::End | KeyCode::Char('G'), KeyModifiers::SHIFT) => match self.selected_panel {
+                SelectablePanel::Projects => {
+                    if !self.project_data.is_empty() {
+                        self.selected_project_index = self.project_data.len() - 1;
+                    }
+                }
+                SelectablePanel::Commits => {
+                    let total_commits = self.current_project_commits();
+                    if total_commits > 0 {
+                        self.commit_scroll_offset = total_commits.saturating_sub(1);
+                    }
+                }
+            },
             (KeyCode::PageDown, _) => {
                 if self.selected_panel == SelectablePanel::Commits {
                     let total_commits = self.current_project_commits();
                     if total_commits > 0 {
-                        self.commit_scroll_offset = (self.commit_scroll_offset + 10).min(total_commits.saturating_sub(1));
+                        self.commit_scroll_offset =
+                            (self.commit_scroll_offset + 10).min(total_commits.saturating_sub(1));
                     }
                 }
             }
@@ -161,12 +174,93 @@ impl TuiState {
     fn render(&self, frame: &mut ratatui::Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(1)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(1),
+            ])
             .split(frame.area());
 
         self.render_header(frame, chunks[0]);
         self.render_projects(frame, chunks[1]);
         self.render_footer(frame, chunks[2]);
+
+        if self.show_help {
+            self.render_help_popup(frame);
+        }
+    }
+
+    fn render_help_popup(&self, frame: &mut ratatui::Frame) {
+        let area = frame.area();
+        let popup_width = 65u16.min(area.width.saturating_sub(4));
+        let popup_height = 20u16.min(area.height.saturating_sub(4));
+
+        let popup_area = Rect {
+            x: (area.width.saturating_sub(popup_width)) / 2,
+            y: (area.height.saturating_sub(popup_height)) / 2,
+            width: popup_width,
+            height: popup_height,
+        };
+
+        frame.render_widget(Clear, popup_area);
+
+        let block = Block::default()
+            .title(" Help ")
+            .title_alignment(Alignment::Center)
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan))
+            .style(Style::default().bg(Color::Rgb(20, 20, 30)));
+
+        let help_items = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  Tab / Shift+Tab  ", Style::default().fg(Color::Yellow)),
+                Span::styled("Switch between panels", Style::default().fg(Color::White)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ↑ / k            ", Style::default().fg(Color::Yellow)),
+                Span::styled("Move selection up", Style::default().fg(Color::White)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ↓ / j            ", Style::default().fg(Color::Yellow)),
+                Span::styled("Move selection down", Style::default().fg(Color::White)),
+            ]),
+            Line::from(vec![
+                Span::styled("  g / Home         ", Style::default().fg(Color::Yellow)),
+                Span::styled("Jump to first item", Style::default().fg(Color::White)),
+            ]),
+            Line::from(vec![
+                Span::styled("  G / End          ", Style::default().fg(Color::Yellow)),
+                Span::styled("Jump to last item", Style::default().fg(Color::White)),
+            ]),
+            Line::from(vec![
+                Span::styled("  PgUp / PgDn      ", Style::default().fg(Color::Yellow)),
+                Span::styled("Scroll commits by 10", Style::default().fg(Color::White)),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  h / ?            ", Style::default().fg(Color::Cyan)),
+                Span::styled("Toggle this help", Style::default().fg(Color::White)),
+            ]),
+            Line::from(vec![
+                Span::styled("  q / Ctrl+C       ", Style::default().fg(Color::Red)),
+                Span::styled("Quit", Style::default().fg(Color::White)),
+            ]),
+            Line::from(""),
+            Span::styled(
+                "Press any key to close",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::ITALIC),
+            )
+            .into_centered_line(),
+        ];
+
+        let help_text = Paragraph::new(help_items)
+            .block(block)
+            .alignment(Alignment::Left);
+
+        frame.render_widget(help_text, popup_area);
     }
 
     fn render_header(&self, frame: &mut ratatui::Frame, area: Rect) {
@@ -261,12 +355,11 @@ impl TuiState {
 
     fn render_project_details(&self, frame: &mut ratatui::Frame, area: Rect) {
         if let Some(proj) = self.project_data.get(self.selected_project_index) {
-            let header = Row::new(vec![Cell::from("#"), Cell::from("Commit Summary")])
-                .style(
-                    Style::default()
-                        .fg(self.colors.headers_bar.text)
-                        .add_modifier(Modifier::BOLD),
-                );
+            let header = Row::new(vec![Cell::from("#"), Cell::from("Commit Summary")]).style(
+                Style::default()
+                    .fg(self.colors.headers_bar.text)
+                    .add_modifier(Modifier::BOLD),
+            );
 
             let available_height = area.height.saturating_sub(3);
             let visible_start = self.commit_scroll_offset;
@@ -356,11 +449,7 @@ impl TuiState {
                     if total_commits > 0 {
                         (
                             "Commits",
-                            format!(
-                                "Commit {}/{}",
-                                self.commit_scroll_offset + 1,
-                                total_commits
-                            ),
+                            format!("Commit {}/{}", self.commit_scroll_offset + 1, total_commits),
                         )
                     } else {
                         ("Commits", "No commits".to_string())
@@ -372,7 +461,7 @@ impl TuiState {
         let center_text = format!("[{}] {}", panel_name, count_text);
 
         let status_bar = StatusBar::new(
-            " Tab: Switch Panel  ↑/↓: Scroll  PgUp/PgDn  g/G: Top/Bottom",
+            " Tab: Switch  ↑/↓: Scroll  PgUp/PgDn  g/G: Top/Bottom  h: Help",
             &center_text,
             "q: Quit ",
         )
@@ -465,9 +554,8 @@ pub fn run(format: Option<ReleaseOutputFormat>, no_tui: bool) -> Result<i32> {
     let histories = sess.analyze_histories()?;
 
     let format = format.unwrap_or(ReleaseOutputFormat::Table);
-    let use_tui = matches!(format, ReleaseOutputFormat::Table)
-        && is_interactive_terminal()
-        && !no_tui;
+    let use_tui =
+        matches!(format, ReleaseOutputFormat::Table) && is_interactive_terminal() && !no_tui;
 
     if use_tui {
         run_tui(&sess, &idents)?;

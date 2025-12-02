@@ -318,8 +318,8 @@ impl WizardState {
 pub fn run() -> Result<i32> {
     info!("starting interactive TUI wizard for release preparation");
 
-    let mut sess = AppSession::initialize_default()
-        .context("could not initialize app and project graph")?;
+    let mut sess =
+        AppSession::initialize_default().context("could not initialize app and project graph")?;
 
     if let Some(dirty) = sess
         .repo
@@ -333,10 +333,7 @@ pub fn run() -> Result<i32> {
     }
 
     let q = GraphQueryBuilder::default();
-    let idents = sess
-        .graph()
-        .query(q)
-        .context("could not select projects")?;
+    let idents = sess.graph().query(q).context("could not select projects")?;
 
     if idents.is_empty() {
         info!("no projects found in repository");
@@ -412,10 +409,7 @@ pub fn run() -> Result<i32> {
         };
 
         if bump_scheme_text == "no bump" {
-            info!(
-                "{}: no version bump needed",
-                proj.user_facing_name
-            );
+            info!("{}: no version bump needed", proj.user_facing_name);
             continue;
         }
 
@@ -443,7 +437,11 @@ pub fn run() -> Result<i32> {
             old_version,
             proj_mut.version,
             project_item.commit_count,
-            if project_item.commit_count == 1 { "" } else { "s" }
+            if project_item.commit_count == 1 {
+                ""
+            } else {
+                "s"
+            }
         );
 
         n_prepared += 1;
@@ -506,9 +504,7 @@ pub fn run() -> Result<i32> {
     Ok(0)
 }
 
-fn run_wizard_ui(
-    projects: Vec<ProjectItem>,
-) -> Result<Option<Vec<ProjectItem>>> {
+fn run_wizard_ui(projects: Vec<ProjectItem>) -> Result<Option<Vec<ProjectItem>>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -523,11 +519,7 @@ fn run_wizard_ui(
     terminal.show_cursor()?;
 
     if result? {
-        let selected = state
-            .projects
-            .into_iter()
-            .filter(|p| p.selected)
-            .collect();
+        let selected = state.projects.into_iter().filter(|p| p.selected).collect();
         Ok(Some(selected))
     } else {
         Ok(None)
@@ -608,7 +600,11 @@ fn render_header(f: &mut Frame, area: Rect, state: &WizardState) {
         state.step.title(project_name)
     );
     let header = Paragraph::new(title)
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(header, area);
 }
@@ -770,20 +766,21 @@ fn render_project_changelog(f: &mut Frame, area: Rect, state: &WizardState) {
         "# Changelog Preview for {}\n\n\
         **Selected bump:** `{}`\n\
         **Commits analyzed:** {}\n\n",
-        current_project.name,
-        bump_text,
-        current_project.commit_count
+        current_project.name, bump_text, current_project.commit_count
     );
 
     if categorized.is_empty() {
         changelog_content.push_str(
             "## No User-Facing Changes\n\n\
             All commits are internal (docs, chore, ci, test, style).\n\
-            These are typically excluded from user-facing changelogs.\n\n"
+            These are typically excluded from user-facing changelogs.\n\n",
         );
     } else {
         use std::collections::BTreeMap;
-        let mut by_category: BTreeMap<commit_analyzer::ChangelogCategory, Vec<&commit_analyzer::CategorizedCommit>> = BTreeMap::new();
+        let mut by_category: BTreeMap<
+            commit_analyzer::ChangelogCategory,
+            Vec<&commit_analyzer::CategorizedCommit>,
+        > = BTreeMap::new();
 
         for commit in &categorized {
             by_category.entry(commit.category).or_default().push(commit);
@@ -802,7 +799,7 @@ fn render_project_changelog(f: &mut Frame, area: Rect, state: &WizardState) {
     changelog_content.push_str(
         "---\n\n\
         Press Tab to go back to bump selection.\n\
-        Press Enter to continue to the next project."
+        Press Enter to continue to the next project.",
     );
 
     let markdown_text = markdown::render_markdown(&changelog_content);
@@ -856,7 +853,9 @@ fn render_confirmation(f: &mut Frame, area: Rect, state: &WizardState) {
             ),
             Span::styled(
                 bump_text,
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]));
     }
@@ -886,11 +885,7 @@ fn render_confirmation(f: &mut Frame, area: Rect, state: &WizardState) {
 
     let text = Text::from(confirmation_lines);
     let paragraph = Paragraph::new(text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Confirmation"),
-        )
+        .block(Block::default().borders(Borders::ALL).title("Confirmation"))
         .wrap(Wrap { trim: true });
 
     f.render_widget(paragraph, area);

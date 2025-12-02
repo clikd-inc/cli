@@ -388,7 +388,10 @@ fn test_repo_history_release_tag_some() {
         }),
     };
     assert!(history.release_tag().is_some());
-    assert_eq!(history.release_version().unwrap(), &semver::Version::new(1, 0, 0));
+    assert_eq!(
+        history.release_version().unwrap(),
+        &semver::Version::new(1, 0, 0)
+    );
 }
 
 #[test]

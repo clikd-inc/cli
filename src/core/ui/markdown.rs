@@ -112,18 +112,20 @@ impl MarkdownRenderer {
             Tag::CodeBlock(_) => {
                 self.flush_line();
                 self.in_code_block = true;
-                self.style_stack.push(
-                    Style::default()
-                        .fg(Color::White)
-                        .bg(Color::DarkGray),
-                );
+                self.style_stack
+                    .push(Style::default().fg(Color::White).bg(Color::DarkGray));
             }
             Tag::BlockQuote(_) => {
-                self.style_stack.push(Style::default().fg(Color::Green).add_modifier(Modifier::ITALIC));
+                self.style_stack.push(
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::ITALIC),
+                );
             }
             Tag::Emphasis => {
                 let current = *self.style_stack.last().unwrap();
-                self.style_stack.push(current.add_modifier(Modifier::ITALIC));
+                self.style_stack
+                    .push(current.add_modifier(Modifier::ITALIC));
             }
             Tag::Strong => {
                 let current = *self.style_stack.last().unwrap();
@@ -131,7 +133,8 @@ impl MarkdownRenderer {
             }
             Tag::Strikethrough => {
                 let current = *self.style_stack.last().unwrap();
-                self.style_stack.push(current.add_modifier(Modifier::CROSSED_OUT));
+                self.style_stack
+                    .push(current.add_modifier(Modifier::CROSSED_OUT));
             }
             _ => {}
         }
@@ -183,11 +186,13 @@ impl MarkdownRenderer {
                     self.flush_line();
                 }
                 self.current_line.push(Span::raw("  "));
-                self.current_line.push(Span::styled(line.to_string(), style));
+                self.current_line
+                    .push(Span::styled(line.to_string(), style));
                 self.flush_line();
             }
         } else {
-            self.current_line.push(Span::styled(text.to_string(), style));
+            self.current_line
+                .push(Span::styled(text.to_string(), style));
         }
     }
 

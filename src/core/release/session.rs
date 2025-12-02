@@ -393,26 +393,28 @@ impl AppSession {
             let history = histories.lookup(ident);
 
             if let Some(tag_version) = history.release_version() {
-                proj.version = proj.version.parse_like(&tag_version.to_string())?;
+                proj.version = proj.version.parse_like(tag_version.to_string())?;
             }
 
             let baseline_version = proj.version.clone();
 
-            Ok(if let Some(bump_spec) = bump_specs.get(&proj.user_facing_name) {
-                let scheme = proj.version.parse_bump_scheme(bump_spec)?;
-                scheme.apply(&mut proj.version)?;
-                info!(
-                    "{}: {} => {}",
-                    proj.user_facing_name, baseline_version, proj.version
-                );
-                true
-            } else {
-                info!(
-                    "{}: unchanged from {}",
-                    proj.user_facing_name, baseline_version
-                );
-                false
-            })
+            Ok(
+                if let Some(bump_spec) = bump_specs.get(&proj.user_facing_name) {
+                    let scheme = proj.version.parse_bump_scheme(bump_spec)?;
+                    scheme.apply(&mut proj.version)?;
+                    info!(
+                        "{}: {} => {}",
+                        proj.user_facing_name, baseline_version, proj.version
+                    );
+                    true
+                } else {
+                    info!(
+                        "{}: unchanged from {}",
+                        proj.user_facing_name, baseline_version
+                    );
+                    false
+                },
+            )
         })
         .with_context(|| "failed to solve internal dependencies")?;
 

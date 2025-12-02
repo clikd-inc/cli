@@ -3,11 +3,7 @@ use tracing::{info, warn};
 
 use crate::{
     atry,
-    core::release::{
-        commit_analyzer,
-        graph::GraphQueryBuilder,
-        session::AppSession,
-    },
+    core::release::{commit_analyzer, graph::GraphQueryBuilder, session::AppSession},
 };
 
 #[path = "prepare/wizard.rs"]
@@ -194,11 +190,7 @@ fn run_auto_mode(bump: Option<String>) -> Result<i32> {
         let commit_messages: Vec<String> = history
             .commits()
             .into_iter()
-            .filter_map(|cid| {
-                sess.repo
-                    .get_commit_summary(*cid)
-                    .ok()
-            })
+            .filter_map(|cid| sess.repo.get_commit_summary(*cid).ok())
             .collect();
 
         let analysis = atry!(
@@ -383,10 +375,7 @@ fn run_per_project_mode(projects: &[String]) -> Result<i32> {
 
         println!(
             "{}: {} -> {} ({})",
-            proj_mut.user_facing_name,
-            old_version,
-            proj_mut.version,
-            bump_scheme_text
+            proj_mut.user_facing_name, old_version, proj_mut.version, bump_scheme_text
         );
 
         n_prepared += 1;

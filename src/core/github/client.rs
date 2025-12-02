@@ -9,7 +9,11 @@ use git_url_parse::types::provider::GenericProvider;
 use json::{object, JsonValue};
 use tracing::info;
 
-use crate::core::release::{env::require_var, errors::Result, session::{AppBuilder, AppSession}};
+use crate::core::release::{
+    env::require_var,
+    errors::Result,
+    session::{AppBuilder, AppSession},
+};
 
 struct GitHubInformation {
     slug: String,
@@ -121,7 +125,6 @@ impl GitHubInformation {
             ))
         }
     }
-
 }
 
 /// The `github` subcommands.
@@ -204,7 +207,6 @@ impl CreateCustomReleaseCommand {
     }
 }
 
-
 /// hidden Git credential helper command
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub struct CredentialHelperCommand {
@@ -269,4 +271,3 @@ impl InstallCredentialHelperCommand {
         Ok(0)
     }
 }
-

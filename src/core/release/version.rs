@@ -4,9 +4,9 @@
 //! Version numbers.
 
 use anyhow::bail;
-use time::OffsetDateTime;
 use std::fmt::{Display, Formatter};
 use thiserror::Error as ThisError;
+use time::OffsetDateTime;
 
 use crate::core::release::errors::Result;
 
@@ -165,7 +165,7 @@ impl VersionBumpScheme {
 
             match version {
                 Version::Semver(v) => {
-                    let code = format!("{:04}{:02}{:02}", now.year(), now.month() as u8, now.day() as u8);
+                    let code = format!("{:04}{:02}{:02}", now.year(), now.month() as u8, now.day());
                     v.build = semver::BuildMetadata::new(&code).expect(
                         "BUG: YYYYMMDD date format should always be valid semver build metadata",
                     );

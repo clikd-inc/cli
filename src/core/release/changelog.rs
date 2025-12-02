@@ -8,7 +8,6 @@
 //! has to do with looking at the repository history since the most recent
 //! release(s). That's exactly the information contained in a release changelog.
 
-use time::OffsetDateTime;
 use std::{
     collections::HashMap,
     fs::File,
@@ -16,6 +15,7 @@ use std::{
     path::PathBuf,
 };
 use thiserror::Error as ThisError;
+use time::OffsetDateTime;
 
 use super::dynfmt::{Format, SimpleCurlyFormat};
 
@@ -279,7 +279,12 @@ impl Changelog for MarkdownChangelog {
         let now = OffsetDateTime::now_utc();
         header_args.insert(
             "yyyy_mm_dd",
-            format!("{:04}-{:02}-{:02}", now.year(), now.month() as u8, now.day() as u8),
+            format!(
+                "{:04}-{:02}-{:02}",
+                now.year(),
+                now.month() as u8,
+                now.day()
+            ),
         );
 
         let changelog_path = self.changelog_path(proj, repo);

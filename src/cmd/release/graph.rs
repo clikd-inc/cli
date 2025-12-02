@@ -10,8 +10,20 @@ use crate::{
 #[path = "graph/wizard.rs"]
 mod wizard;
 
-pub fn run(format: Option<GraphOutputFormat>, no_tui: bool) -> Result<i32> {
+#[path = "graph/browser.rs"]
+mod browser;
+
+pub fn run(
+    format: Option<GraphOutputFormat>,
+    no_tui: bool,
+    web: bool,
+    out: Option<String>,
+) -> Result<i32> {
     use crate::core::ui::utils::is_interactive_terminal;
+
+    if web || out.is_some() {
+        return browser::open_browser(out.as_deref());
+    }
 
     if !no_tui && is_interactive_terminal() {
         return wizard::run();
@@ -28,10 +40,7 @@ pub fn run(format: Option<GraphOutputFormat>, no_tui: bool) -> Result<i32> {
     );
 
     let q = GraphQueryBuilder::default();
-    let idents = sess
-        .graph()
-        .query(q)
-        .context("could not select projects")?;
+    let idents = sess.graph().query(q).context("could not select projects")?;
 
     if idents.is_empty() {
         println!("No projects found in repository");
@@ -69,8 +78,15 @@ fn render_ascii(sess: &AppSession, idents: &[usize]) {
             println!("  ● {} @ {}", proj.user_facing_name, proj.version);
             for (i, dep) in deps.iter().enumerate() {
                 let dep_proj = sess.graph().lookup(dep.ident);
-                let prefix = if i == deps.len() - 1 { "└──" } else { "├──" };
-                println!("    {} → {} @ {}", prefix, dep_proj.user_facing_name, dep_proj.version);
+                let prefix = if i == deps.len() - 1 {
+                    "└──"
+                } else {
+                    "├──"
+                };
+                println!(
+                    "    {} → {} @ {}",
+                    prefix, dep_proj.user_facing_name, dep_proj.version
+                );
             }
         }
         println!();
@@ -113,7 +129,10 @@ fn render_dot(sess: &AppSession, idents: &[usize]) {
         let proj = sess.graph().lookup(*ident);
         for dep in &proj.internal_deps {
             let dep_proj = sess.graph().lookup(dep.ident);
-            println!("    \"{}\" -> \"{}\";", proj.user_facing_name, dep_proj.user_facing_name);
+            println!(
+                "    \"{}\" -> \"{}\";",
+                proj.user_facing_name, dep_proj.user_facing_name
+            );
         }
     }
 

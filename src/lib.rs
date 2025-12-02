@@ -138,7 +138,11 @@ pub async fn execute(cli: Cli) -> Result<()> {
             Ok(())
         }
         Commands::Release(release_cmd) => match release_cmd {
-            cli::ReleaseCommands::Init { force, upstream, no_tui } => {
+            cli::ReleaseCommands::Init {
+                force,
+                upstream,
+                no_tui,
+            } => {
                 let exit_code = cmd::release::init::run(force, upstream, no_tui)?;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
@@ -152,15 +156,24 @@ pub async fn execute(cli: Cli) -> Result<()> {
                 }
                 Ok(())
             }
-            cli::ReleaseCommands::Prepare { bump, no_tui, project } => {
+            cli::ReleaseCommands::Prepare {
+                bump,
+                no_tui,
+                project,
+            } => {
                 let exit_code = cmd::release::prepare::run(bump, no_tui, project)?;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
                 }
                 Ok(())
             }
-            cli::ReleaseCommands::Graph { format, no_tui } => {
-                let exit_code = cmd::release::graph::run(format, no_tui)?;
+            cli::ReleaseCommands::Graph {
+                format,
+                no_tui,
+                web,
+                out,
+            } => {
+                let exit_code = cmd::release::graph::run(format, no_tui, web, out)?;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
                 }

@@ -6,8 +6,12 @@ use crossterm::{
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{
+        Block, Borders, Clear, List, ListItem, ListState, Paragraph, Scrollbar,
+        ScrollbarOrientation, ScrollbarState,
+    },
 };
+use std::collections::HashMap;
 use std::io::stdout;
 
 use crate::{
@@ -15,46 +19,40 @@ use crate::{
     core::release::{graph::GraphQueryBuilder, session::AppSession},
 };
 
+use super::browser;
+
 struct ProjectInfo {
     name: String,
     version: String,
-    deps: Vec<DependencyInfo>,
+    deps: Vec<String>,
     dependents: Vec<String>,
-}
-
-struct DependencyInfo {
-    name: String,
-    version: String,
 }
 
 struct App {
     projects: Vec<ProjectInfo>,
-    release_order: Vec<String>,
     list_state: ListState,
-    focus: Focus,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum Focus {
-    ProjectList,
-    Details,
+    release_order: Vec<String>,
+    show_help: bool,
 }
 
 impl App {
     fn new(sess: &AppSession, idents: &[usize]) -> Self {
         let mut projects = Vec::new();
+        let mut name_to_idx: HashMap<String, usize> = HashMap::new();
 
-        for &ident in idents {
+        for (idx, &ident) in idents.iter().enumerate() {
             let proj = sess.graph().lookup(ident);
-            let deps: Vec<DependencyInfo> = proj
+            name_to_idx.insert(proj.user_facing_name.clone(), idx);
+        }
+
+        for &ident in idents.iter() {
+            let proj = sess.graph().lookup(ident);
+            let deps: Vec<String> = proj
                 .internal_deps
                 .iter()
                 .map(|d| {
                     let dep_proj = sess.graph().lookup(d.ident);
-                    DependencyInfo {
-                        name: dep_proj.user_facing_name.clone(),
-                        version: dep_proj.version.to_string(),
-                    }
+                    dep_proj.user_facing_name.clone()
                 })
                 .collect();
 
@@ -88,20 +86,22 @@ impl App {
             .collect();
 
         let mut list_state = ListState::default();
-        if !projects.is_empty() {
-            list_state.select(Some(0));
-        }
+        list_state.select(Some(0));
 
         Self {
             projects,
-            release_order,
             list_state,
-            focus: Focus::ProjectList,
+            release_order,
+            show_help: false,
         }
     }
 
+    fn selected_idx(&self) -> usize {
+        self.list_state.selected().unwrap_or(0)
+    }
+
     fn selected_project(&self) -> Option<&ProjectInfo> {
-        self.list_state.selected().and_then(|i| self.projects.get(i))
+        self.projects.get(self.selected_idx())
     }
 
     fn next(&mut self) {
@@ -132,11 +132,11 @@ impl App {
         self.list_state.select(Some(i));
     }
 
-    fn toggle_focus(&mut self) {
-        self.focus = match self.focus {
-            Focus::ProjectList => Focus::Details,
-            Focus::Details => Focus::ProjectList,
-        };
+    fn release_position(&self, name: &str) -> Option<usize> {
+        self.release_order
+            .iter()
+            .position(|n| n == name)
+            .map(|p| p + 1)
     }
 }
 
@@ -180,19 +180,36 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<i32>
                 continue;
             }
 
+            if app.show_help {
+                match key.code {
+                    KeyCode::Esc
+                    | KeyCode::Char('h')
+                    | KeyCode::Char('?')
+                    | KeyCode::Char('q')
+                    | KeyCode::Enter => {
+                        app.show_help = false;
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
             match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => return Ok(0),
-                KeyCode::Down | KeyCode::Char('j') => {
-                    if app.focus == Focus::ProjectList {
-                        app.next();
-                    }
+                KeyCode::Down | KeyCode::Char('j') => app.next(),
+                KeyCode::Up | KeyCode::Char('k') => app.previous(),
+                KeyCode::Char('h') | KeyCode::Char('?') => app.show_help = true,
+                KeyCode::Char('g') => {
+                    disable_raw_mode()?;
+                    stdout().execute(LeaveAlternateScreen)?;
+                    browser::open_browser(None)?;
+                    enable_raw_mode()?;
+                    stdout().execute(EnterAlternateScreen)?;
                 }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    if app.focus == Focus::ProjectList {
-                        app.previous();
-                    }
-                }
-                KeyCode::Tab => app.toggle_focus(),
+                KeyCode::Home => app.list_state.select(Some(0)),
+                KeyCode::End => app
+                    .list_state
+                    .select(Some(app.projects.len().saturating_sub(1))),
                 _ => {}
             }
         }
@@ -203,174 +220,266 @@ fn ui(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
+            Constraint::Length(1),
             Constraint::Min(10),
-            Constraint::Length(3),
+            Constraint::Length(2),
         ])
         .split(f.area());
 
-    let title = Paragraph::new(" Dependency Graph ")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan)),
-        );
+    let title = Paragraph::new(" ◆ Dependency Graph").style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    );
     f.render_widget(title, chunks[0]);
 
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(chunks[1]);
 
-    render_project_list(f, app, main_chunks[0]);
-    render_details(f, app, main_chunks[1]);
+    render_packages_panel(f, app, main_chunks[0]);
+    render_details_panel(f, app, main_chunks[1]);
 
-    let help = Paragraph::new(" ↑↓/jk: Navigate | Tab: Switch Panel | q/Esc: Quit ")
+    let help_text = " ↑↓/jk: Navigate │ g: Browser Graph │ h: Help │ q: Quit";
+    let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
-        .block(Block::default().borders(Borders::ALL));
+        .block(
+            Block::default()
+                .borders(Borders::TOP)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        );
     f.render_widget(help, chunks[2]);
+
+    if app.show_help {
+        render_help_popup(f);
+    }
 }
 
-fn render_project_list(f: &mut Frame, app: &mut App, area: Rect) {
+fn render_help_popup(f: &mut Frame) {
+    let area = f.area();
+    let popup_width = 60u16.min(area.width.saturating_sub(4));
+    let popup_height = 18u16.min(area.height.saturating_sub(4));
+
+    let popup_area = Rect {
+        x: (area.width.saturating_sub(popup_width)) / 2,
+        y: (area.height.saturating_sub(popup_height)) / 2,
+        width: popup_width,
+        height: popup_height,
+    };
+
+    f.render_widget(Clear, popup_area);
+
+    let block = Block::default()
+        .title(" Help ")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .style(Style::default().bg(Color::Rgb(20, 20, 30)));
+
+    let help_items = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  ↑ / k      ", Style::default().fg(Color::Yellow)),
+            Span::styled("Move selection up", Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("  ↓ / j      ", Style::default().fg(Color::Yellow)),
+            Span::styled("Move selection down", Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("  Home       ", Style::default().fg(Color::Yellow)),
+            Span::styled("Jump to first project", Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("  End        ", Style::default().fg(Color::Yellow)),
+            Span::styled("Jump to last project", Style::default().fg(Color::White)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  g          ", Style::default().fg(Color::Green)),
+            Span::styled(
+                "Open interactive graph in browser",
+                Style::default().fg(Color::White),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  h / ?      ", Style::default().fg(Color::Cyan)),
+            Span::styled("Toggle this help", Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("  q / Esc    ", Style::default().fg(Color::Red)),
+            Span::styled("Quit", Style::default().fg(Color::White)),
+        ]),
+        Line::from(""),
+        Span::styled(
+            "Press any key to close",
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
+        )
+        .into_centered_line(),
+    ];
+
+    let help_text = Paragraph::new(help_items)
+        .block(block)
+        .alignment(Alignment::Left);
+
+    f.render_widget(help_text, popup_area);
+}
+
+fn render_packages_panel(f: &mut Frame, app: &mut App, area: Rect) {
+    let block = Block::default()
+        .title(format!(" Packages ({}) ", app.projects.len()))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
     let items: Vec<ListItem> = app
         .projects
         .iter()
-        .map(|p| {
+        .enumerate()
+        .map(|(idx, p)| {
             let symbol = if p.deps.is_empty() { "○" } else { "●" };
-            let content = format!("{} {} @ {}", symbol, p.name, p.version);
-            ListItem::new(content)
+            let deps_count = if p.deps.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", p.deps.len())
+            };
+
+            let is_selected = app.list_state.selected() == Some(idx);
+            let marker = if is_selected { "▶" } else { " " };
+
+            let line = format!(
+                "{} {} {}  {}{}",
+                marker, symbol, p.name, p.version, deps_count
+            );
+
+            let style = if is_selected {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else if p.deps.is_empty() {
+                Style::default().fg(Color::Green)
+            } else {
+                Style::default().fg(Color::White)
+            };
+
+            ListItem::new(line).style(style)
         })
         .collect();
 
-    let border_style = if app.focus == Focus::ProjectList {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default().fg(Color::White)
-    };
-
     let list = List::new(items)
-        .block(
-            Block::default()
-                .title(" Projects ")
-                .borders(Borders::ALL)
-                .border_style(border_style),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
+        .block(block)
+        .highlight_style(Style::default());
 
     f.render_stateful_widget(list, area, &mut app.list_state);
+
+    if app.projects.len() > (area.height as usize).saturating_sub(2) {
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("▲"))
+            .end_symbol(Some("▼"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█");
+
+        let mut scrollbar_state = ScrollbarState::new(app.projects.len())
+            .position(app.list_state.selected().unwrap_or(0));
+
+        f.render_stateful_widget(
+            scrollbar,
+            area.inner(Margin {
+                horizontal: 0,
+                vertical: 1,
+            }),
+            &mut scrollbar_state,
+        );
+    }
 }
 
-fn render_details(f: &mut Frame, app: &mut App, area: Rect) {
-    let border_style = if app.focus == Focus::Details {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default().fg(Color::White)
-    };
+fn render_details_panel(f: &mut Frame, app: &App, area: Rect) {
+    let selected = app.selected_project();
+    let title = selected
+        .map(|p| format!(" {} ", p.name))
+        .unwrap_or_else(|| " Details ".to_string());
 
     let block = Block::default()
-        .title(" Details ")
+        .title(title)
         .borders(Borders::ALL)
-        .border_style(border_style);
+        .border_style(Style::default().fg(Color::DarkGray));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let Some(proj) = app.selected_project() else {
-        let no_selection = Paragraph::new("No project selected")
-            .style(Style::default().fg(Color::DarkGray));
+    let Some(proj) = selected else {
+        let no_selection =
+            Paragraph::new("No project selected").style(Style::default().fg(Color::DarkGray));
         f.render_widget(no_selection, inner);
         return;
     };
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(4),
-            Constraint::Length(1),
-            Constraint::Min(4),
-            Constraint::Length(1),
-            Constraint::Min(4),
-            Constraint::Length(1),
-            Constraint::Min(4),
-        ])
-        .split(inner);
+    let release_pos = app.release_position(&proj.name).unwrap_or(0);
+    let total = app.release_order.len();
 
-    let info_text = format!(
-        "Name: {}\nVersion: {}\nDependencies: {} | Dependents: {}",
-        proj.name,
-        proj.version,
-        proj.deps.len(),
-        proj.dependents.len()
-    );
-    let info = Paragraph::new(info_text)
-        .style(Style::default().fg(Color::White))
-        .wrap(Wrap { trim: true });
-    f.render_widget(info, chunks[0]);
-
-    let deps_title = Paragraph::new("Dependencies:")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
-    f.render_widget(deps_title, chunks[1]);
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("Version: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&proj.version, Style::default().fg(Color::White)),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            format!("Dependencies ({})", proj.deps.len()),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        )]),
+    ];
 
     if proj.deps.is_empty() {
-        let no_deps = Paragraph::new("  (none)")
-            .style(Style::default().fg(Color::DarkGray));
-        f.render_widget(no_deps, chunks[2]);
+        lines.push(Line::from(Span::styled(
+            "  (none)",
+            Style::default().fg(Color::DarkGray),
+        )));
     } else {
-        let deps_text: String = proj
-            .deps
-            .iter()
-            .map(|d| format!("  → {} @ {}", d.name, d.version))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let deps = Paragraph::new(deps_text)
-            .style(Style::default().fg(Color::Green))
-            .wrap(Wrap { trim: true });
-        f.render_widget(deps, chunks[2]);
+        for dep in &proj.deps {
+            lines.push(Line::from(Span::styled(
+                format!("  → {}", dep),
+                Style::default().fg(Color::Green),
+            )));
+        }
     }
 
-    let dependents_title = Paragraph::new("Depended on by:")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
-    f.render_widget(dependents_title, chunks[3]);
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![Span::styled(
+        format!("Dependents ({})", proj.dependents.len()),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )]));
 
     if proj.dependents.is_empty() {
-        let no_dependents = Paragraph::new("  (none)")
-            .style(Style::default().fg(Color::DarkGray));
-        f.render_widget(no_dependents, chunks[4]);
+        lines.push(Line::from(Span::styled(
+            "  (none)",
+            Style::default().fg(Color::DarkGray),
+        )));
     } else {
-        let dependents_text: String = proj
-            .dependents
-            .iter()
-            .map(|d| format!("  ← {}", d))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let dependents = Paragraph::new(dependents_text)
-            .style(Style::default().fg(Color::Yellow))
-            .wrap(Wrap { trim: true });
-        f.render_widget(dependents, chunks[4]);
+        for dep in &proj.dependents {
+            lines.push(Line::from(Span::styled(
+                format!("  ← {}", dep),
+                Style::default().fg(Color::Cyan),
+            )));
+        }
     }
 
-    let order_title = Paragraph::new("Release Order:")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
-    f.render_widget(order_title, chunks[5]);
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("Release Order: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("#{} of {}", release_pos, total),
+            Style::default().fg(Color::Yellow),
+        ),
+    ]));
 
-    let order_text: String = app
-        .release_order
-        .iter()
-        .enumerate()
-        .map(|(i, name)| {
-            let marker = if name == &proj.name { "▶" } else { " " };
-            format!("{} {}. {}", marker, i + 1, name)
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    let order = Paragraph::new(order_text)
-        .style(Style::default().fg(Color::White))
-        .wrap(Wrap { trim: true });
-    f.render_widget(order, chunks[6]);
+    let text = Text::from(lines);
+    let paragraph = Paragraph::new(text);
+    f.render_widget(paragraph, inner);
 }

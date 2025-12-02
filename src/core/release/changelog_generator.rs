@@ -18,7 +18,7 @@ impl ChangelogEntry {
             "{:04}-{:02}-{:02}",
             now.year(),
             now.month() as u8,
-            now.day() as u8
+            now.day()
         );
 
         Self {
@@ -126,10 +126,9 @@ mod tests {
             ChangelogCategory::Added,
             vec!["- New feature X".to_string()],
         );
-        entry.categories.insert(
-            ChangelogCategory::Fixed,
-            vec!["- Bug fix Y".to_string()],
-        );
+        entry
+            .categories
+            .insert(ChangelogCategory::Fixed, vec!["- Bug fix Y".to_string()]);
 
         let markdown = entry.to_markdown();
         assert!(markdown.contains("## [1.0.0]"));
@@ -140,10 +139,9 @@ mod tests {
     #[test]
     fn test_generate_changelog_with_new_entry() {
         let mut entry = ChangelogEntry::new("1.0.0".to_string());
-        entry.categories.insert(
-            ChangelogCategory::Added,
-            vec!["- Feature".to_string()],
-        );
+        entry
+            .categories
+            .insert(ChangelogCategory::Added, vec!["- Feature".to_string()]);
 
         let existing = "## [0.5.0] - 2025-01-01\n\n### Fixed\n\n- Old fix\n";
         let result = generate_changelog("test-project", &entry, existing);
@@ -201,7 +199,10 @@ All notable changes to this project will be documented in this file.
 
         entry.categories.insert(
             ChangelogCategory::Added,
-            vec!["- New API endpoint".to_string(), "- New CLI flag".to_string()],
+            vec![
+                "- New API endpoint".to_string(),
+                "- New CLI flag".to_string(),
+            ],
         );
         entry.categories.insert(
             ChangelogCategory::Changed,

@@ -536,7 +536,10 @@ impl Repository {
         Ok(git2::Signature::now("clikd", "clikd@devnull")?)
     }
 
-    fn find_latest_tag_for_project(&self, project_name: &str) -> Result<Option<(git2::Oid, String)>> {
+    fn find_latest_tag_for_project(
+        &self,
+        project_name: &str,
+    ) -> Result<Option<(git2::Oid, String)>> {
         let tags = self.repo.tag_names(None)?;
 
         let mut matching_tags = Vec::new();
@@ -594,7 +597,11 @@ impl Repository {
         let head = self.repo.head()?;
         let target_oid = head.target().context("HEAD has no target")?;
 
-        match self.repo.tag_lightweight("clikd-baseline", &self.repo.find_object(target_oid, None)?, false) {
+        match self.repo.tag_lightweight(
+            "clikd-baseline",
+            &self.repo.find_object(target_oid, None)?,
+            false,
+        ) {
             Ok(_) => {
                 info!("created baseline tag 'clikd-baseline' at HEAD");
                 Ok(())
@@ -612,7 +619,10 @@ impl Repository {
         let head = self.repo.head()?;
         let target_oid = head.target().context("HEAD has no target")?;
 
-        match self.repo.tag_lightweight(&tag_name, &self.repo.find_object(target_oid, None)?, false) {
+        match self
+            .repo
+            .tag_lightweight(&tag_name, &self.repo.find_object(target_oid, None)?, false)
+        {
             Ok(_) => {
                 info!("created release tag '{}' at HEAD", tag_name);
                 Ok(())
@@ -679,9 +689,14 @@ impl Repository {
         let baseline_tag_oid = self.find_baseline_tag()?;
 
         for (i, proj) in projects.iter().enumerate() {
-            if let Some((tag_oid, tag_name)) = self.find_latest_tag_for_project(&proj.user_facing_name)? {
+            if let Some((tag_oid, tag_name)) =
+                self.find_latest_tag_for_project(&proj.user_facing_name)?
+            {
                 let version = Self::parse_version_from_tag(&tag_name);
-                info!("found release tag for {}: {} (v{})", proj.user_facing_name, tag_name, version);
+                info!(
+                    "found release tag for {}: {} (v{})",
+                    proj.user_facing_name, tag_name, version
+                );
                 histories[i].release_tag = Some(ReleaseTagInfo {
                     commit: CommitId(tag_oid),
                     tag_name,
@@ -792,7 +807,9 @@ impl Repository {
 
                                 let scope_matcher = ScopeMatcher::default();
 
-                                if let Some(matched_name) = scope_matcher.find_matching_project(&scope, &project_names) {
+                                if let Some(matched_name) =
+                                    scope_matcher.find_matching_project(&scope, &project_names)
+                                {
                                     for (idx, proj) in projects.iter().enumerate() {
                                         if &proj.user_facing_name == matched_name {
                                             hit_buf[idx] = true;
@@ -1010,7 +1027,9 @@ impl Repository {
         proj: &Project,
         cid: &CommitId,
     ) -> Result<ReleaseAvailability> {
-        if let Some((tag_oid, tag_name)) = self.find_latest_tag_for_project(&proj.user_facing_name)? {
+        if let Some((tag_oid, tag_name)) =
+            self.find_latest_tag_for_project(&proj.user_facing_name)?
+        {
             if self.repo.graph_descendant_of(tag_oid, cid.0)? || tag_oid == cid.0 {
                 let version = Self::parse_version_from_tag(&tag_name);
                 let v = Version::parse_like(&proj.version, version.to_string())?;
