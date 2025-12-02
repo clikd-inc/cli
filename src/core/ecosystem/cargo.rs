@@ -17,17 +17,14 @@ use std::{
 use toml_edit::{DocumentMut, Item, Table};
 use tracing::info;
 
-use crate::{
-    atry,
-    core::release::{
-        config::syntax::ProjectConfiguration,
-        errors::Result,
-        project::{DepRequirement, DependencyTarget, ProjectId},
-        repository::{ChangeList, RepoPath, RepoPathBuf},
-        rewriters::Rewriter,
-        session::{AppBuilder, AppSession},
-        version::Version,
-    },
+use crate::core::release::{
+    config::syntax::ProjectConfiguration,
+    errors::Result,
+    project::{DepRequirement, DependencyTarget, ProjectId},
+    repository::{ChangeList, RepoPath, RepoPathBuf},
+    rewriters::Rewriter,
+    session::{AppBuilder, AppSession},
+    version::Version,
 };
 
 /// Framework for auto-loading Cargo projects from the repository contents.
@@ -62,44 +59,32 @@ impl CargoLoader {
             return Ok(());
         }
 
-        let workspace_roots = self.discover_workspace_roots(app)?;
+        let workspace_data = self.discover_workspaces_with_metadata(app)?;
 
-        if workspace_roots.is_empty() {
+        if workspace_data.is_empty() {
             info!("no Cargo workspace roots found in repository");
             return Ok(());
         }
 
-        info!("found {} Cargo workspace root(s)", workspace_roots.len());
+        info!("found {} Cargo workspace root(s)", workspace_data.len());
 
         let mut all_cargo_to_graph = HashMap::new();
         let mut name_to_project: HashMap<String, ProjectId> = HashMap::new();
-        let mut workspace_metadata: Vec<cargo_metadata::Metadata> = Vec::new();
 
-        for workspace_root in &workspace_roots {
+        for (workspace_root, cargo_meta) in &workspace_data {
             info!("loading Cargo workspace: {}", workspace_root.display());
-
-            let mut cmd = MetadataCommand::new();
-            cmd.manifest_path(workspace_root);
-            cmd.features(cargo_metadata::CargoOpt::AllFeatures);
-
-            let cargo_meta = atry!(
-                cmd.exec();
-                ["failed to fetch Cargo metadata from `{}`", workspace_root.display()]
-            );
 
             self.register_workspace_projects(
                 app,
                 pconfig,
-                &cargo_meta,
+                cargo_meta,
                 workspace_root,
                 &mut all_cargo_to_graph,
                 &mut name_to_project,
             )?;
-
-            workspace_metadata.push(cargo_meta);
         }
 
-        for cargo_meta in &workspace_metadata {
+        for (_, cargo_meta) in &workspace_data {
             self.resolve_workspace_dependencies(
                 app,
                 cargo_meta,
@@ -111,8 +96,11 @@ impl CargoLoader {
         Ok(())
     }
 
-    fn discover_workspace_roots(&self, app: &AppBuilder) -> Result<Vec<PathBuf>> {
-        let mut workspace_roots = Vec::new();
+    fn discover_workspaces_with_metadata(
+        &self,
+        app: &AppBuilder,
+    ) -> Result<Vec<(PathBuf, cargo_metadata::Metadata)>> {
+        let mut workspace_data = Vec::new();
         let mut seen_packages = std::collections::HashSet::new();
 
         for toml_repopath in &self.cargo_toml_paths {
@@ -136,7 +124,6 @@ impl CargoLoader {
                 let mut cmd = MetadataCommand::new();
                 cmd.manifest_path(&toml_path);
                 cmd.features(cargo_metadata::CargoOpt::AllFeatures);
-                cmd.no_deps();
 
                 if let Ok(meta) = cmd.exec() {
                     let mut has_new_packages = false;
@@ -149,18 +136,24 @@ impl CargoLoader {
                     }
 
                     if has_new_packages {
-                        workspace_roots.push(toml_path.clone());
+                        workspace_data.push((toml_path.clone(), meta));
                     }
                 }
             }
         }
 
-        if workspace_roots.is_empty() && !self.cargo_toml_paths.is_empty() {
+        if workspace_data.is_empty() && !self.cargo_toml_paths.is_empty() {
             let first_toml = app.repo.resolve_workdir(&self.cargo_toml_paths[0]);
-            workspace_roots.push(first_toml);
+            let mut cmd = MetadataCommand::new();
+            cmd.manifest_path(&first_toml);
+            cmd.features(cargo_metadata::CargoOpt::AllFeatures);
+
+            if let Ok(meta) = cmd.exec() {
+                workspace_data.push((first_toml, meta));
+            }
         }
 
-        Ok(workspace_roots)
+        Ok(workspace_data)
     }
 
     fn is_workspace_project(&self, doc: &DocumentMut) -> bool {

@@ -737,6 +737,12 @@ impl Repository {
         let mut dopts = git2::DiffOptions::new();
         dopts.include_typechange(true);
 
+        let project_names: Vec<String> = projects
+            .iter()
+            .map(|p| p.user_facing_name.clone())
+            .collect();
+        let scope_matcher = ScopeMatcher::default();
+
         // note that we don't "know" that proj_idx = project.ident
         for proj_idx in 0..projects.len() {
             let mut walk = self.repo.revwalk()?;
@@ -802,13 +808,6 @@ impl Repository {
 
                         if let Some(summary) = commit.summary() {
                             if let Some(scope) = extract_scope(summary) {
-                                let project_names: Vec<String> = projects
-                                    .iter()
-                                    .map(|p| p.user_facing_name.clone())
-                                    .collect();
-
-                                let scope_matcher = ScopeMatcher::default();
-
                                 if let Some(matched_name) =
                                     scope_matcher.find_matching_project(&scope, &project_names)
                                 {
