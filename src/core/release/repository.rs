@@ -483,9 +483,7 @@ impl Repository {
                         warn!("detected a dirty repository while running on Windows");
                         warn!("if this appears to be spurious, you may need to add a `.gitattributes` file");
                         warn!("to your repo with the contents `* text=auto`, to work around issues related");
-                        warn!(
-                            "to newline processing; see https://github.com/pkgw/cranko/issues/41"
-                        );
+                        warn!("to newline processing (CRLF vs LF line endings)");
                     }
 
                     return Ok(Some(repo_path.to_owned()));
