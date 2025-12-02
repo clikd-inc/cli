@@ -1,11 +1,19 @@
 mod common;
-use common::{create_rust_project, TestRepo};
+use common::TestRepo;
 
 #[test]
 fn test_changelog_generation_single_commit() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -35,7 +43,15 @@ fn test_changelog_generation_single_commit() {
 fn test_changelog_with_multiple_commits() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -62,7 +78,15 @@ fn test_changelog_with_multiple_commits() {
 fn test_changelog_excludes_non_release_commits() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -86,12 +110,28 @@ fn test_changelog_excludes_non_release_commits() {
 fn test_changelog_respects_project_scope() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, "crates/web", "web", "0.1.0");
-    create_rust_project(&repo, "crates/api", "api", "0.1.0");
     repo.write_file(
         "Cargo.toml",
         "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n",
     );
+    repo.write_file(
+        "crates/web/Cargo.toml",
+        r#"[package]
+name = "web"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("crates/web/src/lib.rs", "pub fn web() {}\n");
+    repo.write_file(
+        "crates/api/Cargo.toml",
+        r#"[package]
+name = "api"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("crates/api/src/lib.rs", "pub fn api() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -115,7 +155,15 @@ fn test_changelog_respects_project_scope() {
 fn test_changelog_with_breaking_changes() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -136,7 +184,15 @@ fn test_changelog_with_breaking_changes() {
 fn test_changelog_preserves_manual_edits() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);

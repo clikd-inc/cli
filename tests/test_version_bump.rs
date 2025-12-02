@@ -1,11 +1,19 @@
 mod common;
-use common::{create_npm_project, create_python_project, create_rust_project, TestRepo};
+use common::TestRepo;
 
 #[test]
 fn test_version_bump_patch() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -26,7 +34,15 @@ fn test_version_bump_patch() {
 fn test_version_bump_minor() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -47,7 +63,15 @@ fn test_version_bump_minor() {
 fn test_version_bump_major_breaking_change() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
@@ -68,7 +92,15 @@ fn test_version_bump_major_breaking_change() {
 fn test_version_bump_preserves_format() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "1.2.3");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "1.2.3"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let original_cargo = repo.read_file("Cargo.toml");
@@ -104,12 +136,21 @@ fn test_version_bump_preserves_format() {
 fn test_version_bump_npm_package() {
     let repo = TestRepo::new();
 
-    create_npm_project(&repo, ".", "my-package", "2.0.0");
+    repo.write_file(
+        "package.json",
+        r#"{
+  "name": "my-package",
+  "version": "2.0.0",
+  "description": "Test package"
+}
+"#,
+    );
+    repo.write_file("index.js", "module.exports = {};\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
 
-    repo.write_file("index.js", "module.exports = {};");
+    repo.write_file("index.js", "module.exports = { api: true };");
     repo.commit("feat: add new API");
 
     let output = repo.run_clikd_command(&["release", "status"]);
@@ -125,12 +166,27 @@ fn test_version_bump_npm_package() {
 fn test_version_bump_python_package() {
     let repo = TestRepo::new();
 
-    create_python_project(&repo, ".", "my-pkg", "0.5.0");
+    repo.write_file(
+        "setup.cfg",
+        r#"[metadata]
+name = my-pkg
+version = 0.5.0
+description = Test Python package
+"#,
+    );
+    repo.write_file(
+        "setup.py",
+        r#"from setuptools import setup
+version = "0.5.0"  # clikd project-version
+setup()
+"#,
+    );
+    repo.write_file("my_pkg/__init__.py", "");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
 
-    repo.write_file("my_pkg/__init__.py", "");
+    repo.write_file("my_pkg/__init__.py", "__version__ = '0.5.0'");
     repo.commit("feat: add module");
 
     let output = repo.run_clikd_command(&["release", "status"]);
@@ -146,12 +202,28 @@ fn test_version_bump_python_package() {
 fn test_version_bump_multiple_projects() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, "crates/web", "web", "0.1.0");
-    create_rust_project(&repo, "crates/api", "api", "0.2.0");
     repo.write_file(
         "Cargo.toml",
         "[workspace]\nmembers = [\"crates/web\", \"crates/api\"]\nresolver = \"2\"\n",
     );
+    repo.write_file(
+        "crates/web/Cargo.toml",
+        r#"[package]
+name = "web"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("crates/web/src/lib.rs", "pub fn web() {}\n");
+    repo.write_file(
+        "crates/api/Cargo.toml",
+        r#"[package]
+name = "api"
+version = "0.2.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("crates/api/src/lib.rs", "pub fn api() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);

@@ -1,6 +1,3 @@
-// Shared test utilities used across multiple test binaries.
-// Each test file compiles as a separate binary, causing clippy to see these as unused
-// in individual compilation units even though they are used across the test suite.
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
@@ -8,13 +5,11 @@ use std::process::Command;
 use tempfile::TempDir;
 
 pub struct TestRepo {
-    // Held to keep temp directory alive (RAII guard)
     _dir: TempDir,
     pub path: PathBuf,
 }
 
 impl TestRepo {
-    // Can panic if temp directory creation fails - intentionally not implementing Default
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let dir = TempDir::new().expect("failed to create temp dir");
@@ -23,43 +18,6 @@ impl TestRepo {
         Self::init_git(&path);
 
         TestRepo { _dir: dir, path }
-    }
-
-    pub fn from_fixture(fixture_name: &str) -> Self {
-        let dir = TempDir::new().expect("failed to create temp dir");
-        let path = dir.path().to_path_buf();
-
-        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("fixtures")
-            .join(fixture_name);
-
-        let dest_path = path.join(fixture_name);
-        Self::copy_dir_all(&fixture_path, &dest_path).expect("failed to copy fixture");
-
-        Self::init_git(&dest_path);
-
-        TestRepo {
-            _dir: dir,
-            path: dest_path,
-        }
-    }
-
-    fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
-        std::fs::create_dir_all(dst)?;
-        for entry in std::fs::read_dir(src)? {
-            let entry = entry?;
-            let file_type = entry.file_type()?;
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
-
-            if file_type.is_dir() {
-                Self::copy_dir_all(&src_path, &dst_path)?;
-            } else {
-                std::fs::copy(&src_path, &dst_path)?;
-            }
-        }
-        Ok(())
     }
 
     fn init_git(path: &Path) {
@@ -136,130 +94,4 @@ impl TestRepo {
     pub fn has_config_dir(&self) -> bool {
         self.path.join("clikd").is_dir()
     }
-}
-
-pub fn create_go_project(repo: &TestRepo, dir: &str, module_name: &str) {
-    let go_mod = format!(
-        "module {}\n\ngo 1.21\n\nrequire (\n\tgithub.com/gin-gonic/gin v1.9.0\n)\n",
-        module_name
-    );
-    repo.write_file(&format!("{}/go.mod", dir), &go_mod);
-
-    let main_go = r#"package main
-
-import "fmt"
-
-func main() {
-    fmt.Println("Hello from Go!")
-}
-"#;
-    repo.write_file(&format!("{}/main.go", dir), main_go);
-}
-
-pub fn create_elixir_project(repo: &TestRepo, dir: &str, app_name: &str, version: &str) {
-    let mix_exs = format!(
-        r#"defmodule {}.MixProject do
-  use Mix.Project
-
-  def project do
-    [
-      app: :{},
-      version: "{}",
-      elixir: "~> 1.14",
-      start_permanent: Mix.env() == :prod,
-      deps: deps()
-    ]
-  end
-
-  def application do
-    [
-      extra_applications: [:logger]
-    ]
-  end
-
-  defp deps do
-    [
-      {{:phoenix, "~> 1.7"}}
-    ]
-  end
-end
-"#,
-        app_name.replace('_', ""),
-        app_name,
-        version
-    );
-    repo.write_file(&format!("{}/mix.exs", dir), &mix_exs);
-}
-
-pub fn create_npm_project(repo: &TestRepo, dir: &str, name: &str, version: &str) {
-    let package_json = format!(
-        r#"{{
-  "name": "{}",
-  "version": "{}",
-  "description": "Test NPM package",
-  "main": "index.js",
-  "scripts": {{
-    "test": "jest"
-  }},
-  "dependencies": {{
-    "react": "^18.0.0"
-  }}
-}}
-"#,
-        name, version
-    );
-    repo.write_file(&format!("{}/package.json", dir), &package_json);
-}
-
-pub fn create_rust_project(repo: &TestRepo, dir: &str, name: &str, version: &str) {
-    let cargo_toml = format!(
-        r#"[package]
-name = "{}"
-version = "{}"
-edition = "2021"
-
-[dependencies]
-serde = {{ version = "1.0", features = ["derive"] }}
-"#,
-        name, version
-    );
-    repo.write_file(&format!("{}/Cargo.toml", dir), &cargo_toml);
-
-    repo.write_file(
-        &format!("{}/src/lib.rs", dir),
-        "pub fn hello() -> String { String::from(\"Hello\") }\n",
-    );
-}
-
-pub fn create_python_project(repo: &TestRepo, dir: &str, name: &str, version: &str) {
-    let setup_py = r#"from setuptools import setup, find_packages
-
-setup(
-    packages=find_packages(),
-    install_requires=[
-        "requests>=2.28.0",
-    ],
-)
-"#;
-    repo.write_file(&format!("{}/setup.py", dir), setup_py);
-
-    let setup_cfg = format!("[metadata]\nname = {}\nversion = {}\n", name, version);
-    repo.write_file(&format!("{}/setup.cfg", dir), &setup_cfg);
-}
-
-pub fn create_pyproject_toml(repo: &TestRepo, dir: &str, name: &str, version: &str) {
-    let pyproject = format!(
-        r#"[project]
-name = "{}"
-version = "{}"
-description = "Test Python package"
-requires-python = ">=3.8"
-
-dependencies = [
-    "requests>=2.28.0",
-]
-"#,
-        name, version
-    );
-    repo.write_file(&format!("{}/pyproject.toml", dir), &pyproject);
 }

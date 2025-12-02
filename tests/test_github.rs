@@ -1,11 +1,19 @@
 mod common;
-use common::{create_rust_project, TestRepo};
+use common::TestRepo;
 
 #[test]
 fn test_github_remote_detection() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -27,7 +35,15 @@ fn test_github_remote_detection() {
 fn test_github_upstream_url_configured() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -53,7 +69,15 @@ fn test_github_upstream_url_configured() {
 fn test_github_release_tag_format() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -75,7 +99,15 @@ fn test_github_release_tag_format() {
 fn test_multiple_remotes_prefers_origin() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -97,7 +129,15 @@ fn test_multiple_remotes_prefers_origin() {
 fn test_github_https_url_format() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -119,7 +159,15 @@ fn test_github_https_url_format() {
 fn test_github_integration_without_remote() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);

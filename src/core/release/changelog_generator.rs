@@ -117,7 +117,7 @@ pub fn generate_changelog(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::release::commit_analyzer::{CategorizedCommit, ChangelogCategory};
+    use crate::core::release::commit_analyzer::ChangelogCategory;
 
     #[test]
     fn test_changelog_entry_format() {

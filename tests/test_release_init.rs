@@ -1,5 +1,5 @@
 mod common;
-use common::{create_rust_project, TestRepo};
+use common::TestRepo;
 
 #[test]
 fn test_release_init_creates_config_directory() {
@@ -34,7 +34,15 @@ fn test_release_init_creates_config_directory() {
 fn test_release_init_detects_single_cargo_project() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "my-crate", "0.1.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "my-crate"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -53,7 +61,15 @@ fn test_release_init_detects_single_cargo_project() {
 fn test_release_init_sets_upstream_url() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test-crate", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-crate"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -75,7 +91,15 @@ fn test_release_init_sets_upstream_url() {
 fn test_release_init_fails_with_dirty_repo() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.write_file("README.md", "# Test");
@@ -91,7 +115,15 @@ fn test_release_init_fails_with_dirty_repo() {
 fn test_release_init_with_force_allows_dirty_repo() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.write_file("README.md", "# Test");
@@ -106,7 +138,15 @@ fn test_release_init_with_force_allows_dirty_repo() {
 fn test_release_init_does_not_overwrite_existing_config() {
     let repo = TestRepo::new();
 
-    create_rust_project(&repo, ".", "test", "1.0.0");
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
     repo.run_clikd_command(&["release", "init", "--force"]);
