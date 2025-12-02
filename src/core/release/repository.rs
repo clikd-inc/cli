@@ -81,6 +81,9 @@ pub struct Repository {
     /// "Bootstrap" versioning information used to tell us where versions were at
     /// before the first Clikd release commit.
     bootstrap_info: BootstrapConfiguration,
+
+    /// Analysis configuration for LRU cache sizes.
+    analysis_config: super::config::syntax::AnalysisConfig,
 }
 
 impl Repository {
@@ -108,6 +111,7 @@ impl Repository {
             upstream_name,
             release_tag_name_format,
             bootstrap_info: BootstrapConfiguration::default(),
+            analysis_config: super::config::syntax::AnalysisConfig::default(),
         })
     }
 
@@ -231,6 +235,8 @@ impl Repository {
         if let Some(n) = cfg.release_tag_name_format {
             self.release_tag_name_format = n;
         }
+
+        self.analysis_config = cfg.analysis;
 
         // While we're here, let's also read in the versioning bootstrap
         // information, if it's available.
@@ -720,17 +726,13 @@ impl Repository {
             }
         }
 
-        // Now that we have those, trace the history from HEAD to latest release
-        // for each project, with some LRU caches to try to make things more
-        // efficient. (I haven't done any testing to see how much the caching
-        // helps, though ...)
+        let commit_cache_size = std::num::NonZeroUsize::new(self.analysis_config.commit_cache_size)
+            .unwrap_or(std::num::NonZeroUsize::new(512).expect("BUG: 512 is non-zero"));
+        let tree_cache_size = std::num::NonZeroUsize::new(self.analysis_config.tree_cache_size)
+            .unwrap_or(std::num::NonZeroUsize::new(3).expect("BUG: 3 is non-zero"));
 
-        let mut commit_data = lru::LruCache::new(
-            std::num::NonZeroUsize::new(512).expect("BUG: 512 is a non-zero constant"),
-        );
-        let mut trees = lru::LruCache::new(
-            std::num::NonZeroUsize::new(3).expect("BUG: 3 is a non-zero constant"),
-        );
+        let mut commit_data = lru::LruCache::new(commit_cache_size);
+        let mut trees = lru::LruCache::new(tree_cache_size);
 
         let mut dopts = git2::DiffOptions::new();
         dopts.include_typechange(true);
@@ -1439,20 +1441,23 @@ fn validate_safe_repo_path(path: &Path) -> Result<()> {
 
     #[cfg(windows)]
     {
-        if let Some(path_str) = path.to_str() {
-            if path_str.contains('\0') {
-                bail!("path contains null byte: `{}`", path.display());
-            }
+        use std::os::windows::ffi::OsStrExt;
 
-            if path_str
-                .split(|c| c == '/' || c == '\\')
-                .any(|seg| seg == "." || seg == "..")
-            {
-                bail!(
-                    "path contains current or parent directory reference (. or ..): `{}`",
-                    path_str
-                );
-            }
+        let wide_chars: Vec<u16> = path.as_os_str().encode_wide().collect();
+
+        if wide_chars.contains(&0) {
+            bail!("path contains null byte: `{}`", path.display());
+        }
+
+        let has_dot_segment = wide_chars
+            .split(|&c| c == b'/' as u16 || c == b'\\' as u16)
+            .any(|seg| seg == [b'.' as u16] || seg == [b'.' as u16, b'.' as u16]);
+
+        if has_dot_segment {
+            bail!(
+                "path contains current or parent directory reference (. or ..): `{}`",
+                path.display()
+            );
         }
 
         let reserved_names = [

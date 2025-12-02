@@ -1,6 +1,6 @@
 use std::fmt;
 use std::io;
-use std::mem::{self, MaybeUninit};
+use std::mem;
 
 use serde::{Serialize, Serializer};
 use serde_json::Serializer as JsonSerializer;
@@ -11,31 +11,6 @@ type CompactJsonSerializer<W> = JsonSerializer<W, serde_json::ser::CompactFormat
 type PrettyJsonSerializer<W> = JsonSerializer<W, serde_json::ser::PrettyFormatter<'static>>;
 
 pub type FormatFn<T> = fn(&T, fmt: &mut fmt::Formatter) -> fmt::Result;
-
-struct FmtProxy<'a> {
-    data: &'a (),
-    func: FormatFn<()>,
-}
-
-impl<'a> FmtProxy<'a> {
-    pub fn new<T>(data: &'a T, func: FormatFn<T>) -> Self {
-        unsafe {
-            FmtProxy {
-                data: &*(data as *const T).cast::<()>(),
-                func: std::mem::transmute::<
-                    for<'b, 'c> fn(&T, &'b mut fmt::Formatter<'c>) -> fmt::Result,
-                    for<'b, 'c> fn(&(), &'b mut fmt::Formatter<'c>) -> fmt::Result,
-                >(func),
-            }
-        }
-    }
-}
-
-impl fmt::Display for FmtProxy<'_> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        (self.func)(self.data, fmt)
-    }
-}
 
 #[derive(Debug)]
 pub enum FormatError {
@@ -75,6 +50,7 @@ enum FormatterTarget<W> {
     Write(W),
     Compact(CompactJsonSerializer<W>),
     Pretty(PrettyJsonSerializer<W>),
+    Transitioning,
 }
 
 impl<W> FormatterTarget<W>
@@ -98,6 +74,9 @@ where
             FormatterTarget::Write(write) => write,
             FormatterTarget::Compact(write) => write.into_inner(),
             FormatterTarget::Pretty(write) => write.into_inner(),
+            FormatterTarget::Transitioning => {
+                panic!("FormatterTarget accessed during transition")
+            }
         }
     }
 
@@ -129,12 +108,8 @@ where
     where
         F: FnOnce(W) -> Self,
     {
-        unsafe {
-            let mut placeholder = MaybeUninit::uninit();
-            core::ptr::swap(self, placeholder.as_mut_ptr());
-            let converted = f(placeholder.assume_init().into_inner());
-            mem::forget(mem::replace(self, converted));
-        }
+        let old = mem::replace(self, FormatterTarget::Transitioning);
+        *self = f(old.into_inner());
     }
 }
 
@@ -180,13 +155,24 @@ where
         }
     }
 
-    fn fmt_internal<T>(&mut self, value: &T, fmt: FormatFn<T>) -> Result<(), FormatError> {
-        let proxy = FmtProxy::new(value, fmt);
+    fn fmt_internal<T>(&mut self, value: &T, fmt_fn: FormatFn<T>) -> Result<(), FormatError> {
+        struct DisplayWrapper<'a, T> {
+            value: &'a T,
+            fmt_fn: FormatFn<T>,
+        }
+
+        impl<T> fmt::Display for DisplayWrapper<'_, T> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                (self.fmt_fn)(self.value, f)
+            }
+        }
+
+        let wrapper = DisplayWrapper { value, fmt_fn };
 
         if self.alternate {
-            write!(self.target.as_write(), "{proxy:#}").map_err(FormatError::Io)
+            write!(self.target.as_write(), "{wrapper:#}").map_err(FormatError::Io)
         } else {
-            write!(self.target.as_write(), "{proxy}").map_err(FormatError::Io)
+            write!(self.target.as_write(), "{wrapper}").map_err(FormatError::Io)
         }
     }
 

@@ -112,7 +112,7 @@ impl AppBuilder {
             cargo.finalize(&mut self, &proj_config)?;
             #[cfg(feature = "csharp")]
             csproj.finalize(&mut self, &proj_config)?;
-            npm.finalize(&mut self)?;
+            npm.finalize(&mut self, &proj_config)?;
             pypa.finalize(&mut self, &proj_config)?;
             go.finalize(&mut self, &proj_config)?;
             elixir.finalize(&mut self, &proj_config)?;

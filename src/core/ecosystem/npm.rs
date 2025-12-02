@@ -135,13 +135,18 @@ impl NpmLoader {
         Ok(())
     }
 
-    /// Finalize autoloading any NPM projects. Consumes this object.
-    pub fn finalize(self, app: &mut AppBuilder) -> Result<()> {
-        // We're just going to assume that if there are multiple packages in the
-        // repo where one has a dep with a name equal to a different one, it's
-        // an internal dependency. That's not too simpleminded, right?
-
+    pub fn finalize(
+        self,
+        app: &mut AppBuilder,
+        pconfig: &HashMap<String, ProjectConfiguration>,
+    ) -> Result<()> {
         for (name, load_data) in &self.npm_to_graph {
+            let strict_validation = pconfig
+                .get(name)
+                .and_then(|c| c.npm.as_ref())
+                .map(|n| n.strict_dependency_validation)
+                .unwrap_or(false);
+
             let maybe_internal_specs = load_data
                 .pkg_data
                 .get("internalDepVersions")
@@ -160,10 +165,17 @@ impl NpmLoader {
                                     app.repo.resolve_history_ref(&cref, &load_data.json_path)
                                 }) {
                                     Ok(r) => r,
-
                                     Err(e) => {
-                                        warn!("invalid `package.json` key `internalDepVersions.{}` for {}: {}",
-                                            dep_name, name, e);
+                                        if strict_validation {
+                                            return Err(anyhow!(
+                                                "invalid `package.json` key `internalDepVersions.{}` for {}: {}",
+                                                dep_name, name, e
+                                            ));
+                                        }
+                                        warn!(
+                                            "invalid `package.json` key `internalDepVersions.{}` for {}: {}",
+                                            dep_name, name, e
+                                        );
                                         DepRequirement::Unavailable
                                     }
                                 }

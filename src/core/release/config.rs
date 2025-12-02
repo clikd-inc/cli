@@ -67,6 +67,37 @@ pub mod syntax {
 
         #[serde(skip_serializing_if = "Option::is_none")]
         pub release_tag_name_format: Option<String>,
+
+        #[serde(default)]
+        pub analysis: AnalysisConfig,
+    }
+
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    pub struct AnalysisConfig {
+        #[serde(default = "AnalysisConfig::default_commit_cache_size")]
+        pub commit_cache_size: usize,
+
+        #[serde(default = "AnalysisConfig::default_tree_cache_size")]
+        pub tree_cache_size: usize,
+    }
+
+    impl Default for AnalysisConfig {
+        fn default() -> Self {
+            Self {
+                commit_cache_size: Self::default_commit_cache_size(),
+                tree_cache_size: Self::default_tree_cache_size(),
+            }
+        }
+    }
+
+    impl AnalysisConfig {
+        fn default_commit_cache_size() -> usize {
+            512
+        }
+
+        fn default_tree_cache_size() -> usize {
+            3
+        }
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -85,6 +116,9 @@ pub mod syntax {
     pub struct NpmProjectConfig {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub internal_dep_protocol: Option<String>,
+
+        #[serde(default)]
+        pub strict_dependency_validation: bool,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Serialize)]

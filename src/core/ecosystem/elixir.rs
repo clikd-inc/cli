@@ -61,8 +61,13 @@ impl ElixirLoader {
                 ["failed to parse app name from `{}`", fs_path.display()]
             );
 
-            let version_str =
-                Self::extract_version(&contents).unwrap_or_else(|| String::from("0.1.0"));
+            let version_str = Self::extract_version(&contents).unwrap_or_else(|| {
+                warn!(
+                    "failed to extract version from mix.exs `{}`, defaulting to 0.1.0",
+                    fs_path.display()
+                );
+                String::from("0.1.0")
+            });
 
             let qnames = vec![app_name, "elixir".to_owned()];
 

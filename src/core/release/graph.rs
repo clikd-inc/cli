@@ -572,13 +572,24 @@ impl<'a> Iterator for TopoSortIterMut<'a> {
             let ident = self.graph.toposorted_ids[self.index];
             self.index += 1;
 
-            // SAFETY: This is safe because:
-            // 1. toposorted_ids contains unique ProjectId values (no duplicates)
-            // 2. Each iteration produces a different index, guaranteeing unique project access
-            // 3. The mutable reference lifetime is bound to 'a (the iterator's lifetime)
-            // 4. No two iterations can produce mutable references to the same project
-            // 5. The raw pointer cast extends the lifetime from the temporary &mut self
-            //    to 'a, which is sound given the uniqueness guarantee
+            // SAFETY: This unsafe block converts a temporary mutable reference to one with
+            // lifetime 'a. This is sound because:
+            //
+            // 1. UNIQUENESS: toposorted_ids contains unique ProjectId values (no duplicates),
+            //    ensured by the topological sort algorithm which visits each node exactly once.
+            //
+            // 2. NO ALIASING: Each iteration increments self.index before returning, so no two
+            //    calls to next() can ever return a reference to the same Project.
+            //
+            // 3. LIFETIME EXTENSION: The raw pointer cast extends the lifetime from &mut self
+            //    to 'a. This is valid because the underlying ProjectGraph storage is borrowed
+            //    for 'a, and we guarantee exclusive access to each Project through uniqueness.
+            //
+            // 4. ITERATOR INVALIDATION: Callers must not modify the graph structure (add/remove
+            //    projects) during iteration. The borrow of &'a mut ProjectGraph prevents this
+            //    at compile time.
+            //
+            // Reference: https://users.rust-lang.org/t/help-with-iterators-yielding-mutable-references/24892
             Some(unsafe { &mut *(self.graph.lookup_mut(ident) as *mut _) })
         } else {
             None
