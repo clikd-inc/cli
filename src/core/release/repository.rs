@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::dynfmt::{Format, SimpleCurlyFormat};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
@@ -17,12 +17,12 @@ use thiserror::Error as ThisError;
 use tracing::{info, warn};
 
 use crate::{
-    a_ok_or, atry,
+    atry,
     cmd::release::init::BootstrapConfiguration,
     core::release::{
+        commit_analyzer::{extract_scope, ScopeMatcher},
         config::syntax::RepoConfiguration,
         errors::{Error, Result},
-        graph::ProjectGraph,
         project::{DepRequirement, Project},
         version::Version,
     },
@@ -71,17 +71,8 @@ pub struct Repository {
     /// The underlying `git2` repository object.
     repo: git2::Repository,
 
-    /// The name of the "upstream" remote that hosts the `rc` and `release`
-    /// branches of record.
+    /// The name of the "upstream" remote.
     upstream_name: String,
-
-    /// The name of the `rc`-type branch in the upstream remote. The branch
-    /// itself might not exist, if the upstream repo is just being initialized.
-    upstream_rc_name: String,
-
-    /// The name of the `release`-type branch in the upstream remote. As with `rc`,
-    /// the branch itself might not exist.
-    upstream_release_name: String,
 
     /// The format specification to use for release tag names, as understood by
     /// the `SimpleCurlyFormat` of the `dynfmt` crate.
@@ -109,20 +100,12 @@ impl Repository {
             return Err(BareRepositoryError.into());
         }
 
-        // Default configuration. This can/will be overridden later, after we've
-        // read the config file ... but we can't read that file until the repo
-        // is available.
-
         let upstream_name = "origin".to_owned();
-        let upstream_rc_name = "rc".to_owned();
-        let upstream_release_name = "release".to_owned();
         let release_tag_name_format = "{project_slug}@{version}".to_owned();
 
         Ok(Repository {
             repo,
             upstream_name,
-            upstream_rc_name,
-            upstream_release_name,
             release_tag_name_format,
             bootstrap_info: BootstrapConfiguration::default(),
         })
@@ -245,14 +228,6 @@ impl Repository {
             bail!("cannot identify the upstream Git remote");
         };
 
-        if let Some(n) = cfg.rc_name {
-            self.upstream_rc_name = n;
-        }
-
-        if let Some(n) = cfg.release_name {
-            self.upstream_release_name = n;
-        }
-
         if let Some(n) = cfg.release_tag_name_format {
             self.release_tag_name_format = n;
         }
@@ -293,16 +268,6 @@ impl Repository {
 
         // All done.
         Ok(())
-    }
-
-    /// Get the name of the `rc`-type branch.
-    pub fn upstream_rc_name(&self) -> &str {
-        &self.upstream_rc_name
-    }
-
-    /// Get the name of the `release`-type branch.
-    pub fn upstream_release_name(&self) -> &str {
-        &self.upstream_release_name
     }
 
     /// Get the URL of the upstream repository.
@@ -567,241 +532,8 @@ impl Repository {
         rel_info
     }
 
-    /// Get information about the state of the projects in the repository as
-    /// of the latest release commit.
-    pub fn get_latest_release_info(&self) -> Result<ReleaseCommitInfo> {
-        Ok(if let Some(c) = self.try_get_release_commit()? {
-            self.parse_release_info_from_commit(&c)?
-        } else {
-            self.get_bootstrap_release_info()
-        })
-    }
-
     fn get_signature(&self) -> Result<git2::Signature<'_>> {
         Ok(git2::Signature::now("clikd", "clikd@devnull")?)
-    }
-
-    fn try_get_release_commit(&self) -> Result<Option<git2::Commit<'_>>> {
-        let release_ref = match self.repo.resolve_reference_from_short_name(&format!(
-            "{}/{}",
-            self.upstream_name, self.upstream_release_name
-        )) {
-            Ok(r) => r,
-            Err(e) => {
-                return if e.code() == git2::ErrorCode::NotFound {
-                    // No `release` branch in the upstream, which is OK
-                    Ok(None)
-                } else {
-                    Err(e.into())
-                };
-            }
-        };
-
-        Ok(Some(release_ref.peel_to_commit()?))
-    }
-
-    fn try_get_rc_commit(&self) -> Result<Option<git2::Commit<'_>>> {
-        let rc_ref = match self.repo.resolve_reference_from_short_name(&format!(
-            "{}/{}",
-            self.upstream_name, self.upstream_rc_name
-        )) {
-            Ok(r) => r,
-            Err(e) => {
-                return if e.code() == git2::ErrorCode::NotFound {
-                    // No `rc` branch in the upstream, which is OK
-                    Ok(None)
-                } else {
-                    Err(e.into())
-                };
-            }
-        };
-
-        Ok(Some(rc_ref.peel_to_commit()?))
-    }
-
-    /// Make a commit merging the current index state into the release branch.
-    ///
-    /// The RC commit info is used to determine when new projects should be
-    /// logged in the release commit. If they've never been made public yet,
-    /// they might not be ready to do so.
-    pub fn make_release_commit(&mut self, graph: &ProjectGraph, rci: &RcCommitInfo) -> Result<()> {
-        // Gather useful info.
-
-        let rel_info = self.get_latest_release_info()?;
-        let head_ref = self.repo.head()?;
-        let head_commit = head_ref.peel_to_commit()?;
-        let sig = self.get_signature()?;
-        let local_ref_name = format!("refs/heads/{}", self.upstream_release_name);
-
-        // Set up the project release info. This will be serialized into the
-        // commit message. (In principle, other commands could attempt to
-        // extract this information from the Git Tree associated with the
-        // release commit, but not only would that be harder to implement, it
-        // would introduce all sorts of fragility into the system as data
-        // formats change. Better to just save the data as data.)
-
-        let mut info = SerializedReleaseCommitInfo::default();
-
-        for ident in graph.toposorted() {
-            let proj = graph.lookup(ident);
-
-            // If the project was ever published in the past, we should expose
-            // it to the world now. If it is included in the current RC
-            // submission, we should do the same. Otherwise we should hide it,
-            // because if we didn't it would show up with "age = 0" and
-            // subsequent tools would think that it had been released now.
-            let (age, expose) = if let Some(ri) = rel_info.lookup_project(proj) {
-                if proj.version.to_string() == ri.version {
-                    (ri.age + 1, true)
-                } else {
-                    (0, true)
-                }
-            } else {
-                (0, rci.lookup_project(proj).is_some())
-            };
-
-            if expose {
-                info.projects.push(ReleasedProjectInfo {
-                    qnames: proj.qualified_names().clone(),
-                    version: proj.version.to_string(),
-                    age,
-                });
-            }
-        }
-
-        let summary = if info.projects.len() == 1 {
-            let proj = &info.projects[0];
-            let name = proj.qnames.last().map(|s| s.as_str()).unwrap_or("project");
-            format!("Release {} {}", name, proj.version)
-        } else {
-            let new_releases: Vec<_> = info.projects.iter().filter(|p| p.age == 0).collect();
-            if new_releases.len() == 1 {
-                let proj = new_releases[0];
-                let name = proj.qnames.last().map(|s| s.as_str()).unwrap_or("project");
-                format!("Release {} {}", name, proj.version)
-            } else if new_releases.len() > 1 {
-                format!("Release {} projects", new_releases.len())
-            } else {
-                "Release commit created with Clikd".to_string()
-            }
-        };
-
-        let message = format!(
-            "{}.
-
-+++ clikd-release-info-v1
-{}
-+++
-",
-            summary,
-            toml::to_string(&info)?
-        );
-
-        // Turn the current index into a Tree.
-
-        let tree_oid = {
-            let mut index = self.repo.index()?;
-            index.write_tree()?
-        };
-        let tree = self.repo.find_tree(tree_oid)?;
-
-        // Create the merged release commit and save it under the
-        // local_ref_name.
-
-        let commit = |parents: &[&git2::Commit]| -> Result<git2::Oid> {
-            self.repo
-                .reference(&local_ref_name, parents[0].id(), true, "update release")?;
-            Ok(self.repo.commit(
-                Some(&local_ref_name), // update_ref
-                &sig,                  // author
-                &sig,                  // committer
-                &message,
-                &tree,
-                parents,
-            )?)
-        };
-
-        let commit_id = if let Some(prev_cid) = rel_info.commit {
-            let prev_release_commit = self.repo.find_commit(prev_cid.0)?;
-            commit(&[&prev_release_commit, &head_commit])?
-        } else {
-            commit(&[&head_commit])?
-        };
-
-        // Switch the working directory to be the checkout of our new merge
-        // commit. By construction, nothing on the filesystem should actually
-        // change.
-
-        info!("switching HEAD to `{}`", local_ref_name);
-        self.repo.set_head(&local_ref_name)?;
-        self.repo.reset(
-            self.repo.find_commit(commit_id)?.as_object(),
-            git2::ResetType::Mixed,
-            None,
-        )?;
-
-        // Phew, all done!
-
-        Ok(())
-    }
-
-    /// Get information about a release from the HEAD commit.
-    pub fn parse_release_info_from_head(&self) -> Result<ReleaseCommitInfo> {
-        let head_ref = self.repo.head()?;
-        let head_commit = head_ref.peel_to_commit()?;
-        self.parse_release_info_from_commit(&head_commit)
-    }
-
-    /// Get information about a release from the HEAD commit.
-    fn parse_release_info_from_commit(&self, commit: &git2::Commit) -> Result<ReleaseCommitInfo> {
-        let msg = commit
-            .message()
-            .ok_or_else(|| anyhow!("cannot parse release commit message: it is not Unicode"))?;
-
-        let mut data = String::new();
-        let mut in_body = false;
-
-        for line in msg.lines() {
-            if in_body {
-                if line == "+++" {
-                    in_body = false;
-                    break;
-                } else {
-                    data.push_str(line);
-                    data.push('\n');
-                }
-            } else if line.starts_with("+++ clikd-release-info-v1") {
-                in_body = true;
-            }
-        }
-
-        if in_body {
-            println!("unterminated release info body; trying to proceed anyway");
-        }
-
-        if data.is_empty() {
-            bail!("empty clikd-release-info body in release commit message");
-        }
-
-        let mut srci: SerializedReleaseCommitInfo = toml::from_str(&data)?;
-
-        // Update with any projects in the bootstrap info but not previous
-        // releases. Without this, if a new project is bootstrapped into a repo
-        // with existing releases, we'll mess up its version.
-
-        let mut bsri = self.get_bootstrap_release_info();
-        let seen_projects: HashSet<_> = srci.projects.iter().map(|p| p.qnames.clone()).collect();
-
-        for bs_proj in bsri.projects.drain(..) {
-            if !seen_projects.contains(&bs_proj.qnames) {
-                srci.projects.push(bs_proj);
-            }
-        }
-
-        Ok(ReleaseCommitInfo {
-            commit: Some(CommitId(commit.id())),
-            projects: srci.projects,
-        })
     }
 
     fn find_latest_tag_for_project(&self, project_name: &str) -> Result<Option<(git2::Oid, String)>> {
@@ -936,12 +668,10 @@ impl Repository {
     /// the efficiency of this so we trace all the histories at once to try to
     /// improve that.
     pub fn analyze_histories(&self, projects: &[Project]) -> Result<Vec<RepoHistory>> {
-        // Here we (ab)use the fact that we know the project IDs are just a
-        // simple usize sequence 0..n.
         let mut histories = vec![
             RepoHistory {
                 commits: Vec::new(),
-                release_commit: None,
+                release_tag: None,
             };
             projects.len()
         ];
@@ -950,14 +680,23 @@ impl Repository {
 
         for (i, proj) in projects.iter().enumerate() {
             if let Some((tag_oid, tag_name)) = self.find_latest_tag_for_project(&proj.user_facing_name)? {
-                info!("found release tag for {}: {}", proj.user_facing_name, tag_name);
-                histories[i].release_commit = Some(CommitId(tag_oid));
+                let version = Self::parse_version_from_tag(&tag_name);
+                info!("found release tag for {}: {} (v{})", proj.user_facing_name, tag_name, version);
+                histories[i].release_tag = Some(ReleaseTagInfo {
+                    commit: CommitId(tag_oid),
+                    tag_name,
+                    version,
+                });
             } else if let Some(baseline_oid) = baseline_tag_oid {
                 info!(
                     "no release tag for {}, using baseline tag clikd-baseline",
                     proj.user_facing_name
                 );
-                histories[i].release_commit = Some(CommitId(baseline_oid));
+                histories[i].release_tag = Some(ReleaseTagInfo {
+                    commit: CommitId(baseline_oid),
+                    tag_name: "clikd-baseline".to_string(),
+                    version: semver::Version::new(0, 0, 0),
+                });
             } else {
                 warn!(
                     "no release tag or baseline found for {}, analyzing all commits since repo start",
@@ -986,8 +725,8 @@ impl Repository {
             let mut walk = self.repo.revwalk()?;
             walk.push_head()?;
 
-            if let Some(release_commit_id) = histories[proj_idx].release_commit {
-                walk.hide(release_commit_id.0)?;
+            if let Some(tag_info) = &histories[proj_idx].release_tag {
+                walk.hide(tag_info.commit.0)?;
             }
 
             // Walk through the history, finding relevant commits. The full
@@ -1039,24 +778,41 @@ impl Repository {
                         trees.put(ptid, pt);
                     }
 
-                    // Examine the diff and see what file paths, and therefore
-                    // which projects, are affected. Vec<bool> is a bit of a
-                    // silly way to store the info, but hopefully good enough.
-                    //
-                    // Here is where we ignore merge commits. It's a bit
-                    // inefficient to do all of the work above if we're just
-                    // going to wholly ignore this commit -- oh well.
-
                     let mut hit_buf = vec![false; projects.len()];
 
                     if commit.parent_count() < 2 {
-                        for delta in diff.deltas() {
-                            for file in &[delta.old_file(), delta.new_file()] {
-                                if let Some(path_bytes) = file.path_bytes() {
-                                    let path = RepoPath::new(path_bytes);
+                        let mut scope_matched = false;
+
+                        if let Some(summary) = commit.summary() {
+                            if let Some(scope) = extract_scope(summary) {
+                                let project_names: Vec<String> = projects
+                                    .iter()
+                                    .map(|p| p.user_facing_name.clone())
+                                    .collect();
+
+                                let scope_matcher = ScopeMatcher::default();
+
+                                if let Some(matched_name) = scope_matcher.find_matching_project(&scope, &project_names) {
                                     for (idx, proj) in projects.iter().enumerate() {
-                                        if proj.repo_paths.repo_path_matches(path) {
+                                        if &proj.user_facing_name == matched_name {
                                             hit_buf[idx] = true;
+                                            scope_matched = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if !scope_matched {
+                            for delta in diff.deltas() {
+                                for file in &[delta.old_file(), delta.new_file()] {
+                                    if let Some(path_bytes) = file.path_bytes() {
+                                        let path = RepoPath::new(path_bytes);
+                                        for (idx, proj) in projects.iter().enumerate() {
+                                            if proj.repo_paths.repo_path_matches(path) {
+                                                hit_buf[idx] = true;
+                                            }
                                         }
                                     }
                                 }
@@ -1064,7 +820,6 @@ impl Repository {
                         }
                     }
 
-                    // Save the information for posterity
                     commit_data.put(oid, hit_buf);
                 }
 
@@ -1092,23 +847,12 @@ impl Repository {
         }
     }
 
-    /// Examine a project's state in the working directory and report whether it
-    /// is properly staged for a release request.
-    ///
-    /// Returns None if there's nothing wrong but this project doesn't seem to
-    /// have been staged for release.
-    ///
-    /// If `dirty_allowed` is false and there are modified files *besides
-    /// changelogs* in the working tree, an error downcastable to
-    /// DirtyRepositoryError is returned.
-    ///
-    /// Modified changelog files are registered with the *changes* listing.
-    pub fn scan_rc_info(
+    pub fn scan_bump_spec(
         &self,
         proj: &Project,
         changes: &mut ChangeList,
         dirty_allowed: bool,
-    ) -> Result<Option<RcProjectInfo>> {
+    ) -> Result<Option<String>> {
         let mut saw_changelog = false;
         let changelog_matcher = proj.changelog.create_path_matcher(proj)?;
 
@@ -1150,123 +894,10 @@ impl Repository {
         }
 
         if saw_changelog {
-            Ok(Some(proj.changelog.scan_rc_info(proj, self)?))
+            Ok(Some(proj.changelog.scan_bump_spec(proj, self)?))
         } else {
             Ok(None)
         }
-    }
-
-    /// Make a commit merging changelog modifications and and release request
-    /// information into the rc branch.
-    pub fn make_rc_commit(
-        &mut self,
-        rcinfo: Vec<RcProjectInfo>,
-        changes: &ChangeList,
-    ) -> Result<()> {
-        // Gather useful info.
-
-        let maybe_rc_commit = self.try_get_rc_commit()?;
-        let head_ref = self.repo.head()?;
-        let head_commit = head_ref.peel_to_commit()?;
-        let sig = self.get_signature()?;
-        let local_ref_name = format!("refs/heads/{}", self.upstream_rc_name);
-
-        // Set up the release request info. This will be serialized into the
-        // commit message.
-
-        let info = SerializedRcCommitInfo { projects: rcinfo };
-
-        let message = format!(
-            "Release request commit created with Clikd.
-
-+++ clikd-rc-info-v1
-{}
-+++
-",
-            toml::to_string(&info)?
-        );
-
-        // Create and save a new Tree containing the working-tree changes made
-        // during the rewrite process.
-
-        let tree_oid = {
-            let mut index = self.repo.index()?;
-
-            for p in &changes.paths {
-                index.add_path(p.as_path())?;
-            }
-
-            index.write_tree()?
-        };
-        let tree = self.repo.find_tree(tree_oid)?;
-
-        // Create the merged rc commit and save it under the
-        // local_ref_name.
-
-        let commit = |parents: &[&git2::Commit]| -> Result<git2::Oid> {
-            self.repo
-                .reference(&local_ref_name, parents[0].id(), true, "update rc")?;
-            Ok(self.repo.commit(
-                Some(&local_ref_name), // update_ref
-                &sig,                  // author
-                &sig,                  // committer
-                &message,
-                &tree,
-                parents,
-            )?)
-        };
-
-        if let Some(release_commit) = maybe_rc_commit {
-            commit(&[&release_commit, &head_commit])?;
-        } else {
-            commit(&[&head_commit])?;
-        };
-
-        // Unlike the release commit workflow, we don't switch to the new
-        // branch.
-
-        Ok(())
-    }
-
-    /// Get information about a `rc` release request from the HEAD commit.
-    pub fn parse_rc_info_from_head(&self) -> Result<RcCommitInfo> {
-        let head_ref = self.repo.head()?;
-        let head_commit = head_ref.peel_to_commit()?;
-        let msg = head_commit
-            .message()
-            .ok_or_else(|| anyhow!("cannot parse rc commit message: it is not Unicode"))?;
-
-        let mut data = String::new();
-        let mut in_body = false;
-
-        for line in msg.lines() {
-            if in_body {
-                if line == "+++" {
-                    in_body = false;
-                    break;
-                } else {
-                    data.push_str(line);
-                    data.push('\n');
-                }
-            } else if line.starts_with("+++ clikd-rc-info-v1") {
-                in_body = true;
-            }
-        }
-
-        if in_body {
-            println!("unterminated RC info body; trying to proceed anyway");
-        }
-
-        if data.is_empty() {
-            bail!("empty clikd-rc-info body in RC commit message");
-        }
-
-        let srci: SerializedRcCommitInfo = toml::from_str(&data)?;
-
-        Ok(RcCommitInfo {
-            commit: Some(CommitId(head_commit.id())),
-            projects: srci.projects,
-        })
     }
 
     /// Update the specified files in the working tree to reset them to what
@@ -1374,19 +1005,17 @@ pub enum ReleaseAvailability {
 }
 
 impl Repository {
-    /// Find the earliest release of the specified project that contains
-    /// the specified commit. If that commit has not yet been released,
-    /// None is returned.
     pub fn find_earliest_release_containing(
         &self,
         proj: &Project,
         cid: &CommitId,
     ) -> Result<ReleaseAvailability> {
-        let maybe_rpi = self.find_published_release_containing(proj, cid)?;
-
-        if let Some(rpi) = maybe_rpi {
-            let v = Version::parse_like(&proj.version, rpi.version)?;
-            return Ok(ReleaseAvailability::ExistingRelease(v));
+        if let Some((tag_oid, tag_name)) = self.find_latest_tag_for_project(&proj.user_facing_name)? {
+            if self.repo.graph_descendant_of(tag_oid, cid.0)? || tag_oid == cid.0 {
+                let version = Self::parse_version_from_tag(&tag_name);
+                let v = Version::parse_like(&proj.version, version.to_string())?;
+                return Ok(ReleaseAvailability::ExistingRelease(v));
+            }
         }
 
         let head_ref = self.repo.head()?;
@@ -1398,62 +1027,6 @@ impl Repository {
         } else {
             Ok(ReleaseAvailability::NotAvailable)
         }
-    }
-
-    /// Find the earliest release of the specified project that contains
-    /// the specified commit. If that commit has not yet been released,
-    /// None is returned.
-    fn find_published_release_containing(
-        &self,
-        proj: &Project,
-        cid: &CommitId,
-    ) -> Result<Option<ReleasedProjectInfo>> {
-        let mut best_info = None;
-
-        let mut commit = if let Some(c) = self.try_get_release_commit()? {
-            c
-        } else {
-            // If no `release` branch, nothing's been released, so:
-            return Ok(None);
-        };
-
-        loop {
-            if !self.repo.graph_descendant_of(commit.id(), cid.0)? {
-                // If this release commit is not a descendant of the desired
-                // commit, we've gone too far back in the history -- quit.
-                break;
-            }
-
-            let release = self.parse_release_info_from_commit(&commit)?;
-
-            // Is the release of the project described in this commit older than
-            // any other release that we've encountered? Probably! But we don't
-            // want to make overly restrictive assumptions about commit
-            // ordering.
-
-            if let Some(cur_release) = release.lookup_if_released(proj) {
-                let cur_version = proj.version.parse_like(&cur_release.version)?;
-
-                if let Some((_, ref best_version)) = best_info {
-                    if cur_version < *best_version {
-                        best_info = Some((cur_release.clone(), cur_version));
-                    }
-                } else {
-                    best_info = Some((cur_release.clone(), cur_version));
-                }
-            }
-
-            if commit.parent_count() == 1 {
-                // If a `release` commit has one parent, it is the first
-                // Clikd release commit in the project history, so there's
-                // nothing more to check.
-                break;
-            }
-
-            commit = commit.parent(0)?;
-        }
-
-        Ok(best_info.map(|pair| pair.0))
     }
 }
 
@@ -1495,11 +1068,6 @@ impl ReleaseCommitInfo {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-struct SerializedReleaseCommitInfo {
-    pub projects: Vec<ReleasedProjectInfo>,
-}
-
 /// Serializable state information about a single project in a release commit.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ReleasedProjectInfo {
@@ -1514,47 +1082,6 @@ pub struct ReleasedProjectInfo {
     /// has had the assigned version string. If zero, that means that the
     /// specified version was first released with this commit.
     pub age: usize,
-}
-
-/// Information about the projects in the repository corresponding to an "rc"
-/// commit where the user has requested that one or more of the projects be
-/// released.
-#[derive(Clone, Debug, Default)]
-pub struct RcCommitInfo {
-    /// The Git commit-ish that this object describes.
-    #[allow(dead_code)]
-    pub commit: Option<CommitId>,
-
-    /// A list of projects and their "rc" information as of this commit. This
-    /// should contain at least one project, but doesn't necessarily include
-    /// every project in the repo.
-    pub projects: Vec<RcProjectInfo>,
-}
-
-impl RcCommitInfo {
-    /// Attempt to find info for a release request for the specified project.
-    pub fn lookup_project(&self, proj: &Project) -> Option<&RcProjectInfo> {
-        self.projects
-            .iter()
-            .find(|&rci| rci.qnames == *proj.qualified_names())
-    }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-struct SerializedRcCommitInfo {
-    pub projects: Vec<RcProjectInfo>,
-}
-
-/// Serializable state information about a single project with a proposed
-/// release in an `rc` commit.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct RcProjectInfo {
-    /// The qualified names of this project, equivalent to the same-named
-    /// property of the Project struct.
-    pub qnames: Vec<String>,
-
-    /// The kind of version bump requested by the user.
-    pub bump_spec: String,
 }
 
 /// A data structure recording changes made when rewriting files
@@ -1576,59 +1103,50 @@ impl ChangeList {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
+pub struct ReleaseTagInfo {
+    pub commit: CommitId,
+    pub tag_name: String,
+    pub version: semver::Version,
+}
+
+#[derive(Clone, Debug)]
 pub struct RepoHistory {
     commits: Vec<CommitId>,
-    release_commit: Option<CommitId>,
+    release_tag: Option<ReleaseTagInfo>,
 }
 
 impl RepoHistory {
-    /// Get the Clikd release commit that this chunk of history
-    /// extends to. If None, there is no such commit, and the
-    /// history extends all the way to the start of the project
-    /// history.
+    pub fn release_tag(&self) -> Option<&ReleaseTagInfo> {
+        self.release_tag.as_ref()
+    }
+
     pub fn release_commit(&self) -> Option<CommitId> {
-        self.release_commit
+        self.release_tag.as_ref().map(|t| t.commit)
     }
 
-    /// Get the commit on the main branch associated with the
-    /// release commit of this chunk of history, if it exists.
-    pub fn main_branch_commit(&self, repo: &Repository) -> Result<Option<CommitId>> {
-        let rcid = match self.release_commit {
-            Some(c) => c,
-            None => return Ok(None),
-        };
-
-        let release_commit = repo.repo.find_commit(rcid.0)?;
-        let rc_commit = a_ok_or!(
-            release_commit.parents().next_back();
-            ["release commit has no parents?"]
-        );
-        let main_commit = a_ok_or!(
-            rc_commit.parents().next_back();
-            ["rc commit has no parents?"]
-        );
-
-        Ok(Some(CommitId(main_commit.id())))
+    pub fn release_version(&self) -> Option<&semver::Version> {
+        self.release_tag.as_ref().map(|t| &t.version)
     }
 
-    /// Get the release information corresponding to this item's release commit.
-    /// This might be "bootstrap" information without any age=0 releases.
     pub fn release_info(&self, repo: &Repository) -> Result<ReleaseCommitInfo> {
-        Ok(if let Some(cid) = self.release_commit() {
-            let commit = repo.repo.find_commit(cid.0)?;
-            repo.parse_release_info_from_commit(&commit)?
-        } else {
-            repo.get_bootstrap_release_info()
-        })
+        let mut info = repo.get_bootstrap_release_info();
+
+        if let Some(tag) = &self.release_tag {
+            for proj_info in &mut info.projects {
+                if proj_info.version == tag.version.to_string() {
+                    proj_info.age = 0;
+                }
+            }
+        }
+
+        Ok(info)
     }
 
-    /// Get the number of commits in this chunk of history.
     pub fn n_commits(&self) -> usize {
         self.commits.len()
     }
 
-    /// Get the commit IDs in this chunk of history.
     pub fn commits(&self) -> impl IntoIterator<Item = &CommitId> {
         &self.commits[..]
     }

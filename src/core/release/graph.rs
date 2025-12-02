@@ -23,7 +23,7 @@ use crate::core::release::{
         DepRequirement, Dependency, DependencyBuilder, DependencyTarget, Project, ProjectBuilder,
         ProjectId,
     },
-    repository::{ReleaseCommitInfo, RepoHistory, Repository},
+    repository::{RepoHistory, Repository},
 };
 use crate::{a_ok_or, atry};
 
@@ -111,19 +111,9 @@ impl ProjectGraph {
         }
     }
 
-    /// Process the query and return a vector of matched project IDs.
-    ///
-    /// If one of the specified project names does not correspond to a project,
-    /// the returned error will be downcastable to a NoSuchProjectError.
     pub fn query(&self, query: GraphQueryBuilder) -> Result<Vec<ProjectId>> {
-        // Note: while it generally feels "right" to not allow repeated visits
-        // to the same project, this is especially important if a query is used
-        // to construct a mutable iterator, since it breaks soundness to have
-        // such an iterator visit the same project more than once.
         let mut matched_idents = Vec::new();
         let mut seen_ids = HashSet::new();
-
-        // Build up the list of input projids
 
         let root_idents = if query.no_names() {
             self.toposorted_ids.clone()
@@ -141,19 +131,9 @@ impl ProjectGraph {
             root_idents
         };
 
-        // Apply filters and deduplicate if needed
-
         for id in root_idents {
             let proj = &self.projects[id];
 
-            // only_new_releases() filter
-            if let Some(ref rel_info) = query.release_info {
-                if rel_info.lookup_if_released(proj).is_none() {
-                    continue;
-                }
-            }
-
-            // only_project_type() filter
             if let Some(ref ptype) = query.project_type {
                 let qnames = proj.qualified_names();
                 let n = qnames.len();
@@ -167,7 +147,6 @@ impl ProjectGraph {
                 }
             }
 
-            // not rejected -- keep this one
             if seen_ids.insert(id) {
                 matched_idents.push(id);
             }
@@ -198,40 +177,23 @@ impl RepoHistories {
 }
 
 /// Builder structure for querying projects in the graph.
-///
-/// The main purpose of this type is to support command-line applications that
-/// accept some number of projects as arguments. Depending on the use case, it
-/// might be zero or more projects, exactly one project, etc.
 #[derive(Debug, Default)]
 pub struct GraphQueryBuilder {
     names: Vec<String>,
-    release_info: Option<ReleaseCommitInfo>,
     project_type: Option<String>,
 }
 
 impl GraphQueryBuilder {
-    /// Specify particular project names as part of the query.
-    ///
-    /// Depending on the nature of the query, a zero-sized list may be OK here.
     pub fn names<T: std::fmt::Display>(&mut self, names: impl IntoIterator<Item = T>) -> &mut Self {
         self.names = names.into_iter().map(|s| s.to_string()).collect();
         self
     }
 
-    /// Specify that only projects released in the associated info should be
-    /// matched.
-    pub fn only_new_releases(&mut self, rel_info: ReleaseCommitInfo) -> &mut Self {
-        self.release_info = Some(rel_info);
-        self
-    }
-
-    /// Specify that only projects with the associated type should be matched.
     pub fn only_project_type<T: std::fmt::Display>(&mut self, ptype: T) -> &mut Self {
         self.project_type = Some(ptype.to_string());
         self
     }
 
-    /// Return true if no input names were specified.
     pub fn no_names(&self) -> bool {
         self.names.is_empty()
     }

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use git_conventional::{Commit, Type};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BumpRecommendation {
@@ -63,9 +64,9 @@ impl CategorizedCommit {
 impl BumpRecommendation {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Major => "major bump",
-            Self::Minor => "minor bump",
-            Self::Patch => "micro bump",
+            Self::Major => "major",
+            Self::Minor => "minor",
+            Self::Patch => "patch",
             Self::None => "no bump",
         }
     }
@@ -228,6 +229,111 @@ pub fn categorize_commits(messages: &[String]) -> Vec<CategorizedCommit> {
     categorized
 }
 
+pub fn extract_scope(message: &str) -> Option<String> {
+    Commit::parse(message)
+        .ok()
+        .and_then(|c| c.scope().map(|s| s.to_string()))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopeMatchMode {
+    Smart,
+    Exact,
+    Suffix,
+    Contains,
+}
+
+impl ScopeMatchMode {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "exact" => Self::Exact,
+            "suffix" => Self::Suffix,
+            "contains" => Self::Contains,
+            _ => Self::Smart,
+        }
+    }
+}
+
+pub struct ScopeMatcher {
+    mode: ScopeMatchMode,
+    scope_mappings: HashMap<String, String>,
+    package_scopes: HashMap<String, Vec<String>>,
+}
+
+impl Default for ScopeMatcher {
+    fn default() -> Self {
+        Self {
+            mode: ScopeMatchMode::Smart,
+            scope_mappings: HashMap::new(),
+            package_scopes: HashMap::new(),
+        }
+    }
+}
+
+impl ScopeMatcher {
+    pub fn new(
+        mode: ScopeMatchMode,
+        scope_mappings: HashMap<String, String>,
+        package_scopes: HashMap<String, Vec<String>>,
+    ) -> Self {
+        Self {
+            mode,
+            scope_mappings,
+            package_scopes,
+        }
+    }
+
+    pub fn find_matching_project<'a>(
+        &self,
+        scope: &str,
+        project_names: &'a [String],
+    ) -> Option<&'a String> {
+        let scope_lower = scope.to_lowercase();
+
+        if let Some(mapped) = self.scope_mappings.get(&scope_lower) {
+            return project_names.iter().find(|p| p.to_lowercase() == mapped.to_lowercase());
+        }
+
+        for (pkg, scopes) in &self.package_scopes {
+            if scopes.iter().any(|s| s.to_lowercase() == scope_lower) {
+                return project_names.iter().find(|p| p.to_lowercase() == pkg.to_lowercase());
+            }
+        }
+
+        match self.mode {
+            ScopeMatchMode::Exact => self.match_exact(&scope_lower, project_names),
+            ScopeMatchMode::Suffix => self.match_suffix(&scope_lower, project_names),
+            ScopeMatchMode::Contains => self.match_contains(&scope_lower, project_names),
+            ScopeMatchMode::Smart => self.match_smart(&scope_lower, project_names),
+        }
+    }
+
+    fn match_exact<'a>(&self, scope: &str, project_names: &'a [String]) -> Option<&'a String> {
+        project_names.iter().find(|p| p.to_lowercase() == scope)
+    }
+
+    fn match_suffix<'a>(&self, scope: &str, project_names: &'a [String]) -> Option<&'a String> {
+        project_names.iter().find(|p| {
+            let p_lower = p.to_lowercase();
+            p_lower == scope || p_lower.ends_with(&format!("-{}", scope)) || p_lower.ends_with(&format!("_{}", scope))
+        })
+    }
+
+    fn match_contains<'a>(&self, scope: &str, project_names: &'a [String]) -> Option<&'a String> {
+        project_names.iter().find(|p| p.to_lowercase().contains(scope))
+    }
+
+    fn match_smart<'a>(&self, scope: &str, project_names: &'a [String]) -> Option<&'a String> {
+        if let Some(found) = self.match_exact(scope, project_names) {
+            return Some(found);
+        }
+        if let Some(found) = self.match_suffix(scope, project_names) {
+            return Some(found);
+        }
+        self.match_contains(scope, project_names)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,5 +389,65 @@ mod tests {
         assert_eq!(analysis.fix_count, 1);
         assert_eq!(analysis.other_count, 1);
         assert_eq!(analysis.recommendation, BumpRecommendation::Minor);
+    }
+
+    #[test]
+    fn test_extract_scope() {
+        assert_eq!(extract_scope("feat(auth): add login"), Some("auth".to_string()));
+        assert_eq!(extract_scope("fix(gate): resolve bug"), Some("gate".to_string()));
+        assert_eq!(extract_scope("feat: no scope"), None);
+        assert_eq!(extract_scope("random message"), None);
+    }
+
+    #[test]
+    fn test_scope_matcher_exact() {
+        let matcher = ScopeMatcher::new(ScopeMatchMode::Exact, HashMap::new(), HashMap::new());
+        let projects = vec!["gate".to_string(), "jiji".to_string(), "clikd-jwt".to_string()];
+
+        assert_eq!(matcher.find_matching_project("gate", &projects), Some(&"gate".to_string()));
+        assert_eq!(matcher.find_matching_project("jwt", &projects), None);
+    }
+
+    #[test]
+    fn test_scope_matcher_suffix() {
+        let matcher = ScopeMatcher::new(ScopeMatchMode::Suffix, HashMap::new(), HashMap::new());
+        let projects = vec!["gate".to_string(), "clikd-jwt".to_string(), "clikd-events".to_string()];
+
+        assert_eq!(matcher.find_matching_project("jwt", &projects), Some(&"clikd-jwt".to_string()));
+        assert_eq!(matcher.find_matching_project("events", &projects), Some(&"clikd-events".to_string()));
+        assert_eq!(matcher.find_matching_project("gate", &projects), Some(&"gate".to_string()));
+    }
+
+    #[test]
+    fn test_scope_matcher_smart() {
+        let matcher = ScopeMatcher::default();
+        let projects = vec!["gate".to_string(), "jiji".to_string(), "clikd-jwt".to_string()];
+
+        assert_eq!(matcher.find_matching_project("gate", &projects), Some(&"gate".to_string()));
+        assert_eq!(matcher.find_matching_project("jwt", &projects), Some(&"clikd-jwt".to_string()));
+        assert_eq!(matcher.find_matching_project("unknown", &projects), None);
+    }
+
+    #[test]
+    fn test_scope_matcher_with_mappings() {
+        let mut mappings = HashMap::new();
+        mappings.insert("auth".to_string(), "clikd-jwt".to_string());
+
+        let matcher = ScopeMatcher::new(ScopeMatchMode::Exact, mappings, HashMap::new());
+        let projects = vec!["gate".to_string(), "clikd-jwt".to_string()];
+
+        assert_eq!(matcher.find_matching_project("auth", &projects), Some(&"clikd-jwt".to_string()));
+    }
+
+    #[test]
+    fn test_scope_matcher_with_package_scopes() {
+        let mut package_scopes = HashMap::new();
+        package_scopes.insert("clikd-jwt".to_string(), vec!["jwt".to_string(), "token".to_string(), "auth".to_string()]);
+
+        let matcher = ScopeMatcher::new(ScopeMatchMode::Exact, HashMap::new(), package_scopes);
+        let projects = vec!["gate".to_string(), "clikd-jwt".to_string()];
+
+        assert_eq!(matcher.find_matching_project("token", &projects), Some(&"clikd-jwt".to_string()));
+        assert_eq!(matcher.find_matching_project("auth", &projects), Some(&"clikd-jwt".to_string()));
     }
 }

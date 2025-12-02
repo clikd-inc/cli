@@ -6,27 +6,23 @@
 //! If we detect a Cargo.toml in the repo root, we use `cargo metadata` to slurp
 //! information about all of the crates and their interdependencies.
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use cargo_metadata::MetadataCommand;
-use clap::Parser;
 use std::{
     collections::HashMap,
-    ffi::OsString,
     fs::File,
-    io::{BufReader, Read, Write},
+    io::{Read, Write},
     path::{Path, PathBuf},
-    process, thread, time,
 };
 use toml_edit::{DocumentMut, Item, Table};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     atry,
     core::release::{
         config::syntax::ProjectConfiguration,
         errors::Result,
-        graph::GraphQueryBuilder,
-        project::{DepRequirement, DependencyTarget, Project, ProjectId},
+        project::{DepRequirement, DependencyTarget, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf},
         rewriters::Rewriter,
         session::{AppBuilder, AppSession},
@@ -56,6 +52,7 @@ impl CargoLoader {
     /// Finalize autoloading any Cargo projects. Consumes this object.
     ///
     /// Discovers ALL workspace roots and loads each one separately.
+    /// Uses two-phase loading: first register all projects, then resolve dependencies.
     pub fn finalize(
         self,
         app: &mut AppBuilder,
@@ -75,6 +72,8 @@ impl CargoLoader {
         info!("found {} Cargo workspace root(s)", workspace_roots.len());
 
         let mut all_cargo_to_graph = HashMap::new();
+        let mut name_to_project: HashMap<String, ProjectId> = HashMap::new();
+        let mut workspace_metadata: Vec<cargo_metadata::Metadata> = Vec::new();
 
         for workspace_root in &workspace_roots {
             info!("loading Cargo workspace: {}", workspace_root.display());
@@ -88,12 +87,24 @@ impl CargoLoader {
                 ["failed to fetch Cargo metadata from `{}`", workspace_root.display()]
             );
 
-            self.process_workspace_metadata(
+            self.register_workspace_projects(
                 app,
                 pconfig,
                 &cargo_meta,
                 workspace_root,
                 &mut all_cargo_to_graph,
+                &mut name_to_project,
+            )?;
+
+            workspace_metadata.push(cargo_meta);
+        }
+
+        for cargo_meta in &workspace_metadata {
+            self.resolve_workspace_dependencies(
+                app,
+                cargo_meta,
+                &all_cargo_to_graph,
+                &name_to_project,
             )?;
         }
 
@@ -161,13 +172,14 @@ impl CargoLoader {
             .is_some()
     }
 
-    fn process_workspace_metadata(
+    fn register_workspace_projects(
         &self,
         app: &mut AppBuilder,
         pconfig: &HashMap<String, ProjectConfiguration>,
         cargo_meta: &cargo_metadata::Metadata,
         workspace_root: &Path,
         cargo_to_graph: &mut HashMap<cargo_metadata::PackageId, ProjectId>,
+        name_to_project: &mut HashMap<String, ProjectId>,
     ) -> Result<()> {
         let content = std::fs::read_to_string(workspace_root)?;
         let doc: DocumentMut = content.parse()?;
@@ -211,6 +223,16 @@ impl CargoLoader {
                     proj.version = Some(Version::Semver(version));
                     proj.prefix = Some(prefix.to_owned());
 
+                    let workspace_member_ids: std::collections::HashSet<_> =
+                        cargo_meta.workspace_members.iter().collect();
+
+                    for pkg in &cargo_meta.packages {
+                        if pkg.source.is_none() && workspace_member_ids.contains(&pkg.id) {
+                            cargo_to_graph.insert(pkg.id.clone(), ident);
+                            name_to_project.insert(pkg.name.to_string(), ident);
+                        }
+                    }
+
                     let cargo_rewrite = CargoRewriter::new(ident, manifest_repopath);
                     proj.rewriters.push(Box::new(cargo_rewrite));
                 }
@@ -218,8 +240,15 @@ impl CargoLoader {
         } else {
             info!("workspace {} has separate projects for each member", workspace_root.display());
 
+            let workspace_member_ids: std::collections::HashSet<_> =
+                cargo_meta.workspace_members.iter().collect();
+
             for pkg in &cargo_meta.packages {
                 if pkg.source.is_some() {
+                    continue;
+                }
+
+                if !workspace_member_ids.contains(&pkg.id) {
                     continue;
                 }
 
@@ -238,6 +267,7 @@ impl CargoLoader {
                     proj.version = Some(Version::Semver(pkg.version.clone()));
                     proj.prefix = Some(prefix.to_owned());
                     cargo_to_graph.insert(pkg.id.clone(), ident);
+                    name_to_project.insert(pkg.name.to_string(), ident);
 
                     let cargo_rewrite = CargoRewriter::new(ident, manifest_repopath);
                     proj.rewriters.push(Box::new(cargo_rewrite));
@@ -245,6 +275,16 @@ impl CargoLoader {
             }
         }
 
+        Ok(())
+    }
+
+    fn resolve_workspace_dependencies(
+        &self,
+        app: &mut AppBuilder,
+        cargo_meta: &cargo_metadata::Metadata,
+        cargo_to_graph: &HashMap<cargo_metadata::PackageId, ProjectId>,
+        name_to_project: &HashMap<String, ProjectId>,
+    ) -> Result<()> {
         let mut cargoid_to_index = HashMap::new();
 
         for (index, pkg) in cargo_meta.packages[..].iter().enumerate() {
@@ -255,6 +295,9 @@ impl CargoLoader {
             .resolve
             .as_ref()
             .ok_or_else(|| anyhow!("cargo metadata did not include dependency resolution"))?;
+
+        let mut added_deps: std::collections::HashSet<(ProjectId, ProjectId)> =
+            std::collections::HashSet::new();
 
         for node in &resolve.nodes {
             let pkg = &cargo_meta.packages[cargoid_to_index[&node.id]];
@@ -273,13 +316,25 @@ impl CargoLoader {
                     .collect();
 
                 for dep in &node.deps {
-                    if let Some(dependee_id) = cargo_to_graph.get(&dep.pkg) {
-                        let literal = dep_map.get(&dep.name).cloned().unwrap_or_else(|| {
-                            warn!("cannot find Cargo version requirement for dependency of `{}` on `{}`", &pkg.name, &dep.name);
-                            "UNDEFINED".to_owned()
-                        });
+                    let normalized_name = dep.name.replace('_', "-");
+                    let dependee_id = cargo_to_graph
+                        .get(&dep.pkg)
+                        .or_else(|| name_to_project.get(&dep.name))
+                        .or_else(|| name_to_project.get(&normalized_name));
 
-                        // Find the Clikd-augmented dependency info.
+                    if let Some(dependee_id) = dependee_id {
+                        if *dependee_id == *depender_id {
+                            continue;
+                        }
+
+                        let dep_pair = (*depender_id, *dependee_id);
+                        if !added_deps.insert(dep_pair) {
+                            continue;
+                        }
+
+                        let literal = dep_map.get(&dep.name).cloned().unwrap_or_else(|| {
+                            "*".to_owned()
+                        });
 
                         let req = maybe_versions
                             .and_then(|table| table.get(&dep.name))
@@ -288,15 +343,6 @@ impl CargoLoader {
                             .transpose()?
                             .map(|cref| app.repo.resolve_history_ref(&cref, &manifest_repopath))
                             .transpose()?;
-
-                        if req.is_none() {
-                            warn!(
-                                "missing or invalid key `internal_dep_versions.{}` in `{}`",
-                                &dep.name, pkg.manifest_path
-                            );
-                            warn!("... this is needed to specify the oldest version of `{}` compatible with `{}`",
-                                &dep.name, &pkg.name);
-                        }
 
                         let req = req.unwrap_or(DepRequirement::Unavailable);
 
@@ -382,12 +428,23 @@ impl Rewriter for CargoRewriter {
 
         {
             let ct_root = doc.as_table_mut();
-            let ct_package = ct_root
-                .get_mut("package")
-                .and_then(|i| i.as_table_mut())
-                .ok_or_else(|| anyhow!("no [package] section in {}!?", self.toml_path.escaped()))?;
+            let is_workspace = ct_root.contains_key("workspace") && !ct_root.contains_key("package");
 
-            ct_package["version"] = toml_edit::value(proj.version.to_string());
+            if is_workspace {
+                let ws_pkg = ct_root
+                    .get_mut("workspace")
+                    .and_then(|ws| ws.as_table_mut())
+                    .and_then(|ws| ws.get_mut("package"))
+                    .and_then(|pkg| pkg.as_table_mut())
+                    .ok_or_else(|| anyhow!("no [workspace.package] section in {}", self.toml_path.escaped()))?;
+                ws_pkg["version"] = toml_edit::value(proj.version.to_string());
+            } else {
+                let pkg = ct_root
+                    .get_mut("package")
+                    .and_then(|i| i.as_table_mut())
+                    .ok_or_else(|| anyhow!("no [package] section in {}", self.toml_path.escaped()))?;
+                pkg["version"] = toml_edit::value(proj.version.to_string());
+            }
 
             // Rewrite any internal dependencies. These may be found in three
             // main tables and a nested table of potential target-specific
@@ -487,32 +544,31 @@ impl Rewriter for CargoRewriter {
 
         {
             let ct_root = doc.as_table_mut();
-            let ct_package = ct_root
-                .get_mut("package")
-                .and_then(|i| i.as_table_mut())
-                .ok_or_else(|| anyhow!("no [package] section in {}?!", self.toml_path.escaped()))?;
+            let is_workspace = ct_root.contains_key("workspace") && !ct_root.contains_key("package");
 
-            let tbl = ct_package
+            let metadata_parent = if is_workspace {
+                ct_root
+                    .get_mut("workspace")
+                    .and_then(|ws| ws.as_table_mut())
+                    .ok_or_else(|| anyhow!("no [workspace] section in {}", self.toml_path.escaped()))?
+            } else {
+                ct_root
+                    .get_mut("package")
+                    .and_then(|i| i.as_table_mut())
+                    .ok_or_else(|| anyhow!("no [package] section in {}", self.toml_path.escaped()))?
+            };
+
+            let tbl = metadata_parent
                 .entry("metadata")
                 .or_insert_with(|| Item::Table(Table::new()))
                 .as_table_mut()
-                .ok_or_else(|| {
-                    anyhow!(
-                        "no [package.metadata] section in {}?!",
-                        self.toml_path.escaped()
-                    )
-                })?;
+                .ok_or_else(|| anyhow!("failed to create [metadata] section in {}", self.toml_path.escaped()))?;
 
             let tbl = tbl
                 .entry("internal_dep_versions")
                 .or_insert_with(|| Item::Table(Table::new()))
                 .as_table_mut()
-                .ok_or_else(|| {
-                    anyhow!(
-                        "no [package.metadata.internal_dep_versions] section in {}?!",
-                        self.toml_path.escaped()
-                    )
-                })?;
+                .ok_or_else(|| anyhow!("failed to create [metadata.internal_dep_versions] in {}", self.toml_path.escaped()))?;
 
             let graph = app.graph();
             let proj = graph.lookup(self.proj_id);
@@ -542,375 +598,3 @@ impl Rewriter for CargoRewriter {
     }
 }
 
-/// Cargo-specific CLI utilities.
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub enum CargoCommands {
-    /// Run a "cargo" command for each released Cargo project.
-    ForeachReleased(ForeachReleasedCommand),
-
-    /// Archive the executables associated with released Cargo projects.
-    PackageReleasedBinaries(PackageReleasedBinariesCommand),
-}
-
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct CargoCommand {
-    #[command(subcommand)]
-    command: CargoCommands,
-}
-
-impl CargoCommand {
-    pub fn execute(self) -> Result<i32> {
-        match self.command {
-            CargoCommands::ForeachReleased(o) => o.execute(),
-            CargoCommands::PackageReleasedBinaries(o) => o.execute(),
-        }
-    }
-}
-
-/// `clikd cargo foreach-released`
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct ForeachReleasedCommand {
-    #[arg(
-        long = "command-name",
-        help = "The command name to use for Cargo",
-        default_value = "cargo"
-    )]
-    command_name: String,
-
-    #[arg(
-        long = "pause",
-        help = "Pause a number of seconds between command invocations",
-        default_value = "0"
-    )]
-    pause: u64,
-
-    #[arg(help = "Arguments to the `cargo` command", required = true)]
-    cargo_args: Vec<OsString>,
-}
-
-impl ForeachReleasedCommand {
-    fn execute(self) -> Result<i32> {
-        let sess = AppSession::initialize_default()?;
-
-        let (dev_mode, rel_info) = sess.ensure_ci_release_mode()?;
-        if dev_mode {
-            warn!("proceeding even though in dev mode");
-        }
-
-        let mut q = GraphQueryBuilder::default();
-        q.only_new_releases(rel_info);
-        q.only_project_type("cargo");
-        let idents = sess
-            .graph()
-            .query(q)
-            .context("could not select projects for cargo foreach-released")?;
-
-        let mut cmd = process::Command::new(&self.command_name);
-        cmd.args(&self.cargo_args[..]);
-
-        let print_which = idents.len() > 1;
-        let pause_dur = time::Duration::from_secs(self.pause);
-        let mut first = true;
-
-        for ident in &idents {
-            let proj = sess.graph().lookup(*ident);
-            let dir = sess.repo.resolve_workdir(proj.prefix());
-            cmd.current_dir(&dir);
-
-            if self.pause != 0 && !first {
-                println!("### pausing for {} seconds", self.pause);
-                thread::sleep(pause_dur);
-            }
-
-            if print_which {
-                if !first {
-                    println!();
-                }
-
-                println!("### in `{}`:", dir.display());
-            }
-
-            if first {
-                first = false;
-            }
-
-            let status = cmd.status().context(format!(
-                "could not run the cargo command for project `{}`",
-                proj.user_facing_name
-            ))?;
-            if !status.success() {
-                return Err(anyhow!(
-                    "the command cargo failed for project `{}`",
-                    proj.user_facing_name
-                ));
-            }
-        }
-
-        Ok(0)
-    }
-}
-
-/// `clikd cargo package-released-binaries`
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct PackageReleasedBinariesCommand {
-    #[arg(
-        long = "command-name",
-        help = "The command name to use for Cargo",
-        default_value = "cargo"
-    )]
-    command_name: String,
-
-    #[arg(
-        long = "reroot",
-        help = "A prefix to apply to paths returned by the invoked tool"
-    )]
-    reroot: Option<OsString>,
-
-    #[arg(short = 't', long = "target", help = "The binaries' target platform")]
-    target: String,
-
-    #[arg(
-        help = "The directory into which the archive files should be placed",
-        required = true
-    )]
-    dest_dir: PathBuf,
-
-    #[arg(
-        last = true,
-        help = "Arguments to the `cargo` command used to build/detect binaries",
-        required = true
-    )]
-    cargo_args: Vec<OsString>,
-}
-
-impl PackageReleasedBinariesCommand {
-    fn execute(self) -> Result<i32> {
-        use cargo_metadata::Message;
-
-        let sess = AppSession::initialize_default()?;
-
-        // For this command, it is OK to run in dev mode
-        let (_dev_mode, rel_info) = sess.ensure_ci_release_mode()?;
-
-        let target: target_lexicon::Triple = self
-            .target
-            .parse()
-            .map_err(|e| anyhow!("could not parse target \"triple\" `{}`: {}", self.target, e))?;
-        let mode = BinaryArchiveMode::from(&target);
-
-        let mut q = GraphQueryBuilder::default();
-        q.only_new_releases(rel_info);
-        q.only_project_type("cargo");
-        let idents = sess.graph().query(q).context("could not select projects")?;
-
-        for ident in &idents {
-            let proj = sess.graph().lookup(*ident);
-
-            // Unlike foreach-released, here we iterate over projects by passing
-            // a --package argument rather than spawning the process in a
-            // subdirectory. This is to ensure that we work with `cross`, which
-            // seemingly only looks for Cross.toml in the current directory, and
-            // also tempts people into using relative paths for arguments like
-            // `--reroot`.
-            let mut cmd = process::Command::new(&self.command_name);
-            cmd.args(&self.cargo_args[..])
-                .arg("--message-format=json")
-                .arg(format!("--package={}", proj.qualified_names()[0]))
-                .stdout(process::Stdio::piped());
-
-            let mut child = cmd
-                .spawn()
-                .with_context(|| format!("failed to spawn subcommand: {cmd:?}"))?;
-            let reader = BufReader::new(
-                child
-                    .stdout
-                    .take()
-                    .expect("BUG: stdout should be piped after setting Stdio::piped"),
-            );
-
-            let mut binaries = Vec::new();
-
-            for message in Message::parse_stream(reader) {
-                match message.context("failed to parse cargo message")? {
-                    Message::CompilerMessage(msg) => {
-                        println!("{msg}");
-                    }
-
-                    Message::CompilerArtifact(artifact) => {
-                        if let Some(p) = artifact.executable {
-                            binaries.push(if let Some(ref root) = self.reroot {
-                                let mut prefixed = root.clone();
-                                prefixed.push(p);
-                                PathBuf::from(prefixed)
-                            } else {
-                                p.into_std_path_buf()
-                            });
-                        }
-                    }
-
-                    _ => {}
-                }
-            }
-
-            let status = child.wait().context("couldn't get cargo's exit status")?;
-            if !status.success() {
-                return Err(anyhow!(
-                    "the command cargo failed for project `{}`",
-                    proj.user_facing_name
-                ));
-            }
-
-            if binaries.is_empty() {
-                // Don't issue a warning -- we don't offer any way to filter the
-                // list of projects that is considered.
-                continue;
-            }
-
-            let archive_path = mode
-                .archive_binaries(proj, &self.dest_dir, &binaries, &target)
-                .context("couldn't create archive")?;
-            info!(
-                "`{}` => {} ({} files)",
-                proj.user_facing_name,
-                archive_path.display(),
-                binaries.len(),
-            );
-        }
-
-        Ok(0)
-    }
-}
-
-enum BinaryArchiveMode {
-    Tarball,
-    Zipball,
-}
-
-impl BinaryArchiveMode {
-    fn archive_binaries(
-        &self,
-        proj: &Project,
-        dest_dir: &Path,
-        binaries: &[PathBuf],
-        target: &target_lexicon::Triple,
-    ) -> Result<PathBuf> {
-        match self {
-            BinaryArchiveMode::Tarball => self.tarball(proj, dest_dir, binaries, target),
-            BinaryArchiveMode::Zipball => self.zipball(proj, dest_dir, binaries, target),
-        }
-    }
-
-    fn zipball(
-        &self,
-        proj: &Project,
-        dest_dir: &Path,
-        binaries: &[PathBuf],
-        target: &target_lexicon::Triple,
-    ) -> Result<PathBuf> {
-        let mut path = dest_dir.to_path_buf();
-        path.push(format!(
-            "{}-{}-{}.zip",
-            proj.qualified_names()[0],
-            proj.version,
-            target
-        ));
-
-        let out_file = File::create(&path)
-            .with_context(|| format!("failed to create Zip file `{}`", path.display()))?;
-        let mut zip = zip::ZipWriter::new(out_file);
-        zip.set_comment("Created by Clikd");
-
-        let options = zip::write::FileOptions::<()>::default().unix_permissions(0o755);
-
-        for bin in binaries {
-            let name = bin
-                .file_name()
-                .ok_or_else(|| anyhow!("cargo output binary {} is a directory??", bin.display()))?;
-            let name = name.to_str().ok_or_else(|| {
-                anyhow!(
-                    "cargo output binary {} name is not Unicode-compatible",
-                    bin.display()
-                )
-            })?;
-
-            let mut in_file = File::open(bin)
-                .with_context(|| format!("failed to open executable file `{}`", bin.display()))?;
-
-            zip.start_file(name, options).with_context(|| {
-                format!(
-                    "could not start record for executable `{}` in Zip `{}`",
-                    bin.display(),
-                    path.display()
-                )
-            })?;
-            std::io::copy(&mut in_file, &mut zip).with_context(|| {
-                format!(
-                    "could not copy data for executable `{}` into Zip `{}`",
-                    bin.display(),
-                    path.display()
-                )
-            })?;
-        }
-
-        zip.finish()
-            .with_context(|| format!("failed to finish writing Zip file `{}`", path.display()))?;
-        Ok(path)
-    }
-
-    fn tarball(
-        &self,
-        proj: &Project,
-        dest_dir: &Path,
-        binaries: &[PathBuf],
-        target: &target_lexicon::Triple,
-    ) -> Result<PathBuf> {
-        use flate2::write::GzEncoder;
-        use flate2::Compression;
-
-        let mut path = dest_dir.to_path_buf();
-        path.push(format!(
-            "{}-{}-{}.tar.gz",
-            proj.qualified_names()[0],
-            proj.version,
-            target
-        ));
-
-        let file = File::create(&path)
-            .with_context(|| format!("failed to create tar file `{}`", path.display()))?;
-        let enc = GzEncoder::new(file, Compression::default());
-        let mut tar = tar::Builder::new(enc);
-
-        for bin in binaries {
-            let name = bin
-                .file_name()
-                .ok_or_else(|| anyhow!("cargo output binary {} is a directory??", bin.display()))?;
-            tar.append_path_with_name(bin, name)
-                .with_context(|| format!("failed to add file `{}` to tar", bin.display()))?;
-        }
-
-        tar.finish()
-            .with_context(|| format!("failed to finish writing tar file `{}`", path.display()))?;
-        Ok(path)
-    }
-}
-
-impl Default for BinaryArchiveMode {
-    #[cfg(windows)]
-    fn default() -> Self {
-        BinaryArchiveMode::Zipball
-    }
-
-    #[cfg(not(windows))]
-    fn default() -> Self {
-        BinaryArchiveMode::Tarball
-    }
-}
-
-impl From<&target_lexicon::Triple> for BinaryArchiveMode {
-    fn from(trip: &target_lexicon::Triple) -> Self {
-        match trip.operating_system {
-            target_lexicon::OperatingSystem::Windows => BinaryArchiveMode::Zipball,
-            _ => BinaryArchiveMode::Tarball,
-        }
-    }
-}

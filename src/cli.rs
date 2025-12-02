@@ -120,6 +120,9 @@ pub enum ReleaseCommands {
 
         #[arg(short, long, help = "The name of the Git upstream remote")]
         upstream: Option<String>,
+
+        #[arg(long, help = "Skip interactive TUI, use automatic detection")]
+        no_tui: bool,
     },
 
     #[command(
@@ -150,7 +153,42 @@ pub enum ReleaseCommands {
 
         #[arg(long, help = "Force auto mode, skip interactive TUI wizard")]
         no_tui: bool,
+
+        #[arg(
+            short,
+            long,
+            value_delimiter = ',',
+            help = "Per-project version bumps (e.g., gate:major,rig:minor)"
+        )]
+        project: Option<Vec<String>>,
     },
+
+    #[command(
+        about = "Show project dependency graph",
+        long_about = "Display the project dependency graph.\n\nInteractive TUI mode (default):\n  • Navigate through projects with arrow keys\n  • View dependency details\n  • Visual dependency tree\n\nNon-interactive mode (--no-tui):\n  • ASCII art graph\n  • DOT format for Graphviz\n  • JSON for programmatic use"
+    )]
+    Graph {
+        #[arg(
+            short,
+            long,
+            value_enum,
+            help = "Output format (only with --no-tui)"
+        )]
+        format: Option<GraphOutputFormat>,
+
+        #[arg(long, help = "Skip interactive TUI, output static graph")]
+        no_tui: bool,
+    },
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum GraphOutputFormat {
+    #[value(help = "ASCII art graph")]
+    Ascii,
+    #[value(help = "DOT format (for Graphviz)")]
+    Dot,
+    #[value(help = "JSON format")]
+    Json,
 }
 
 #[derive(Args)]

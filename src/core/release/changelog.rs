@@ -22,7 +22,7 @@ use super::dynfmt::{Format, SimpleCurlyFormat};
 use crate::core::release::{
     errors::{Error, Result},
     project::Project,
-    repository::{ChangeList, CommitId, PathMatcher, RcProjectInfo, RepoPathBuf, Repository},
+    repository::{ChangeList, CommitId, PathMatcher, RepoPathBuf, Repository},
     session::AppSession,
 };
 
@@ -55,11 +55,7 @@ pub trait Changelog: std::fmt::Debug {
     /// in our model modified changelogs are OK.
     fn create_path_matcher(&self, proj: &Project) -> Result<PathMatcher>;
 
-    /// Scan the changelog(s) in the project's working directory to extract
-    /// metadata about a proposed release of the project. The idea is that we
-    /// (ab)use the changelog to allow the user to codify the release metadata
-    /// used in the RcProjectInfo type.
-    fn scan_rc_info(&self, proj: &Project, repo: &Repository) -> Result<RcProjectInfo>;
+    fn scan_bump_spec(&self, proj: &Project, repo: &Repository) -> Result<String>;
 
     /// Rewrite the changelog file(s) in the project's working directory, which
     /// are in the "rc" format that includes release candidate metadata, to
@@ -170,7 +166,7 @@ impl MarkdownChangelog {
                 // We're drafting a release update -- add a new section.
 
                 let mut headfoot_args = HashMap::new();
-                headfoot_args.insert("bump_spec", "micro bump");
+                headfoot_args.insert("bump_spec", "patch");
                 let header = SimpleCurlyFormat
                     .format(&self.stage_header_format, &headfoot_args)
                     .map_err(|e| Error::msg(e.to_string()))?;
@@ -243,13 +239,12 @@ impl Changelog for MarkdownChangelog {
         Ok(PathMatcher::new_include(self.changelog_repopath(proj)))
     }
 
-    fn scan_rc_info(&self, proj: &Project, repo: &Repository) -> Result<RcProjectInfo> {
+    fn scan_bump_spec(&self, proj: &Project, repo: &Repository) -> Result<String> {
         let changelog_path = self.changelog_path(proj, repo);
         let f = File::open(&changelog_path)?;
         let reader = BufReader::new(f);
         let mut bump_spec = None;
 
-        // We allow all-whitespace lines before the rc: header, but that's it.
         for maybe_line in reader.lines() {
             let line = maybe_line?;
             if line.trim().is_empty() {
@@ -268,10 +263,7 @@ impl Changelog for MarkdownChangelog {
         let bump_spec = bump_spec.ok_or(InvalidChangelogFormatError(changelog_path))?;
         let _check_scheme = proj.version.parse_bump_scheme(&bump_spec)?;
 
-        Ok(RcProjectInfo {
-            qnames: proj.qualified_names().clone(),
-            bump_spec,
-        })
+        Ok(bump_spec)
     }
 
     fn finalize_changelog(
@@ -428,42 +420,42 @@ mod tests {
     fn test_markdown_changelog_stage_header_format() {
         let changelog = MarkdownChangelog::default();
         let mut args = HashMap::new();
-        args.insert("bump_spec", "minor bump".to_string());
+        args.insert("bump_spec", "minor".to_string());
 
         let result = SimpleCurlyFormat
             .format(&changelog.stage_header_format, &args)
             .expect("BUG: format should succeed with valid args");
 
-        assert_eq!(result, "# rc: minor bump\n");
+        assert_eq!(result, "# rc: minor\n");
     }
 
     #[test]
-    fn test_parse_rc_header_micro_bump() {
-        let line = "# rc: micro bump";
+    fn test_parse_rc_header_patch() {
+        let line = "# rc: patch";
         let spec = line.strip_prefix("# rc:");
 
-        assert_eq!(spec, Some(" micro bump"));
+        assert_eq!(spec, Some(" patch"));
         assert_eq!(
             spec.expect("BUG: spec should be Some after assertion")
                 .trim(),
-            "micro bump"
+            "patch"
         );
     }
 
     #[test]
-    fn test_parse_rc_header_minor_bump() {
-        let line = "# rc: minor bump";
+    fn test_parse_rc_header_minor() {
+        let line = "# rc: minor";
         let spec = line.strip_prefix("# rc:").map(|s| s.trim());
 
-        assert_eq!(spec, Some("minor bump"));
+        assert_eq!(spec, Some("minor"));
     }
 
     #[test]
-    fn test_parse_rc_header_major_bump() {
-        let line = "# rc: major bump";
+    fn test_parse_rc_header_major() {
+        let line = "# rc: major";
         let spec = line.strip_prefix("# rc:").map(|s| s.trim());
 
-        assert_eq!(spec, Some("major bump"));
+        assert_eq!(spec, Some("major"));
     }
 
     #[test]

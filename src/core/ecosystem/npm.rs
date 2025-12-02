@@ -13,10 +13,8 @@ use clap::Parser;
 use std::{
     collections::HashMap,
     env,
-    ffi::OsString,
     fs::{File, OpenOptions},
     io::Write,
-    process,
 };
 use tracing::warn;
 
@@ -380,9 +378,6 @@ impl Rewriter for PackageJsonRewriter {
 /// Npm-specific CLI utilities.
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub enum NpmCommands {
-    /// Run a command for each released NPM project.
-    ForeachReleased(ForeachReleasedCommand),
-
     /// Install $NPM_TOKEN in the user's .npmrc or .yarnrc.yml
     InstallToken(InstallTokenCommand),
 
@@ -400,72 +395,9 @@ pub struct NpmCommand {
 impl NpmCommand {
     pub fn execute(self) -> Result<i32> {
         match self.command {
-            NpmCommands::ForeachReleased(o) => o.execute(),
             NpmCommands::InstallToken(o) => o.execute(),
             NpmCommands::LernaWorkaround(o) => o.execute(),
         }
-    }
-}
-
-/// `clikd npm foreach-released`
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct ForeachReleasedCommand {
-    #[arg(help = "The command to run", required = true)]
-    command: Vec<OsString>,
-}
-
-impl ForeachReleasedCommand {
-    fn execute(self) -> Result<i32> {
-        let sess = AppSession::initialize_default()?;
-
-        let (dev_mode, rel_info) = sess.ensure_ci_release_mode()?;
-        if dev_mode {
-            warn!("proceeding even though in dev mode");
-        }
-
-        let mut q = GraphQueryBuilder::default();
-        q.only_new_releases(rel_info);
-        q.only_project_type("npm");
-        let idents = sess
-            .graph()
-            .query(q)
-            .context("could not select projects for `npm foreach-released`")?;
-
-        let mut cmd = process::Command::new(&self.command[0]);
-        if self.command.len() > 1 {
-            cmd.args(&self.command[1..]);
-        }
-
-        let print_which = idents.len() > 1;
-        let mut first = true;
-
-        for ident in &idents {
-            let proj = sess.graph().lookup(*ident);
-            let dir = sess.repo.resolve_workdir(proj.prefix());
-            cmd.current_dir(&dir);
-
-            if print_which {
-                if first {
-                    first = false;
-                } else {
-                    println!();
-                }
-                println!("### in `{}`:", dir.display());
-            }
-
-            let status = cmd.status().context(format!(
-                "could not run the command for NPM project `{}`",
-                proj.user_facing_name
-            ))?;
-            if !status.success() {
-                return Err(anyhow!(
-                    "the command failed for NPM project `{}`",
-                    proj.user_facing_name
-                ));
-            }
-        }
-
-        Ok(0)
     }
 }
 

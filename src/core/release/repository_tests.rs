@@ -363,7 +363,7 @@ fn test_change_list_add_duplicate_paths() {
 fn test_repo_history_n_commits() {
     let history = RepoHistory {
         commits: vec![CommitId(git2::Oid::zero()), CommitId(git2::Oid::zero())],
-        release_commit: None,
+        release_tag: None,
     };
     assert_eq!(history.n_commits(), 2);
 }
@@ -372,27 +372,33 @@ fn test_repo_history_n_commits() {
 fn test_repo_history_n_commits_empty() {
     let history = RepoHistory {
         commits: vec![],
-        release_commit: None,
+        release_tag: None,
     };
     assert_eq!(history.n_commits(), 0);
 }
 
 #[test]
-fn test_repo_history_release_commit_some() {
+fn test_repo_history_release_tag_some() {
     let history = RepoHistory {
         commits: vec![],
-        release_commit: Some(CommitId(git2::Oid::zero())),
+        release_tag: Some(ReleaseTagInfo {
+            commit: CommitId(git2::Oid::zero()),
+            tag_name: "test-v1.0.0".to_string(),
+            version: semver::Version::new(1, 0, 0),
+        }),
     };
-    assert!(history.release_commit().is_some());
+    assert!(history.release_tag().is_some());
+    assert_eq!(history.release_version().unwrap(), &semver::Version::new(1, 0, 0));
 }
 
 #[test]
-fn test_repo_history_release_commit_none() {
+fn test_repo_history_release_tag_none() {
     let history = RepoHistory {
         commits: vec![],
-        release_commit: None,
+        release_tag: None,
     };
-    assert!(history.release_commit().is_none());
+    assert!(history.release_tag().is_none());
+    assert!(history.release_version().is_none());
 }
 
 #[test]
@@ -413,17 +419,14 @@ fn test_commit_id_equality() {
 }
 
 #[test]
-fn test_release_commit_info_default() {
-    let info = ReleaseCommitInfo::default();
-    assert!(info.commit.is_none());
-    assert!(info.projects.is_empty());
-}
-
-#[test]
-fn test_rc_commit_info_default() {
-    let info = RcCommitInfo::default();
-    assert!(info.commit.is_none());
-    assert!(info.projects.is_empty());
+fn test_release_tag_info() {
+    let tag_info = ReleaseTagInfo {
+        commit: CommitId(git2::Oid::zero()),
+        tag_name: "my-package-v1.2.3".to_string(),
+        version: semver::Version::new(1, 2, 3),
+    };
+    assert_eq!(tag_info.tag_name, "my-package-v1.2.3");
+    assert_eq!(tag_info.version, semver::Version::new(1, 2, 3));
 }
 
 #[test]

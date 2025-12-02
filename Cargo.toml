@@ -1,6 +1,6 @@
 [package]
 name = "clikd"
-version = "0.4.0"
+version = "0.0.0-dev.0"
 description = "Local development environment management for Clikd"
 authors = ["Clikd, Inc <devops@clikd.com>"]
 edition = "2021"
@@ -89,7 +89,7 @@ next_version = "0.2"             # Calculate semantic version bumps from commits
 atomicwrites = "0.4"           # Atomic file writes to prevent corruption
 nom = "8.0.0"                      # Parser combinators for Python setup.py parsing
 quick-xml = "0.38.4"             # XML parsing for C# .csproj files
-json5 = "0.4"                  # Relaxed JSON parsing for package.json with comments
+json5 = "1.0.0"                  # Relaxed JSON parsing for package.json with comments
 lru = "0.16.2"                   # LRU cache for parsed project metadata
 git-url-parse = "0.6.0"          # Parse Git URLs for GitHub release integration
 percent-encoding = "2"         # URL encoding for Git URLs and API calls

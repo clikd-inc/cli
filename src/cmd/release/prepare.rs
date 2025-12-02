@@ -13,11 +13,15 @@ use crate::{
 #[path = "prepare/wizard.rs"]
 mod wizard;
 
-pub fn run(bump: Option<String>, no_tui: bool) -> Result<i32> {
+pub fn run(bump: Option<String>, no_tui: bool, project: Option<Vec<String>>) -> Result<i32> {
     info!(
         "preparing release with clikd version {}",
         env!("CARGO_PKG_VERSION")
     );
+
+    if let Some(ref projects) = project {
+        return run_per_project_mode(projects);
+    }
 
     let use_auto_mode = no_tui || bump.as_deref() == Some("auto");
 
@@ -29,7 +33,7 @@ pub fn run(bump: Option<String>, no_tui: bool) -> Result<i32> {
         return run_tui_wizard();
     }
 
-    let bump_scheme_text = bump.as_deref().unwrap_or("micro bump");
+    let bump_scheme_text = bump.as_deref().unwrap_or("patch");
     info!("version bump scheme: {}", bump_scheme_text);
 
     let mut sess = atry!(
@@ -281,6 +285,141 @@ fn run_auto_mode(bump: Option<String>) -> Result<i32> {
         n_skipped
     );
     info!("review changes and commit when ready");
+
+    Ok(0)
+}
+
+fn run_per_project_mode(projects: &[String]) -> Result<i32> {
+    use std::collections::HashMap;
+
+    println!("Running in per-project mode");
+
+    let mut bump_specs: HashMap<String, String> = HashMap::new();
+    for spec in projects {
+        let parts: Vec<&str> = spec.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!(
+                "invalid project spec '{}': expected format 'project:bump' (e.g., gate:major)",
+                spec
+            ));
+        }
+        bump_specs.insert(parts[0].to_string(), parts[1].to_string());
+    }
+
+    let mut sess = atry!(
+        AppSession::initialize_default();
+        ["could not initialize app and project graph"]
+    );
+
+    if let Some(dirty) = atry!(
+        sess.repo.check_if_dirty(&[]);
+        ["failed to check repository for modified files"]
+    ) {
+        warn!(
+            "preparing release with uncommitted changes in the repository (e.g.: `{}`)",
+            dirty.escaped()
+        );
+    }
+
+    let q = GraphQueryBuilder::default();
+    let idents = sess.graph().query(q).context("could not select projects")?;
+
+    if idents.is_empty() {
+        info!("no projects found in repository");
+        return Ok(0);
+    }
+
+    let histories = atry!(
+        sess.analyze_histories();
+        ["failed to analyze project histories"]
+    );
+
+    let mut n_prepared = 0;
+    let mut n_skipped = 0;
+
+    for ident in &idents {
+        let proj = sess.graph().lookup(*ident);
+        let history = histories.lookup(*ident);
+        let n_commits = history.n_commits();
+
+        let bump_scheme_text = match bump_specs.get(&proj.user_facing_name) {
+            Some(bump) => bump.as_str(),
+            None => {
+                if n_commits == 0 {
+                    println!(
+                        "{}: no changes and no explicit bump, skipping",
+                        proj.user_facing_name
+                    );
+                } else {
+                    println!(
+                        "{}: no explicit bump specified, skipping ({} commit{})",
+                        proj.user_facing_name,
+                        n_commits,
+                        if n_commits == 1 { "" } else { "s" }
+                    );
+                }
+                n_skipped += 1;
+                continue;
+            }
+        };
+
+        let bump_scheme = proj
+            .version
+            .parse_bump_scheme(bump_scheme_text)
+            .with_context(|| {
+                format!(
+                    "invalid bump scheme \"{}\" for project {}",
+                    bump_scheme_text, proj.user_facing_name
+                )
+            })?;
+
+        let proj_mut = sess.graph_mut().lookup_mut(*ident);
+        let old_version = proj_mut.version.clone();
+
+        atry!(
+            bump_scheme.apply(&mut proj_mut.version);
+            ["failed to apply version bump to {}", proj_mut.user_facing_name]
+        );
+
+        println!(
+            "{}: {} -> {} ({})",
+            proj_mut.user_facing_name,
+            old_version,
+            proj_mut.version,
+            bump_scheme_text
+        );
+
+        n_prepared += 1;
+    }
+
+    if n_prepared == 0 {
+        println!("No projects matched the specified bumps");
+        return Ok(0);
+    }
+
+    println!("Updating project files with new versions...");
+
+    let changes = atry!(
+        sess.rewrite();
+        ["failed to update project files"]
+    );
+
+    if changes.paths().count() > 0 {
+        println!();
+        println!("Modified files:");
+        for path in changes.paths() {
+            println!("  {}", path.escaped());
+        }
+    }
+
+    println!();
+    println!(
+        "Prepared {} project{} for release ({} skipped)",
+        n_prepared,
+        if n_prepared == 1 { "" } else { "s" },
+        n_skipped
+    );
+    println!("Review changes and commit when ready");
 
     Ok(0)
 }

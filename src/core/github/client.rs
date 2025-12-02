@@ -7,17 +7,9 @@ use anyhow::{anyhow, Context};
 use clap::Parser;
 use git_url_parse::types::provider::GenericProvider;
 use json::{object, JsonValue};
-use std::{fs::File, path::PathBuf};
-use tracing::{error, info, warn};
+use tracing::info;
 
-use crate::core::release::{
-    env::require_var,
-    errors::Result,
-    graph,
-    project::Project,
-    repository::{CommitId, ReleasedProjectInfo},
-    session::{AppBuilder, AppSession},
-};
+use crate::core::release::{env::require_var, errors::Result, session::{AppBuilder, AppSession}};
 
 struct GitHubInformation {
     slug: String,
@@ -91,39 +83,6 @@ impl GitHubInformation {
         Ok(())
     }
 
-    /// Get information about an existing release by its tag name.
-    fn get_custom_release_metadata(
-        &self,
-        tag_name: &str,
-        client: &mut reqwest::blocking::Client,
-    ) -> Result<JsonValue> {
-        let query_url = self.api_url(&format!("releases/tags/{tag_name}"));
-
-        let resp = client.get(query_url).send()?;
-        if resp.status().is_success() {
-            Ok(json::parse(&resp.text()?)?)
-        } else {
-            Err(anyhow!(
-                "no GitHub release for tag `{}`: {}",
-                tag_name,
-                resp.text()
-                    .unwrap_or_else(|_| "[non-textual server response]".to_owned())
-            ))
-        }
-    }
-
-    /// Get information about an existing release of a project.
-    fn get_release_metadata(
-        &self,
-        sess: &AppSession,
-        proj: &Project,
-        rel: &ReleasedProjectInfo,
-        client: &mut reqwest::blocking::Client,
-    ) -> Result<JsonValue> {
-        let tag_name = sess.repo.get_tag_name(proj, rel)?;
-        self.get_custom_release_metadata(&tag_name, client)
-    }
-
     /// Create a new GitHub release.
     fn create_custom_release(
         &self,
@@ -163,20 +122,6 @@ impl GitHubInformation {
         }
     }
 
-    /// Create a new GitHub release.
-    fn create_release(
-        &self,
-        sess: &AppSession,
-        proj: &Project,
-        rel: &ReleasedProjectInfo,
-        cid: &CommitId,
-        client: &mut reqwest::blocking::Client,
-    ) -> Result<JsonValue> {
-        let tag_name = sess.repo.get_tag_name(proj, rel)?;
-        let release_name = format!("{} {}", proj.user_facing_name, proj.version);
-        let changelog = proj.changelog.scan_changelog(proj, &sess.repo, cid)?;
-        self.create_custom_release(tag_name, release_name, changelog, false, false, client)
-    }
 }
 
 /// The `github` subcommands.
@@ -185,10 +130,6 @@ pub enum GithubCommands {
     #[structopt(name = "create-custom-release")]
     /// Create a single, customized GitHub release
     CreateCustomRelease(CreateCustomReleaseCommand),
-
-    #[structopt(name = "create-releases")]
-    /// Create one or more new GitHub releases
-    CreateReleases(CreateReleasesCommand),
 
     #[command(name = "_credential-helper", hide = true)]
     /// (hidden) github credential helper
@@ -201,10 +142,6 @@ pub enum GithubCommands {
     #[structopt(name = "install-credential-helper")]
     /// Install Clikd as a Git "credential helper", using $GITHUB_TOKEN to log in
     InstallCredentialHelper(InstallCredentialHelperCommand),
-
-    #[structopt(name = "upload-artifacts")]
-    /// Upload one or more files as GitHub release artifacts
-    UploadArtifacts(UploadArtifactsCommand),
 }
 
 #[derive(Debug, Eq, PartialEq, Parser)]
@@ -217,11 +154,9 @@ impl GithubCommand {
     pub fn execute(self) -> Result<i32> {
         match self.command {
             GithubCommands::CreateCustomRelease(o) => o.execute(),
-            GithubCommands::CreateReleases(o) => o.execute(),
             GithubCommands::CredentialHelper(o) => o.execute(),
             GithubCommands::DeleteRelease(o) => o.execute(),
             GithubCommands::InstallCredentialHelper(o) => o.execute(),
-            GithubCommands::UploadArtifacts(o) => o.execute(),
         }
     }
 }
@@ -269,76 +204,6 @@ impl CreateCustomReleaseCommand {
     }
 }
 
-/// Create new release(s) on GitHub.
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct CreateReleasesCommand {
-    #[structopt(help = "Name(s) of the project(s) to release on GitHub")]
-    proj_names: Vec<String>,
-}
-
-impl CreateReleasesCommand {
-    pub fn execute(self) -> Result<i32> {
-        let sess = AppSession::initialize_default()?;
-        let info = GitHubInformation::new(&sess)?;
-
-        let (dev_mode, rel_info) = sess.ensure_ci_release_mode()?;
-        let rel_commit = rel_info
-            .commit
-            .as_ref()
-            .ok_or_else(|| anyhow!("no commit ID for HEAD (?)"))?;
-
-        if dev_mode {
-            return Err(anyhow!("refusing to proceed in dev mode"));
-        }
-
-        // Get the list of projects that we're interested in.
-        let mut q = graph::GraphQueryBuilder::default();
-        q.names(self.proj_names);
-        let no_names = q.no_names();
-        let idents = sess
-            .graph()
-            .query(q)
-            .context("could not select projects for GitHub release")?;
-
-        if idents.is_empty() {
-            info!("no projects selected");
-            return Ok(0);
-        }
-
-        let mut client = info.make_blocking_client()?;
-        let mut n_released = 0;
-
-        for ident in &idents {
-            let proj = sess.graph().lookup(*ident);
-
-            if let Some(rel) = rel_info.lookup_if_released(proj) {
-                info.create_release(&sess, proj, rel, rel_commit, &mut client)?;
-                n_released += 1;
-            } else if !no_names {
-                warn!(
-                    "project {} was specified but does not have a new release",
-                    proj.user_facing_name
-                );
-            }
-        }
-
-        if no_names && n_released != 1 {
-            info!(
-                "created GitHub releases for {} of {} projects",
-                n_released,
-                idents.len()
-            );
-        } else if n_released != idents.len() {
-            warn!(
-                "created GitHub releases for {} of {} selected projects",
-                n_released,
-                idents.len()
-            );
-        }
-
-        Ok(0)
-    }
-}
 
 /// hidden Git credential helper command
 #[derive(Debug, Eq, PartialEq, Parser)]
@@ -405,122 +270,3 @@ impl InstallCredentialHelperCommand {
     }
 }
 
-/// Upload one or more artifact files to a GitHub release.
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct UploadArtifactsCommand {
-    #[structopt(
-        long = "overwrite",
-        help = "Overwrite artifacts if they already exist in the release (default: error out)"
-    )]
-    overwrite: bool,
-
-    #[structopt(
-        long = "by-tag",
-        help = "Identify the target release by Git tag name, not Clikd project name"
-    )]
-    by_tag: bool,
-
-    #[structopt(help = "The released project or tag for which to upload content")]
-    proj_name: String,
-
-    #[structopt(help = "The path(s) to the file(s) to upload", required = true)]
-    paths: Vec<PathBuf>,
-}
-
-impl UploadArtifactsCommand {
-    pub fn execute(self) -> Result<i32> {
-        let sess = AppSession::initialize_default()?;
-        let info = GitHubInformation::new(&sess)?;
-        let mut client = info.make_blocking_client()?;
-
-        let mut metadata = if self.by_tag {
-            info.get_custom_release_metadata(&self.proj_name, &mut client)
-        } else {
-            let rel_info = sess.repo.parse_release_info_from_head().context(
-                "expected Clikd release metadata in the HEAD commit but could not load it",
-            )?;
-
-            let ident = sess
-                .graph()
-                .lookup_ident(&self.proj_name)
-                .ok_or_else(|| anyhow!("no such project `{}`", self.proj_name))?;
-
-            let rel = rel_info
-                .lookup_if_released(sess.graph().lookup(ident))
-                .ok_or_else(|| {
-                    anyhow!(
-                        "project `{}` does not seem to be freshly released",
-                        self.proj_name
-                    )
-                })?;
-
-            let proj = sess.graph().lookup(ident);
-            info.get_release_metadata(&sess, proj, rel, &mut client)
-        }?;
-
-        let upload_url = metadata["upload_url"]
-            .take_string()
-            .ok_or_else(|| anyhow!("no upload_url in release metadata?"))?;
-        let upload_url = {
-            let v: Vec<&str> = upload_url.split('{').collect();
-            v[0].to_owned()
-        };
-
-        info!("upload url = {}", upload_url);
-
-        for path in &self.paths {
-            let file = File::open(path)?;
-
-            let name = path
-                .file_name()
-                .ok_or_else(|| anyhow!("input file has no name component??"))?
-                .to_str()
-                .ok_or_else(|| anyhow!("input file name cannot be stringified"))?
-                .to_owned();
-
-            if self.overwrite {
-                for asset_info in metadata["assets"].members() {
-                    if asset_info["name"].as_str() == Some(&name) {
-                        info!("deleting preexisting asset (id {})", asset_info["id"]);
-
-                        let del_url =
-                            info.api_url(&format!("releases/assets/{}", asset_info["id"]));
-                        let resp = client.delete(&del_url).send()?;
-                        let status = resp.status();
-
-                        if !status.is_success() {
-                            error!("API response: {}", resp.text()?);
-                            return Err(anyhow!("deletion of pre-existing asset {} failed", name));
-                        }
-                    }
-                }
-            }
-
-            info!("uploading {} => {}", path.display(), name);
-            let url = reqwest::Url::parse_with_params(&upload_url, &[("name", &name)])?;
-            let resp = client
-                .post(url)
-                .header(
-                    reqwest::header::ACCEPT,
-                    "application/vnd.github.manifold-preview",
-                )
-                .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
-                .body(file)
-                .send()?;
-            let status = resp.status();
-            let mut parsed = json::parse(&resp.text()?)?;
-
-            if !status.is_success() {
-                error!("API response: {}", parsed);
-                return Err(anyhow!("creation of asset {} failed", name));
-            }
-
-            if let Some(s) = parsed["url"].take_string() {
-                info!("   ... asset url = {}", s);
-            }
-        }
-
-        info!("success!");
-        Ok(0)
-    }
-}

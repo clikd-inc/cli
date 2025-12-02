@@ -79,9 +79,9 @@ impl BumpStrategy {
     fn as_str(&self) -> &'static str {
         match self {
             Self::Auto => "auto",
-            Self::Major => "major bump",
-            Self::Minor => "minor bump",
-            Self::Patch => "micro bump",
+            Self::Major => "major",
+            Self::Minor => "minor",
+            Self::Patch => "patch",
         }
     }
 
@@ -406,9 +406,9 @@ pub fn run() -> Result<i32> {
 
         let bump_scheme_text = match bump_strategy {
             BumpStrategy::Auto => project_item.suggested_bump.as_str(),
-            BumpStrategy::Major => "major bump",
-            BumpStrategy::Minor => "minor bump",
-            BumpStrategy::Patch => "micro bump",
+            BumpStrategy::Major => "major",
+            BumpStrategy::Minor => "minor",
+            BumpStrategy::Patch => "patch",
         };
 
         if bump_scheme_text == "no bump" {

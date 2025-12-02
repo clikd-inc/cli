@@ -101,10 +101,9 @@ impl Version {
         }
 
         match text {
-            "micro bump" => Ok(VersionBumpScheme::MicroBump),
-            "minor bump" => Ok(VersionBumpScheme::MinorBump),
-            "major bump" => Ok(VersionBumpScheme::MajorBump),
-            "dev-datecode" => Ok(VersionBumpScheme::DevDatecode),
+            "patch" => Ok(VersionBumpScheme::MicroBump),
+            "minor" => Ok(VersionBumpScheme::MinorBump),
+            "major" => Ok(VersionBumpScheme::MajorBump),
             _ => Err(UnsupportedBumpSchemeError(text.to_owned(), self.clone())),
         }
     }

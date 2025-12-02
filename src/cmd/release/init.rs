@@ -47,7 +47,15 @@ pub struct BootstrapCommand {
     upstream_name: Option<String>,
 }
 
-pub fn run(force: bool, upstream: Option<String>) -> Result<i32> {
+mod wizard;
+
+pub fn run(force: bool, upstream: Option<String>, no_tui: bool) -> Result<i32> {
+    use crate::core::ui::utils::is_interactive_terminal;
+
+    if !no_tui && is_interactive_terminal() {
+        return wizard::run(force, upstream);
+    }
+
     let cmd = BootstrapCommand {
         force,
         upstream_name: upstream,
@@ -235,10 +243,13 @@ impl BootstrapCommand {
 
         info!("updating project meta-files with developer versions");
 
-        let changes = atry!(
-            sess.rewrite();
-            ["there was a problem updating the project files"]
-        );
+        let changes = match sess.rewrite() {
+            Ok(c) => c,
+            Err(e) => {
+                error!("rewrite error: {:?}", e);
+                return Err(e.context("there was a problem updating the project files"));
+            }
+        };
 
         let mut seen_any = false;
 

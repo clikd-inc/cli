@@ -72,23 +72,34 @@ clikd auth status
 
 ### Release Management
 
-The CLI includes powerful release management for monorepos and multi-language projects:
+The CLI includes powerful release management for monorepos and multi-language projects with interactive TUI wizards.
 
 ```bash
-# Initialize release management in your repository
+# Initialize release management (interactive TUI wizard)
 clikd release init
 
-# Check which projects have changes and preview release
+# Check which projects have changes (interactive TUI)
 clikd release status
 
-# Prepare a new release (bump versions, update changelogs)
-clikd release prepare patch   # Patch version bump (0.1.0 → 0.1.1)
-clikd release prepare minor   # Minor version bump (0.1.0 → 0.2.0)
-clikd release prepare major   # Major version bump (0.1.0 → 1.0.0)
+# Prepare a new release (interactive 4-step wizard)
+clikd release prepare
+
+# View dependency graph
+clikd release graph
 ```
+
+#### Release Commands
+
+| Command | Description |
+|---------|-------------|
+| `clikd release init` | Initialize release management with interactive TUI wizard |
+| `clikd release status` | Show release status with interactive project/commit browser |
+| `clikd release prepare` | Prepare releases using 4-step TUI wizard with auto-suggestions |
+| `clikd release graph` | Display project dependency graph |
 
 #### Release Management Features
 
+- **Interactive TUI Wizards**: All commands feature rich terminal UIs with keyboard navigation
 - **Multi-Language Support**: Automatically detects and manages versions for:
   - Rust (Cargo.toml)
   - Node.js (package.json)
@@ -96,17 +107,15 @@ clikd release prepare major   # Major version bump (0.1.0 → 1.0.0)
   - Go (go.mod)
   - Elixir (mix.exs)
   - C# (.csproj)
-
 - **Dependency Resolution**: Analyzes project dependencies and determines correct release order
-
 - **Automatic Changelog Generation**: Creates and updates CHANGELOG.md files based on Git commits
-
 - **Monorepo-Aware**: Handles complex dependency graphs in monorepos with multiple interconnected projects
+- **Git-Tag Based Versioning**: Version information stored in Git tags (`project-v1.2.3`)
 
 #### Example Workflow
 
 ```bash
-# 1. Initialize release management
+# 1. Initialize release management (interactive wizard)
 cd /path/to/your/repo
 clikd release init
 
@@ -114,53 +123,92 @@ clikd release init
 git add .
 git commit -m "feat: add new feature"
 
-# 3. Check what will be released
+# 3. Check what will be released (interactive browser)
 clikd release status
 
-# 4. Prepare the release (updates versions and changelogs)
-clikd release prepare minor
+# 4. Prepare the release (4-step TUI wizard)
+clikd release prepare
 
 # 5. Review and commit the changes
 git add .
 git commit -m "chore(release): prepare 0.2.0"
-git tag v0.2.0
+git tag my-project-v0.2.0
 git push origin main --tags
+```
+
+#### CI/CD Mode (--no-tui)
+
+For automated pipelines, use `--no-tui` to skip interactive wizards:
+
+```bash
+# Initialize without TUI
+clikd release init --no-tui
+
+# Status in text/JSON format
+clikd release status --no-tui
+clikd release status --format json
+
+# Auto-bump based on conventional commits
+clikd release prepare --no-tui
+
+# Per-project version bumps (CI mode)
+clikd release prepare -p gate:major,rig:minor,utils:patch
+```
+
+#### Dependency Graph
+
+Visualize your project dependencies:
+
+```bash
+# ASCII art graph (default)
+clikd release graph
+
+# DOT format for Graphviz
+clikd release graph --format dot
+
+# JSON format
+clikd release graph --format json
 ```
 
 #### Configuration
 
-Release management is configured via `.clikd/release.toml` in your repository:
+Release management is configured via `clikd/config.toml` in your repository:
 
 ```toml
-[repository]
-upstream_name = "origin"
+[release.repo]
+upstream_urls = ["https://github.com/your-org/your-repo.git"]
 
-[[projects]]
-name = "my-rust-crate"
-qualifier = "cargo"
-changelog_path = "CHANGELOG.md"
-release_branch = "main"
+[release.commit_attribution]
+strategy = "scope_first"
+scope_matching = "smart"
 
-[[projects]]
-name = "my-frontend"
-qualifier = "npm"
-changelog_path = "packages/frontend/CHANGELOG.md"
+[release.projects.my-crate]
+ignore = false
 ```
 
 Configuration is automatically created when you run `clikd release init`.
 
-#### Advanced Usage
+#### TUI Keyboard Shortcuts
 
-```bash
-# Force initialization even with uncommitted changes
-clikd release init --force
+**Status TUI:**
+- `Tab` - Switch between Projects and Commits panels
+- `↑/↓` or `j/k` - Navigate
+- `PgUp/PgDn` - Fast scroll
+- `g/G` - Go to top/bottom
+- `q` - Quit
 
-# Use a different upstream remote
-clikd release init --upstream upstream
+**Prepare TUI (4-step wizard):**
+- Step 1: Project overview with auto-suggestions
+- Step 2: Select bump type per project
+- Step 3: Preview changes
+- Step 4: Confirm and apply
 
-# Manual version specification (bypasses automatic bump detection)
-clikd release prepare manual
-```
+**Init TUI:**
+- `Space` - Toggle project selection
+- `a` - Select all projects
+- `n` - Deselect all projects
+- `Enter` - Proceed to next step
+- `Esc` - Go back
 
 ## Features
 

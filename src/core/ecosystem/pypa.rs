@@ -3,17 +3,15 @@
 
 //! Python Packaging Authority (PyPA) projects.
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{anyhow, bail};
 use clap::Parser;
 use configparser::ini::Ini;
 use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     env,
-    ffi::OsString,
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Read, Write},
-    process,
 };
 use toml::Value;
 use tracing::warn;
@@ -24,7 +22,6 @@ use crate::{
     core::release::{
         config::syntax::ProjectConfiguration,
         errors::{Error, Result},
-        graph::GraphQueryBuilder,
         project::{DepRequirement, DependencyTarget, ProjectId},
         repository::{ChangeList, RepoPath, RepoPathBuf},
         rewriters::Rewriter,
@@ -770,9 +767,6 @@ impl Rewriter for PythonRewriter {
 /// Python-specific CLI utilities.
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub enum PythonCommands {
-    /// Run a command for each released PyPA project.
-    ForeachReleased(ForeachReleasedCommand),
-
     /// Install $PYPI_TOKEN in the user's .pypirc.
     InstallToken(InstallTokenCommand),
 }
@@ -786,71 +780,8 @@ pub struct PythonCommand {
 impl PythonCommand {
     pub fn execute(self) -> Result<i32> {
         match self.command {
-            PythonCommands::ForeachReleased(o) => o.execute(),
             PythonCommands::InstallToken(o) => o.execute(),
         }
-    }
-}
-
-/// `clikd python foreach-released`
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct ForeachReleasedCommand {
-    #[arg(help = "The command to run", required = true)]
-    command: Vec<OsString>,
-}
-
-impl ForeachReleasedCommand {
-    fn execute(self) -> Result<i32> {
-        let sess = AppSession::initialize_default()?;
-
-        let (dev_mode, rel_info) = sess.ensure_ci_release_mode()?;
-        if dev_mode {
-            warn!("proceeding even though in dev mode");
-        }
-
-        let mut q = GraphQueryBuilder::default();
-        q.only_new_releases(rel_info);
-        q.only_project_type("pypa");
-        let idents = sess
-            .graph()
-            .query(q)
-            .context("could not select projects for `python foreach-released`")?;
-
-        let mut cmd = process::Command::new(&self.command[0]);
-        if self.command.len() > 1 {
-            cmd.args(&self.command[1..]);
-        }
-
-        let print_which = idents.len() > 1;
-        let mut first = true;
-
-        for ident in &idents {
-            let proj = sess.graph().lookup(*ident);
-            let dir = sess.repo.resolve_workdir(proj.prefix());
-            cmd.current_dir(&dir);
-
-            if print_which {
-                if first {
-                    first = false;
-                } else {
-                    println!();
-                }
-                println!("### in `{}`:", dir.display());
-            }
-
-            let status = cmd.status().context(format!(
-                "could not run the command for PyPA project `{}`",
-                proj.user_facing_name
-            ))?;
-            if !status.success() {
-                return Err(anyhow!(
-                    "the command failed for PyPA project `{}`",
-                    proj.user_facing_name
-                ));
-            }
-        }
-
-        Ok(0)
     }
 }
 
