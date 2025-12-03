@@ -88,6 +88,13 @@ pub enum Commands {
         long_about = "Powerful release management for monorepos and multi-language projects.\n\nSupported languages:\n  • Rust (Cargo.toml)\n  • Node.js (package.json)\n  • Python (setup.py, pyproject.toml)\n  • Go (go.mod)\n  • Elixir (mix.exs)\n  • C# (.csproj)\n\nFeatures:\n  • Automatic version bumping\n  • Dependency graph resolution\n  • Changelog generation from Git commits\n  • Multi-project coordination\n\nTypical workflow:\n  1. clikd release init\n  2. Make changes and commit\n  3. clikd release status\n  4. clikd release prepare [major|minor|patch]\n  5. Review, commit, tag, and push"
     )]
     Release(ReleaseCommands),
+
+    #[command(
+        subcommand,
+        about = "Claude AI authentication and changelog generation",
+        long_about = "Manage Claude AI authentication for AI-powered changelog generation.\n\nSupports:\n  • Claude Max/Pro subscription via OAuth\n  • API key authentication via ANTHROPIC_API_KEY\n\nUsage:\n  1. clikd ai login - Authenticate with Claude\n  2. clikd release prepare --ai - Generate AI changelog"
+    )]
+    Ai(AiCommands),
 }
 
 #[derive(Args)]
@@ -190,6 +197,21 @@ pub enum GraphOutputFormat {
     Dot,
     #[value(help = "JSON format")]
     Json,
+}
+
+#[derive(Subcommand)]
+pub enum AiCommands {
+    #[command(
+        about = "Authenticate with Claude Max/Pro subscription",
+        long_about = "Authenticate with your Claude Max or Pro subscription.\n\nThis opens a browser window for OAuth authentication.\nAfter logging in, your credentials are stored securely in the system keychain.\n\nAlternatively, set the ANTHROPIC_API_KEY environment variable."
+    )]
+    Login,
+
+    #[command(about = "Sign out from Claude AI")]
+    Logout,
+
+    #[command(about = "Show Claude AI authentication status")]
+    Status,
 }
 
 #[derive(Args)]

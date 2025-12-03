@@ -3,6 +3,7 @@ pub mod config;
 pub mod error;
 
 pub mod cmd {
+    pub mod ai;
     pub mod auth;
     pub mod completions;
     pub mod init;
@@ -21,6 +22,13 @@ pub mod cmd {
 
 pub mod core {
     pub mod root;
+
+    pub mod ai {
+        pub mod changelog;
+        pub mod client;
+        pub mod credentials;
+        pub mod oauth;
+    }
 
     pub mod auth {
         pub mod github;
@@ -179,6 +187,11 @@ pub async fn execute(cli: Cli) -> Result<()> {
                 }
                 Ok(())
             }
+        },
+        Commands::Ai(ai_cmd) => match ai_cmd {
+            cli::AiCommands::Login => cmd::ai::login().await,
+            cli::AiCommands::Logout => cmd::ai::logout().await,
+            cli::AiCommands::Status => cmd::ai::status().await,
         },
     }
 }

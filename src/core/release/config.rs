@@ -20,10 +20,19 @@ pub mod syntax {
         pub repo: RepoConfiguration,
 
         #[serde(default)]
+        pub changelog: ChangelogConfiguration,
+
+        #[serde(default)]
         pub commit_attribution: CommitAttributionConfiguration,
 
         #[serde(default)]
         pub projects: HashMap<String, ProjectConfiguration>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct ChangelogConfiguration {
+        #[serde(default)]
+        pub ai_enabled: bool,
     }
 
     #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -131,6 +140,7 @@ pub mod syntax {
 #[derive(Clone, Debug, Default)]
 pub struct ConfigurationFile {
     pub repo: syntax::RepoConfiguration,
+    pub changelog: syntax::ChangelogConfiguration,
     pub commit_attribution: syntax::CommitAttributionConfiguration,
     pub projects: HashMap<String, syntax::ProjectConfiguration>,
 }
@@ -165,6 +175,7 @@ impl ConfigurationFile {
         if let Some(release_cfg) = unified.release {
             Ok(ConfigurationFile {
                 repo: release_cfg.repo,
+                changelog: release_cfg.changelog,
                 commit_attribution: release_cfg.commit_attribution,
                 projects: release_cfg.projects,
             })
@@ -177,6 +188,7 @@ impl ConfigurationFile {
         let unified_cfg = syntax::UnifiedConfiguration {
             release: Some(syntax::ReleaseConfiguration {
                 repo: self.repo,
+                changelog: self.changelog,
                 commit_attribution: self.commit_attribution,
                 projects: self.projects,
             }),

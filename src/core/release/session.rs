@@ -11,7 +11,7 @@ use tracing::{error, info, warn};
 use crate::{
     atry,
     core::release::{
-        config::ConfigurationFile,
+        config::{syntax::ChangelogConfiguration, ConfigurationFile},
         errors::Result,
         graph::{ProjectGraph, ProjectGraphBuilder, RepoHistories},
         project::{DepRequirement, ProjectId},
@@ -129,6 +129,7 @@ impl AppBuilder {
             repo: self.repo,
             graph,
             npm_config: NpmConfig::default(),
+            changelog_config: config.changelog,
             ci_info: self.ci_info,
         })
     }
@@ -144,6 +145,7 @@ pub struct UnsatisfiedInternalRequirementError(pub String, pub String);
 pub struct AppSession {
     pub repo: Repository,
     pub npm_config: NpmConfig,
+    pub changelog_config: ChangelogConfiguration,
     graph: ProjectGraph,
     ci_info: ci_info::types::CiInfo,
 }

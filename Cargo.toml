@@ -12,6 +12,7 @@ repository = "https://github.com/clikd-inc/cli"
 [features]
 default = []
 csharp = []
+ai = []
 
 [package.metadata.wix]
 upgrade-guid = "4A39E689-B0D6-4AB9-8959-FE75CD47AE52"
@@ -95,7 +96,10 @@ git-url-parse = "0.6.0"          # Parse Git URLs for GitHub release integration
 percent-encoding = "2"         # URL encoding for Git URLs and API calls
 target-lexicon = "0.13.3"        # Platform target detection for cross-platform support
 textwrap = "0.16"              # Text wrapping for changelog formatting
-base64 = "0.22"                # Base64 encoding for GitHub API
+base64 = "0.22"                # Base64 encoding for GitHub API, PKCE
+sha2 = "0.10"                  # SHA256 for OAuth PKCE code challenge
+rand = "0.9"                   # Random string generation for OAuth state/verifier
+urlencoding = "2.1"            # URL encoding for OAuth parameters
 flate2 = "1.0"                 # Gzip compression for archives
 tar = "0.4"                    # TAR archive creation for release artifacts
 zip = { version = "6.0.0", default-features = false, features = ["deflate", "time"] }  # ZIP archives for Windows releases

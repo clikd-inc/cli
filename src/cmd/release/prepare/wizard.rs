@@ -19,9 +19,11 @@ use crate::{
     atry,
     core::{
         release::{
+            changelog_generator::{self, ChangelogEntry},
             commit_analyzer::{self, BumpRecommendation},
             graph::GraphQueryBuilder,
             project::ProjectId,
+            repository::RepoPathBuf,
             session::AppSession,
         },
         ui::markdown,
@@ -60,6 +62,7 @@ impl WizardStep {
 struct ProjectItem {
     ident: ProjectId,
     name: String,
+    prefix: String,
     selected: bool,
     commit_count: usize,
     suggested_bump: BumpRecommendation,
@@ -366,6 +369,7 @@ pub fn run() -> Result<i32> {
         projects.push(ProjectItem {
             ident: *ident,
             name: proj.user_facing_name.clone(),
+            prefix: proj.prefix().escaped(),
             selected: true,
             commit_count: n_commits,
             suggested_bump: analysis.recommendation,
@@ -459,10 +463,116 @@ pub fn run() -> Result<i32> {
         ["failed to update project files"]
     );
 
-    if changes.paths().count() > 0 {
+    info!("generating changelogs for each project...");
+
+    let ai_enabled = sess.changelog_config.ai_enabled;
+    let mut changelog_paths: Vec<RepoPathBuf> = Vec::new();
+
+    for project_item in &selected_projects {
+        let proj = sess.graph().lookup(project_item.ident);
+        let new_version = proj.version.to_string();
+
+        let categorized = commit_analyzer::categorize_commits(&project_item.commit_messages);
+
+        if categorized.is_empty() {
+            info!(
+                "{}: no user-facing changes, skipping changelog",
+                proj.user_facing_name
+            );
+            continue;
+        }
+
+        let mut entry = ChangelogEntry::new(new_version.clone());
+        entry.add_commits(&categorized);
+
+        let draft_changelog = entry.to_markdown();
+
+        let final_changelog_entry = if ai_enabled {
+            info!(
+                "{}: polishing changelog with AI...",
+                proj.user_facing_name
+            );
+
+            match polish_changelog_with_ai(&draft_changelog, &project_item.commit_messages) {
+                Ok(polished) => polished,
+                Err(e) => {
+                    info!(
+                        "{}: AI polish failed ({}), using standard changelog",
+                        proj.user_facing_name, e
+                    );
+                    draft_changelog
+                }
+            }
+        } else {
+            draft_changelog
+        };
+
+        let changelog_rel_path = if project_item.prefix.is_empty() {
+            "CHANGELOG.md".to_string()
+        } else {
+            format!("{}/CHANGELOG.md", project_item.prefix)
+        };
+
+        let changelog_repo_path = RepoPathBuf::new(changelog_rel_path.as_bytes());
+        let changelog_full_path = sess.repo.resolve_workdir(changelog_repo_path.as_ref());
+
+        let existing_content =
+            changelog_generator::parse_existing_changelog(&changelog_full_path).unwrap_or_default();
+
+        let full_changelog = changelog_generator::generate_changelog(
+            &proj.user_facing_name,
+            &entry,
+            &existing_content,
+        );
+
+        let final_content = if ai_enabled && !final_changelog_entry.is_empty() {
+            let header = format!(
+                "# Changelog\n\n\
+                All notable changes to {} will be documented in this file.\n\n\
+                The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\n\
+                and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n",
+                proj.user_facing_name
+            );
+            let ai_entry = if final_changelog_entry.starts_with("## [") {
+                final_changelog_entry.clone()
+            } else {
+                entry.to_markdown()
+            };
+            format!("{}{}\n{}", header, ai_entry, existing_content)
+        } else {
+            full_changelog
+        };
+
+        if let Some(parent) = changelog_full_path.parent() {
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create directory for {}", changelog_full_path.display())
+            })?;
+        }
+
+        std::fs::write(&changelog_full_path, &final_content).with_context(|| {
+            format!(
+                "failed to write changelog to {}",
+                changelog_full_path.display()
+            )
+        })?;
+
+        changelog_paths.push(changelog_repo_path);
+        info!(
+            "{}: wrote changelog to {}",
+            proj.user_facing_name, changelog_rel_path
+        );
+    }
+
+    let mut all_changed_paths: Vec<&crate::core::release::repository::RepoPath> =
+        changes.paths().collect();
+    for path in &changelog_paths {
+        all_changed_paths.push(path.as_ref());
+    }
+
+    if !all_changed_paths.is_empty() {
         println!();
         info!("modified files:");
-        for path in changes.paths() {
+        for path in &all_changed_paths {
             println!("  {}", path.escaped());
         }
     }
@@ -482,7 +592,7 @@ pub fn run() -> Result<i32> {
     );
 
     atry!(
-        sess.repo.create_commit(&commit_message, changes.paths().collect::<Vec<_>>().as_slice());
+        sess.repo.create_commit(&commit_message, &all_changed_paths);
         ["failed to create release commit"]
     );
 
@@ -975,4 +1085,21 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+fn polish_changelog_with_ai(draft: &str, commits: &[String]) -> Result<String> {
+    use crate::core::ai::changelog::AiChangelogGenerator;
+
+    let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
+
+    rt.block_on(async {
+        let generator = AiChangelogGenerator::new()
+            .await
+            .context("failed to initialize AI changelog generator")?;
+
+        generator
+            .polish(draft, commits)
+            .await
+            .context("failed to polish changelog with AI")
+    })
 }
