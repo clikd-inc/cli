@@ -6,7 +6,7 @@
 use anyhow::{anyhow, bail, Context};
 use serde::{Deserialize, Serialize};
 
-use super::dynfmt::{Format, SimpleCurlyFormat};
+use super::template::format_template;
 use std::{
     collections::HashMap,
     fs::File,
@@ -949,8 +949,7 @@ impl Repository {
         tagname_args.insert("project_slug", proj.user_facing_name.to_owned());
         tagname_args.insert("version", rel.version.clone());
 
-        let basis = SimpleCurlyFormat
-            .format(&self.release_tag_name_format, &tagname_args)
+        let basis = format_template(&self.release_tag_name_format, &tagname_args)
             .map_err(|e| Error::msg(e.to_string()))?;
 
         // See: https://git-scm.com/docs/git-check-ref-format . We don't

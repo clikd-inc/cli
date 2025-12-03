@@ -55,7 +55,6 @@ pub mod core {
         pub mod changelog_generator;
         pub mod commit_analyzer;
         pub mod config;
-        mod dynfmt;
         pub mod env;
         pub mod errors;
         pub mod git_validate;
@@ -64,6 +63,7 @@ pub mod core {
         pub mod repository;
         pub mod rewriters;
         pub mod session;
+        mod template;
         pub mod version;
     }
 

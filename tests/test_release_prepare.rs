@@ -1,0 +1,425 @@
+mod common;
+
+use common::TestRepo;
+
+#[test]
+fn test_release_prepare_patch_bump() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "my-crate"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(
+        output.status.success(),
+        "Init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    repo.write_file("src/fix.rs", "pub fn fix_bug() {}\n");
+    repo.commit("fix: resolve critical bug");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"1.0.1\""),
+        "Version should be bumped to 1.0.1 for fix commit. Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_minor_bump() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "feature-crate"
+version = "2.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("src/feature.rs", "pub fn new_feature() {}\n");
+    repo.commit("feat: add amazing new feature");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"2.1.0\""),
+        "Version should be bumped to 2.1.0 for feat commit. Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_major_bump() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "breaking-crate"
+version = "1.5.3"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("src/breaking.rs", "pub fn breaking_change() {}\n");
+    repo.commit("feat!: breaking API change");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"2.0.0\""),
+        "Version should be bumped to 2.0.0 for breaking change. Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_updates_version_file_only() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "changelog-test"
+version = "0.1.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("src/new.rs", "pub fn something_new() {}\n");
+    repo.commit("feat: add something new");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"0.2.0\""),
+        "Version should be bumped to 0.2.0 for feat commit. Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_npm_package() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "package.json",
+        r#"{
+  "name": "my-npm-package",
+  "version": "3.0.0",
+  "description": "Test package"
+}
+"#,
+    );
+    repo.write_file("index.js", "module.exports = {};\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("feature.js", "module.exports.feature = () => {};\n");
+    repo.commit("feat: add new feature");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let package_json = repo.read_file("package.json");
+    assert!(
+        package_json.contains("\"version\": \"3.1.0\""),
+        "package.json version should be bumped to 3.1.0. Got: {}",
+        package_json
+    );
+}
+
+#[test]
+fn test_release_prepare_python_package() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "setup.cfg",
+        r#"[metadata]
+name = my-python-pkg
+version = 1.0.0
+description = Test package
+"#,
+    );
+    repo.write_file(
+        "setup.py",
+        r#"from setuptools import setup
+
+__version__ = "1.0.0"  # clikd project-version
+
+setup(version=__version__)
+"#,
+    );
+    repo.write_file("src/__init__.py", "");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(
+        output.status.success(),
+        "Init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    repo.write_file("src/feature.py", "def new_feature(): pass\n");
+    repo.commit("fix: resolve issue");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {} | stdout: {}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let setup_py = repo.read_file("setup.py");
+    assert!(
+        setup_py.contains("\"1.0.1\""),
+        "setup.py version should be bumped to 1.0.1. Got: {}",
+        setup_py
+    );
+}
+
+#[test]
+fn test_release_prepare_multiple_commits() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "multi-commit"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("src/fix1.rs", "pub fn fix1() {}\n");
+    repo.commit("fix: first bug fix");
+
+    repo.write_file("src/fix2.rs", "pub fn fix2() {}\n");
+    repo.commit("fix: second bug fix");
+
+    repo.write_file("src/feature.rs", "pub fn feature() {}\n");
+    repo.commit("feat: new feature");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"1.1.0\""),
+        "feat should result in minor bump (1.1.0). Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_no_changes() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "no-changes"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    let _output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"1.0.0\""),
+        "Version should remain 1.0.0 with no changes. Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_preserves_cargo_toml_formatting() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "format-test"
+version = "1.0.0"
+edition = "2021"
+description = "A test package"
+
+[dependencies]
+serde = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+
+[dev-dependencies]
+tempfile = "3.0"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("src/fix.rs", "pub fn fix() {}\n");
+    repo.commit("fix: bug fix");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(output.status.success());
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+
+    assert!(
+        cargo_toml.contains("[dependencies]"),
+        "Should preserve [dependencies] section"
+    );
+    assert!(
+        cargo_toml.contains("serde = \"1.0\""),
+        "Should preserve serde dependency"
+    );
+    assert!(
+        cargo_toml.contains("tokio = { version = \"1.0\", features = [\"full\"] }"),
+        "Should preserve tokio inline table format"
+    );
+    assert!(
+        cargo_toml.contains("[dev-dependencies]"),
+        "Should preserve [dev-dependencies] section"
+    );
+}
+
+#[test]
+fn test_release_prepare_monorepo_multiple_packages() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[workspace]
+members = ["packages/*"]
+resolver = "2"
+"#,
+    );
+
+    repo.write_file(
+        "packages/core/Cargo.toml",
+        r#"[package]
+name = "monorepo-core"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("packages/core/src/lib.rs", "pub fn core() {}\n");
+
+    repo.write_file(
+        "packages/utils/Cargo.toml",
+        r#"[package]
+name = "monorepo-utils"
+version = "2.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("packages/utils/src/lib.rs", "pub fn utils() {}\n");
+
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("packages/core/src/feature.rs", "pub fn new_core() {}\n");
+    repo.commit("feat(core): add core feature");
+
+    repo.write_file("packages/utils/src/fix.rs", "pub fn fix_utils() {}\n");
+    repo.commit("fix(utils): fix utils bug");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "auto"]);
+    assert!(
+        output.status.success(),
+        "Prepare failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let core_toml = repo.read_file("packages/core/Cargo.toml");
+    let utils_toml = repo.read_file("packages/utils/Cargo.toml");
+
+    assert!(
+        core_toml.contains("version = \"1.1.0\"") || core_toml.contains("version = \"1.0.1\""),
+        "Core should be bumped. Got: {}",
+        core_toml
+    );
+    assert!(
+        utils_toml.contains("version = \"2.0.1\"") || utils_toml.contains("version = \"2.1.0\""),
+        "Utils should be bumped. Got: {}",
+        utils_toml
+    );
+}

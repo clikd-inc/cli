@@ -17,7 +17,7 @@ use std::{
 use thiserror::Error as ThisError;
 use time::OffsetDateTime;
 
-use super::dynfmt::{Format, SimpleCurlyFormat};
+use super::template::format_template;
 
 use crate::core::release::{
     errors::{Error, Result},
@@ -167,8 +167,7 @@ impl MarkdownChangelog {
 
                 let mut headfoot_args = HashMap::new();
                 headfoot_args.insert("bump_spec", "patch");
-                let header = SimpleCurlyFormat
-                    .format(&self.stage_header_format, &headfoot_args)
+                let header = format_template(&self.stage_header_format, &headfoot_args)
                     .map_err(|e| Error::msg(e.to_string()))?;
                 writeln!(new_f, "{}", header)?;
 
@@ -190,8 +189,7 @@ impl MarkdownChangelog {
 
                 // Footer
 
-                let footer = SimpleCurlyFormat
-                    .format(&self.footer_format, &headfoot_args)
+                let footer = format_template(&self.footer_format, &headfoot_args)
                     .map_err(|e| Error::msg(e.to_string()))?;
                 writeln!(new_f, "{}", footer)?;
             }
@@ -321,8 +319,7 @@ impl Changelog for MarkdownChangelog {
                         }
 
                         state = State::BlanksAfterHeader;
-                        let header = SimpleCurlyFormat
-                            .format(&self.release_header_format, &header_args)
+                        let header = format_template(&self.release_header_format, &header_args)
                             .map_err(|e| Error::msg(e.to_string()))?;
                         writeln!(new_f, "{}", header)?;
                     }
@@ -414,8 +411,7 @@ mod tests {
         args.insert("version", "1.2.3".to_string());
         args.insert("yyyy_mm_dd", "2025-01-15".to_string());
 
-        let result = SimpleCurlyFormat
-            .format(&changelog.release_header_format, &args)
+        let result = format_template(&changelog.release_header_format, &args)
             .expect("BUG: format should succeed with valid args");
 
         assert_eq!(result, "# my-project 1.2.3 (2025-01-15)\n");
@@ -427,8 +423,7 @@ mod tests {
         let mut args = HashMap::new();
         args.insert("bump_spec", "minor".to_string());
 
-        let result = SimpleCurlyFormat
-            .format(&changelog.stage_header_format, &args)
+        let result = format_template(&changelog.stage_header_format, &args)
             .expect("BUG: format should succeed with valid args");
 
         assert_eq!(result, "# rc: minor\n");
