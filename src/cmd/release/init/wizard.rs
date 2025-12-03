@@ -309,7 +309,6 @@ fn execute_bootstrap(state: &WizardState, repo: &Repository) -> Result<String> {
             release_commit: None,
         });
 
-        proj.version.set_to_dev_value();
         versions.insert(proj.ident(), proj.version.clone());
 
         for dep in &mut proj.internal_deps[..] {
