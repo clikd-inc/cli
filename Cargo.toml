@@ -100,7 +100,7 @@ sha2 = "0.10"                  # SHA256 for OAuth PKCE code challenge
 rand = "0.9"                   # Random string generation for OAuth state/verifier
 urlencoding = "2.1"            # URL encoding for OAuth parameters
 ci_info = "0.14"               # CI environment detection (GitHub Actions, etc.)
-lazy_static = "1.4"            # Global regex patterns for version parsing
+ref-cast = "1.0"               # Safe repr(transparent) reference casting
 
 [dev-dependencies]
 trycmd = "0.15"

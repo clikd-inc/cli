@@ -4,6 +4,7 @@
 //! State of the backing version control repository.
 
 use anyhow::{anyhow, bail, Context};
+use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 
 use super::template::format_template;
@@ -1276,19 +1277,19 @@ pub enum ParsedHistoryRef {
 /// In git, such a path is a byte array. The directory separator is always "/".
 /// The bytes are often convertible to UTF-8, but not always. (These are the
 /// same semantics as Unix paths.)
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, RefCast)]
 #[repr(transparent)]
 pub struct RepoPath([u8]);
 
 impl std::convert::AsRef<RepoPath> for [u8] {
     fn as_ref(&self) -> &RepoPath {
-        unsafe { &*(self as *const [_] as *const RepoPath) }
+        RepoPath::ref_cast(self)
     }
 }
 
 impl std::convert::AsRef<[u8]> for RepoPath {
     fn as_ref(&self) -> &[u8] {
-        unsafe { &*(self.0.as_ref() as *const [u8]) }
+        &self.0
     }
 }
 

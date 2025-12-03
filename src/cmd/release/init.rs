@@ -186,7 +186,9 @@ impl BootstrapCommand {
         let mut bs_cfg = BootstrapConfiguration::default();
         let mut versions = HashMap::new();
 
-        for proj in sess.graph_mut().toposorted_mut() {
+        let topo_ids: Vec<_> = sess.graph().toposorted().collect();
+        for ident in topo_ids {
+            let proj = sess.graph_mut().lookup_mut(ident);
             bs_cfg.project.push(BootstrapProjectInfo {
                 qnames: proj.qualified_names().to_owned(),
                 version: proj.version.to_string(),
@@ -268,7 +270,9 @@ impl BootstrapCommand {
             info!("... no files modified. This might be OK.")
         }
 
-        for proj in sess.graph_mut().toposorted_mut() {
+        let topo_ids: Vec<_> = sess.graph().toposorted().collect();
+        for ident in topo_ids {
+            let proj = sess.graph_mut().lookup_mut(ident);
             for dep in &mut proj.internal_deps[..] {
                 dep.clikd_requirement = DepRequirement::Manual(dep.literal.clone());
             }

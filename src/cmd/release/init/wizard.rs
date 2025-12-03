@@ -298,7 +298,9 @@ fn execute_bootstrap(state: &WizardState, repo: &Repository) -> Result<String> {
         .map(|p| p.name.clone())
         .collect();
 
-    for proj in sess.graph_mut().toposorted_mut() {
+    let topo_ids: Vec<_> = sess.graph().toposorted().collect();
+    for ident in topo_ids {
+        let proj = sess.graph_mut().lookup_mut(ident);
         if !selected_names.contains(&proj.user_facing_name) {
             continue;
         }
@@ -333,7 +335,9 @@ fn execute_bootstrap(state: &WizardState, repo: &Repository) -> Result<String> {
 
     sess.rewrite()?;
 
-    for proj in sess.graph_mut().toposorted_mut() {
+    let topo_ids: Vec<_> = sess.graph().toposorted().collect();
+    for ident in topo_ids {
+        let proj = sess.graph_mut().lookup_mut(ident);
         for dep in &mut proj.internal_deps[..] {
             dep.clikd_requirement = DepRequirement::Manual(dep.literal.clone());
         }
