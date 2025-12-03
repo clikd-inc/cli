@@ -152,7 +152,7 @@ pub enum ReleaseCommands {
 
     #[command(
         about = "Prepare a release (bump versions)",
-        long_about = "Prepare a new release by bumping versions and updating changelogs.\n\nBump types:\n  • major: Breaking changes (1.0.0 → 2.0.0)\n  • minor: New features (1.0.0 → 1.1.0)\n  • patch: Bug fixes (1.0.0 → 1.0.1)\n  • auto: Automatic bump based on conventional commits\n  • manual: Interactive TUI wizard with suggestions\n\nThis command:\n  • Updates version numbers in all affected project files\n  • Generates/updates CHANGELOG.md for each project\n  • Updates dependency versions in dependent projects\n  • Creates a commit-ready state (you still need to commit and tag)\n\nModes:\n  • TUI mode (default): Interactive 4-step wizard with auto-suggestions\n  • Auto mode (--no-tui): Automatic bump based on conventional commits\n  • Use --no-tui for CI/CD pipelines"
+        long_about = "Prepare a new release by bumping versions and updating changelogs.\n\nBump types:\n  • major: Breaking changes (1.0.0 → 2.0.0)\n  • minor: New features (1.0.0 → 1.1.0)\n  • patch: Bug fixes (1.0.0 → 1.0.1)\n  • auto: Automatic bump based on conventional commits\n  • manual: Interactive TUI wizard with suggestions\n\nThis command:\n  • Updates version numbers in all affected project files\n  • Generates/updates CHANGELOG.md for each project\n  • Updates dependency versions in dependent projects\n  • Creates a commit-ready state (you still need to commit and tag)\n\nModes:\n  • TUI mode (default): Interactive 4-step wizard with auto-suggestions\n  • Auto mode (--no-tui): Automatic bump based on conventional commits\n  • CI mode (--ci): Full automation with commit, tags, and GitHub releases"
     )]
     Prepare {
         #[arg(help = "Version bump type: major, minor, patch, auto, or manual")]
@@ -160,6 +160,21 @@ pub enum ReleaseCommands {
 
         #[arg(long, help = "Force auto mode, skip interactive TUI wizard")]
         no_tui: bool,
+
+        #[arg(
+            long,
+            help = "Full CI/CD mode: auto-bump, changelog, commit, tags, and GitHub releases"
+        )]
+        ci: bool,
+
+        #[arg(long, help = "Push commits and tags to remote (requires --ci)")]
+        push: bool,
+
+        #[arg(
+            long,
+            help = "Create GitHub releases for each package (requires --ci and --push)"
+        )]
+        github_release: bool,
 
         #[arg(
             short,

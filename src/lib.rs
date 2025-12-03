@@ -167,9 +167,13 @@ pub async fn execute(cli: Cli) -> Result<()> {
             cli::ReleaseCommands::Prepare {
                 bump,
                 no_tui,
+                ci,
+                push,
+                github_release,
                 project,
             } => {
-                let exit_code = cmd::release::prepare::run(bump, no_tui, project)?;
+                let exit_code =
+                    cmd::release::prepare::run(bump, no_tui, ci, push, github_release, project)?;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
                 }
