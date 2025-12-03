@@ -244,7 +244,6 @@ impl From<Option<ConfigKeymap>> for Keymap {
                 &mut keymap.toggle_mouse_capture,
                 &mut clash,
             );
-            // TODO need to check for clashes when using additional modifiers
             if let Some(scroll_many) = Self::try_parse_modifier(ck.scroll_many) {
                 keymap.scroll_many = scroll_many;
             }

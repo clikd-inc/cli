@@ -88,7 +88,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -112,7 +112,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -163,7 +163,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         // Set the container state to paused
         setup
@@ -187,7 +187,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -233,7 +233,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
         for (_, result_row) in get_result(&setup) {
@@ -262,7 +262,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         for (row_index, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
@@ -307,7 +307,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
         for (row_index, result_row) in get_result(&setup) {
@@ -360,7 +360,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         // Set the controls state
         setup
@@ -384,7 +384,7 @@ mod tests {
                     &setup.gui_state,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 

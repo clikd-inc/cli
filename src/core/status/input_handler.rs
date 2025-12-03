@@ -79,7 +79,6 @@ impl InputHandler {
                         && !contains(Status::Filter)
                         && !contains(Status::SearchLogs)
                     {
-                        // TODO handle state where you want to scroll log search results with the mouse wheel
                         self.mouse_press(mouse_event, modifider);
                     }
                 }
@@ -409,20 +408,15 @@ impl InputHandler {
                 self.app_data
                     .lock()
                     .log_search_scroll(&ScrollDirection::Next);
-                // TODO should only do this is log_search_scroll returns some
-                // Need to wait til app_data and gui_data is combined
                 self.gui_state
                     .lock()
                     .set_logs_panel_selected(&self.app_data);
-                //
             }
 
             _ if self.keymap.scroll_up.0 == key_code => {
                 self.app_data
                     .lock()
                     .log_search_scroll(&ScrollDirection::Previous);
-                // TODO should only do this is log_search_scroll returns some
-                // Need to wait til app_data and gui_data is combined
                 self.gui_state
                     .lock()
                     .set_logs_panel_selected(&self.app_data);

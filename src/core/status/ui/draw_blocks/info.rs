@@ -16,7 +16,6 @@ use crate::core::status::{
 use super::{max_line_width, popup};
 
 /// Draw info box in one of the 9 BoxLocations
-// TODO is this broken - I don't think so
 pub fn draw(
     colors: AppColors,
     f: &mut Frame,
@@ -83,7 +82,7 @@ mod tests {
                     "test".to_owned(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -119,7 +118,7 @@ mod tests {
                     "test".to_owned(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
         for (row_index, result_row) in get_result(&setup) {

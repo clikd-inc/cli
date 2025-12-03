@@ -147,7 +147,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &setup.fd, &Keymap::new());
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -196,7 +196,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &fd, &Keymap::new());
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -253,7 +253,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &fd, &Keymap::new());
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -306,7 +306,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &fd, &Keymap::new());
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -355,7 +355,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &fd, &Keymap::new());
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -412,7 +412,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, AppColors::new(), f, &fd, &keymap);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -448,7 +448,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, colors, f, &fd, &Keymap::new());
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 

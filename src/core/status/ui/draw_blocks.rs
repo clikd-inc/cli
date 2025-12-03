@@ -189,7 +189,7 @@ pub mod tests {
     /// Generate state to be used in *most* gui tests
     pub fn test_setup(w: u16, h: u16, control_start: bool, container_start: bool) -> TuiTestSetup {
         let backend = TestBackend::new(w, h);
-        let terminal = Terminal::new(backend).unwrap();
+        let terminal = Terminal::new(backend).expect("BUG: test case should succeed");
 
         let (ids, containers) = gen_containers();
         let mut app_data = gen_appdata(&containers);
@@ -288,7 +288,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -324,7 +324,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -357,7 +357,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -386,7 +386,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -418,7 +418,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -448,7 +448,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -482,7 +482,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -514,7 +514,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -542,7 +542,7 @@ pub mod tests {
             .draw(|f| {
                 draw_frame(&setup.app_data, colors, &keymap, f, &fd, &setup.gui_state);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }

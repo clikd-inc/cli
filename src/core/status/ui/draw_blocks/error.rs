@@ -119,7 +119,7 @@ mod tests {
                     Some(4),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
         for (row_index, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
@@ -150,7 +150,7 @@ mod tests {
                     Some(4),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -185,7 +185,7 @@ mod tests {
             .draw(|f| {
                 super::draw(colors, &AppError::DockerExec, f, &Keymap::new(), Some(4));
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -220,7 +220,7 @@ mod tests {
             .draw(|f| {
                 super::draw(AppColors::new(), &AppError::DockerExec, f, &keymap, None);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
     }
     #[test]
@@ -237,7 +237,7 @@ mod tests {
             .draw(|f| {
                 super::draw(AppColors::new(), &AppError::DockerExec, f, &keymap, None);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
     }
 
@@ -254,7 +254,7 @@ mod tests {
             .draw(|f| {
                 super::draw(AppColors::new(), &AppError::DockerExec, f, &keymap, None);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
     }
 }

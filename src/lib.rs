@@ -3,6 +3,7 @@ pub mod config;
 pub mod error;
 
 pub mod cmd {
+    pub mod ai;
     pub mod auth;
     pub mod completions;
     pub mod init;
@@ -10,10 +11,24 @@ pub mod cmd {
     pub mod status;
     pub mod stop;
     pub mod update;
+
+    pub mod release {
+        pub mod graph;
+        pub mod init;
+        pub mod prepare;
+        pub mod status;
+    }
 }
 
 pub mod core {
     pub mod root;
+
+    pub mod ai {
+        pub mod changelog;
+        pub mod client;
+        pub mod credentials;
+        pub mod oauth;
+    }
 
     pub mod auth {
         pub mod github;
@@ -31,7 +46,39 @@ pub mod core {
 
     pub mod git {
         pub mod branch;
+        pub mod clikd_utils;
         pub mod gitignore;
+    }
+
+    pub mod release {
+        pub mod changelog;
+        pub mod changelog_generator;
+        pub mod commit_analyzer;
+        pub mod config;
+        pub mod env;
+        pub mod errors;
+        pub mod git_validate;
+        pub mod graph;
+        pub mod project;
+        pub mod repository;
+        pub mod rewriters;
+        pub mod session;
+        mod template;
+        pub mod version;
+    }
+
+    pub mod ecosystem {
+        pub mod cargo;
+        #[cfg(feature = "csharp")]
+        pub mod csproj;
+        pub mod elixir;
+        pub mod go;
+        pub mod npm;
+        pub mod pypa;
+    }
+
+    pub mod github {
+        pub mod client;
     }
 
     pub mod ide {
@@ -49,6 +96,8 @@ pub mod core {
 
     pub mod status;
 
+    pub mod ui;
+
     pub mod config {
         pub mod images;
         pub mod loader;
@@ -58,6 +107,7 @@ pub mod core {
 }
 
 pub mod utils {
+    pub mod file_io;
     pub mod retry;
     pub mod terminal;
     pub mod theme;
@@ -96,5 +146,57 @@ pub async fn execute(cli: Cli) -> Result<()> {
             cmd::completions::generate(shell);
             Ok(())
         }
+        Commands::Release(release_cmd) => match release_cmd {
+            cli::ReleaseCommands::Init {
+                force,
+                upstream,
+                no_tui,
+            } => {
+                let exit_code = cmd::release::init::run(force, upstream, no_tui)?;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+                Ok(())
+            }
+            cli::ReleaseCommands::Status { format, no_tui } => {
+                let exit_code = cmd::release::status::run(format, no_tui)?;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+                Ok(())
+            }
+            cli::ReleaseCommands::Prepare {
+                bump,
+                no_tui,
+                ci,
+                push,
+                github_release,
+                project,
+            } => {
+                let exit_code =
+                    cmd::release::prepare::run(bump, no_tui, ci, push, github_release, project)?;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+                Ok(())
+            }
+            cli::ReleaseCommands::Graph {
+                format,
+                no_tui,
+                web,
+                out,
+            } => {
+                let exit_code = cmd::release::graph::run(format, no_tui, web, out)?;
+                if exit_code != 0 {
+                    std::process::exit(exit_code);
+                }
+                Ok(())
+            }
+        },
+        Commands::Ai(ai_cmd) => match ai_cmd {
+            cli::AiCommands::Login => cmd::ai::login().await,
+            cli::AiCommands::Logout => cmd::ai::logout().await,
+            cli::AiCommands::Status => cmd::ai::status().await,
+        },
     }
 }

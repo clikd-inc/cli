@@ -1,0 +1,97 @@
+#![allow(dead_code)]
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use tempfile::TempDir;
+
+pub struct TestRepo {
+    _dir: TempDir,
+    pub path: PathBuf,
+}
+
+impl TestRepo {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_path_buf();
+
+        Self::init_git(&path);
+
+        TestRepo { _dir: dir, path }
+    }
+
+    fn init_git(path: &Path) {
+        Command::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .expect("failed to init git");
+
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(path)
+            .output()
+            .expect("failed to set git email");
+
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(path)
+            .output()
+            .expect("failed to set git name");
+
+        Command::new("git")
+            .args([
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/test/repo.git",
+            ])
+            .current_dir(path)
+            .output()
+            .expect("failed to add remote");
+    }
+
+    pub fn write_file(&self, relative_path: &str, content: &str) {
+        let full_path = self.path.join(relative_path);
+        if let Some(parent) = full_path.parent() {
+            std::fs::create_dir_all(parent).expect("failed to create parent dirs");
+        }
+        std::fs::write(full_path, content).expect("failed to write file");
+    }
+
+    pub fn commit(&self, message: &str) {
+        Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(&self.path)
+            .output()
+            .expect("failed to git add");
+
+        Command::new("git")
+            .args(["commit", "-m", message])
+            .current_dir(&self.path)
+            .output()
+            .expect("failed to git commit");
+    }
+
+    pub fn run_clikd_command(&self, args: &[&str]) -> std::process::Output {
+        let clikd_bin = env!("CARGO_BIN_EXE_clikd");
+
+        Command::new(clikd_bin)
+            .args(args)
+            .current_dir(&self.path)
+            .output()
+            .expect("failed to run clikd command")
+    }
+
+    pub fn file_exists(&self, relative_path: &str) -> bool {
+        self.path.join(relative_path).exists()
+    }
+
+    pub fn read_file(&self, relative_path: &str) -> String {
+        std::fs::read_to_string(self.path.join(relative_path)).expect("failed to read file")
+    }
+
+    pub fn has_config_dir(&self) -> bool {
+        self.path.join("clikd").is_dir()
+    }
+}

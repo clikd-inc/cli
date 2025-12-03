@@ -100,7 +100,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, setup.app_data.lock().config.app_colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
 
         for (row_index, result_row) in get_result(&setup) {
@@ -139,7 +139,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, setup.app_data.lock().config.app_colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         // split
 
         setup.app_data.lock().containers.items[0].state = State::Dead;
@@ -150,7 +150,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, setup.app_data.lock().config.app_colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -193,7 +193,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, setup.app_data.lock().config.app_colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
 
         for (row_index, result_row) in get_result(&setup) {
@@ -233,7 +233,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, setup.app_data.lock().config.app_colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -254,7 +254,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, setup.app_data.lock().config.app_colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         for (row_index, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
@@ -273,7 +273,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, setup.app_data.lock().config.app_colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         for (row_index, result_row) in get_result(&setup) {
             for (result_cell_index, result_cell) in result_row.iter().enumerate() {
@@ -304,7 +304,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, colors, f, &fd);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -369,7 +369,7 @@ mod tests {
                 .draw(|f| {
                     super::draw(setup.area, colors, f, &fd);
                 })
-                .unwrap();
+                .expect("BUG: test case should succeed");
 
             // assert_snapshot!(setup.terminal.backend());
 

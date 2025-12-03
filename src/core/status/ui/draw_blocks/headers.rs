@@ -253,7 +253,7 @@ mod tests {
                     &Keymap::new(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -285,7 +285,7 @@ mod tests {
                     &Keymap::new(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
 
         for (_, result_row) in get_result(&setup) {
@@ -313,7 +313,7 @@ mod tests {
                     &Keymap::new(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
         assert_snapshot!(setup.terminal.backend());
 
         for (_, result_row) in get_result(&setup) {
@@ -350,7 +350,7 @@ mod tests {
                     &Keymap::new(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
         for (_, result_row) in get_result(&setup) {
@@ -389,7 +389,7 @@ mod tests {
                     &Keymap::new(),
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
         for (_, result_row) in get_result(&setup) {
@@ -428,7 +428,7 @@ mod tests {
             .draw(|f| {
                 super::draw(setup.area, colors, f, &fd, &setup.gui_state, keymap);
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
 
@@ -469,7 +469,7 @@ mod tests {
                     &keymap,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -494,7 +494,7 @@ mod tests {
                     &keymap,
                 );
             })
-            .unwrap();
+            .expect("BUG: test case should succeed");
 
         assert_snapshot!(setup.terminal.backend());
     }
@@ -538,7 +538,7 @@ mod tests {
                             &Keymap::new(),
                         );
                     })
-                    .unwrap();
+                    .expect("BUG: test case should succeed");
                 assert_snapshot!(setup.terminal.backend());
                 check_color(&setup, $color_range);
             }

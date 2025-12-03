@@ -1230,17 +1230,17 @@ mod tests {
             .0
             .display_with_formatter(None, "%Y-%m-%dT%H:%M:%S.%8f");
         assert!(result.is_some());
-        let result = result.unwrap();
+        let result = result.expect("BUG: test case should succeed");
         assert_eq!(result, "2023-01-14T12:01:20.01234567");
 
         let result = log_tz.0.display_with_formatter(None, "%Y-%m-%d %H:%M:%S");
         assert!(result.is_some());
-        let result = result.unwrap();
+        let result = result.expect("BUG: test case should succeed");
         assert_eq!(result, "2023-01-14 12:01:20");
 
         let result = log_tz.0.display_with_formatter(None, "%Y-%j");
         assert!(result.is_some());
-        let result = result.unwrap();
+        let result = result.expect("BUG: test case should succeed");
 
         assert_eq!(result, "2023-014");
     }
@@ -1251,24 +1251,24 @@ mod tests {
         let input = "2023-01-14T12:01:20.012345678Z Lorem ipsum dolor sit amet";
         let log_tz = LogsTz::splitter(input);
 
-        let timezone = Some(TimeZone::get("Asia/Tokyo").unwrap());
+        let timezone = Some(TimeZone::get("Asia/Tokyo").expect("BUG: test case should succeed"));
         let result = log_tz
             .0
             .display_with_formatter(timezone.as_ref(), "%Y-%m-%dT%H:%M:%S.%8f");
         assert!(result.is_some());
-        let result = result.unwrap();
+        let result = result.expect("BUG: test case should succeed");
         assert_eq!(result, "2023-01-14T21:01:20.01234567");
 
         let result = log_tz
             .0
             .display_with_formatter(timezone.as_ref(), "%Y-%m-%d %H:%M:%S");
         assert!(result.is_some());
-        let result = result.unwrap();
+        let result = result.expect("BUG: test case should succeed");
         assert_eq!(result, "2023-01-14 21:01:20");
 
         let result = log_tz.0.display_with_formatter(timezone.as_ref(), "%Y-%j");
         assert!(result.is_some());
-        let result = result.unwrap();
+        let result = result.expect("BUG: test case should succeed");
         assert_eq!(result, "2023-014");
     }
 

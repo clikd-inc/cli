@@ -14,7 +14,10 @@ const CONFIG_TEMPLATE: &str = include_str!("../../templates/config.toml");
 pub async fn run(args: InitArgs) -> Result<()> {
     println!("{}", header("Initializing Clikd"));
 
-    let project_root = args.workdir.unwrap_or_else(|| env::current_dir().unwrap());
+    let project_root = match args.workdir {
+        Some(dir) => dir,
+        None => env::current_dir()?,
+    };
 
     let config_path = project_root.join("clikd/config.toml");
     if config_path.exists() {

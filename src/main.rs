@@ -19,7 +19,15 @@ async fn main() -> Result<()> {
     }
 
     if let Some(command) = cli.command {
-        clikd::core::root::pre_execute();
+        // Only run pre_execute for Docker commands, NOT for Release commands
+        let should_pre_execute = !matches!(
+            command,
+            clikd::cli::Commands::Release(_) | clikd::cli::Commands::Completions { .. }
+        );
+
+        if should_pre_execute {
+            clikd::core::root::pre_execute();
+        }
 
         let res = clikd::execute(clikd::cli::Cli {
             verbose: cli.verbose,

@@ -13,9 +13,6 @@ pub use {color_parser::AppColors, keymap_parser::Keymap};
 mod parse_args;
 mod parse_config_file;
 
-// TODO use a global pub static oncelock for the config
-// static CELL: OnceLock<usize> = OnceLock::new();
-
 #[derive(Debug, Clone)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Config {
@@ -280,7 +277,7 @@ mod tests {
             assert!(super::Config::parse_timezone(i).is_none());
         }
 
-        let expected = Some(TimeZone::get("Asia/Tokyo").unwrap());
+        let expected = Some(TimeZone::get("Asia/Tokyo").expect("BUG: test case should succeed"));
         // string case ignored
         for i in ["ASIA/TOKYO", "asia/tokyo", "aSiA/tOkYo"] {
             let result = super::Config::parse_timezone(Some(i.to_owned()));
