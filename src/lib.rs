@@ -107,6 +107,7 @@ pub mod core {
 }
 
 pub mod utils {
+    pub mod file_io;
     pub mod retry;
     pub mod terminal;
     pub mod theme;

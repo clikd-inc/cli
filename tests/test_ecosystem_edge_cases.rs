@@ -208,7 +208,10 @@ go 1.21
     );
 
     let bootstrap = repo.read_file("clikd/bootstrap.toml");
-    assert!(bootstrap.contains("example"), "Simple module should be detected");
+    assert!(
+        bootstrap.contains("example"),
+        "Simple module should be detected"
+    );
 }
 
 #[test]
@@ -246,7 +249,10 @@ go 1.21
     );
 
     let bootstrap = repo.read_file("clikd/bootstrap.toml");
-    assert!(bootstrap.contains("web_app"), "Elixir app should be detected");
+    assert!(
+        bootstrap.contains("web_app"),
+        "Elixir app should be detected"
+    );
     assert!(
         bootstrap.contains("github.com/org/backend") || bootstrap.contains("backend"),
         "Go module should be detected"
@@ -386,8 +392,5 @@ end
         bootstrap.contains("my_phoenix_app"),
         "Phoenix app should be detected"
     );
-    assert!(
-        bootstrap.contains("0.1.0"),
-        "Version should be captured"
-    );
+    assert!(bootstrap.contains("0.1.0"), "Version should be captured");
 }

@@ -10,6 +10,10 @@ use time::OffsetDateTime;
 
 use crate::core::release::errors::Result;
 
+const SECONDS_PER_DAY: i64 = 86400;
+const PEP440_YEAR_MULTIPLIER: usize = 10000;
+const PEP440_MONTH_MULTIPLIER: usize = 100;
+
 /// A version number associated with a project.
 ///
 /// This is an enumeration because different kinds of projects may subscribe to
@@ -174,8 +178,8 @@ impl VersionBumpScheme {
                 Version::Pep440(v) => {
                     // Here we use a `dev` series number rather than the `local_identifier` so
                     // that it can be expressed as a version_info tuple if needed.
-                    let num = 10000 * (now.year() as usize)
-                        + 100 * (now.month() as usize)
+                    let num = PEP440_YEAR_MULTIPLIER * (now.year() as usize)
+                        + PEP440_MONTH_MULTIPLIER * (now.month() as usize)
                         + (now.day() as usize);
                     v.dev_release = Some(num);
                 }
@@ -185,7 +189,7 @@ impl VersionBumpScheme {
                     // terms have a maximum value of 65534, so we use a number
                     // that's about the number of days since 1970. That should
                     // take us to about the year 2149.
-                    v.revision = (now.unix_timestamp() / 86400) as i32;
+                    v.revision = (now.unix_timestamp() / SECONDS_PER_DAY) as i32;
                 }
             }
 

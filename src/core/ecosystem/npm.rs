@@ -18,6 +18,7 @@ use std::{
 };
 use tracing::warn;
 
+use crate::utils::file_io::check_file_size;
 use crate::{
     atry,
     core::release::{
@@ -66,6 +67,10 @@ impl NpmLoader {
         let f = atry!(
             File::open(&path);
             ["failed to open repository file `{}`", path.display()]
+        );
+        atry!(
+            check_file_size(&f, &path);
+            ["file size check failed for `{}`", path.display()]
         );
         let pkg_data: serde_json::Map<String, serde_json::Value> = atry!(
             serde_json::from_reader(f);

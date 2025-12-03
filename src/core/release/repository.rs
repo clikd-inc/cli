@@ -537,7 +537,10 @@ impl Repository {
     }
 
     fn get_signature(&self) -> Result<git2::Signature<'_>> {
-        Ok(git2::Signature::now("clikd", "clikd@devnull")?)
+        self.repo
+            .signature()
+            .or_else(|_| git2::Signature::now("clikd", "clikd@devnull"))
+            .map_err(|e| e.into())
     }
 
     fn find_latest_tag_for_project(

@@ -5,6 +5,7 @@ use std::{
     io::{BufRead, BufReader, Write},
 };
 
+use crate::utils::file_io::check_file_size;
 use crate::{
     atry,
     core::release::{
@@ -47,7 +48,10 @@ impl GoLoader {
                 File::open(&fs_path);
                 ["failed to open go.mod file `{}`", fs_path.display()]
             );
-
+            atry!(
+                check_file_size(&f, &fs_path);
+                ["file size check failed for `{}`", fs_path.display()]
+            );
             let reader = BufReader::new(f);
             let mut module_name = None;
 

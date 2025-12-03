@@ -716,10 +716,7 @@ mod tests {
         .expect("BUG: test should succeed");
     }
 
-    fn create_test_project(
-        graph: &mut ProjectGraphBuilder,
-        name: &str,
-    ) -> ProjectId {
+    fn create_test_project(graph: &mut ProjectGraphBuilder, name: &str) -> ProjectId {
         let empty_config = HashMap::new();
         let qnames = vec![name.to_owned(), "test".to_owned()];
         let projid = graph
@@ -758,7 +755,11 @@ mod tests {
 
         let err = result.unwrap_err();
         let cycle_err = err.downcast_ref::<DependencyCycleError>();
-        assert!(cycle_err.is_some(), "expected DependencyCycleError, got: {:?}", err);
+        assert!(
+            cycle_err.is_some(),
+            "expected DependencyCycleError, got: {:?}",
+            err
+        );
     }
 
     #[test]
@@ -781,7 +782,11 @@ mod tests {
 
         let err = result.unwrap_err();
         let cycle_err = err.downcast_ref::<DependencyCycleError>();
-        assert!(cycle_err.is_some(), "expected DependencyCycleError, got: {:?}", err);
+        assert!(
+            cycle_err.is_some(),
+            "expected DependencyCycleError, got: {:?}",
+            err
+        );
     }
 
     #[test]
@@ -818,7 +823,11 @@ mod tests {
 
         let err = result.unwrap_err();
         let cycle_err = err.downcast_ref::<DependencyCycleError>();
-        assert!(cycle_err.is_some(), "expected DependencyCycleError, got: {:?}", err);
+        assert!(
+            cycle_err.is_some(),
+            "expected DependencyCycleError, got: {:?}",
+            err
+        );
     }
 
     #[test]
@@ -845,7 +854,11 @@ mod tests {
         );
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "valid linear chain should not be a cycle: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "valid linear chain should not be a cycle: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -889,7 +902,11 @@ mod tests {
         );
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "valid diamond pattern should not be a cycle: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "valid diamond pattern should not be a cycle: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -915,7 +932,11 @@ mod tests {
         create_test_project(&mut graph, "C");
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "independent projects should not be a cycle: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "independent projects should not be a cycle: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -972,7 +993,11 @@ mod tests {
         );
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "complex valid DAG should not be a cycle: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "complex valid DAG should not be a cycle: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -1024,11 +1049,18 @@ mod tests {
         );
 
         let result = graph.complete_loading();
-        assert!(result.is_err(), "graph with partial cycle should be detected");
+        assert!(
+            result.is_err(),
+            "graph with partial cycle should be detected"
+        );
 
         let err = result.unwrap_err();
         let cycle_err = err.downcast_ref::<DependencyCycleError>();
-        assert!(cycle_err.is_some(), "expected DependencyCycleError, got: {:?}", err);
+        assert!(
+            cycle_err.is_some(),
+            "expected DependencyCycleError, got: {:?}",
+            err
+        );
     }
 
     #[test]
@@ -1068,7 +1100,11 @@ mod tests {
         );
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "multiple paths should resolve: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "multiple paths should resolve: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -1108,7 +1144,11 @@ mod tests {
         }
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "deep chain should resolve: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "deep chain should resolve: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -1151,7 +1191,11 @@ mod tests {
         }
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "many-to-many should resolve: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "many-to-many should resolve: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -1161,7 +1205,10 @@ mod tests {
             let root_pos = sorted.iter().position(|&id| id == *root).unwrap();
             for leaf in &leaves {
                 let leaf_pos = sorted.iter().position(|&id| id == *leaf).unwrap();
-                assert!(leaf_pos < root_pos, "all leaves should come before all roots");
+                assert!(
+                    leaf_pos < root_pos,
+                    "all leaves should come before all roots"
+                );
             }
         }
     }
@@ -1191,7 +1238,11 @@ mod tests {
         );
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "multiple roots should resolve: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "multiple roots should resolve: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();
@@ -1242,7 +1293,11 @@ mod tests {
         }
 
         let result = graph.complete_loading();
-        assert!(result.is_ok(), "parallel chains should resolve: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "parallel chains should resolve: {:?}",
+            result.err()
+        );
 
         let graph = result.unwrap();
         let sorted: Vec<_> = graph.toposorted().collect();

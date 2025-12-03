@@ -6,6 +6,7 @@ use std::{
 };
 use tracing::warn;
 
+use crate::utils::file_io::check_file_size;
 use crate::{
     atry,
     core::release::{
@@ -49,7 +50,10 @@ impl ElixirLoader {
                 File::open(&fs_path);
                 ["failed to open mix.exs file `{}`", fs_path.display()]
             );
-
+            atry!(
+                check_file_size(&f, &fs_path);
+                ["file size check failed for `{}`", fs_path.display()]
+            );
             atry!(
                 f.read_to_string(&mut contents);
                 ["failed to read mix.exs file `{}`", fs_path.display()]

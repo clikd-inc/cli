@@ -11,7 +11,7 @@ use cargo_metadata::MetadataCommand;
 use std::{
     collections::HashMap,
     fs::File,
-    io::{Read, Write},
+    io::Write,
     path::{Path, PathBuf},
 };
 use toml_edit::{DocumentMut, Item, Table};
@@ -26,6 +26,7 @@ use crate::core::release::{
     session::{AppBuilder, AppSession},
     version::Version,
 };
+use crate::utils::file_io::read_config_file;
 
 /// Framework for auto-loading Cargo projects from the repository contents.
 #[derive(Debug, Default)]
@@ -110,7 +111,7 @@ impl CargoLoader {
                 continue;
             }
 
-            let content = match std::fs::read_to_string(&toml_path) {
+            let content = match read_config_file(&toml_path) {
                 Ok(c) => c,
                 Err(_) => continue,
             };
@@ -174,7 +175,7 @@ impl CargoLoader {
         cargo_to_graph: &mut HashMap<cargo_metadata::PackageId, ProjectId>,
         name_to_project: &mut HashMap<String, ProjectId>,
     ) -> Result<()> {
-        let content = std::fs::read_to_string(workspace_root)?;
+        let content = read_config_file(workspace_root)?;
         let doc: DocumentMut = content.parse()?;
         let is_ws_project = self.is_workspace_project(&doc);
 
@@ -382,11 +383,7 @@ impl Rewriter for CargoRewriter {
         // Parse the current Cargo.toml using toml_edit so we can rewrite it
         // with minimal deltas.
         let toml_path = app.repo.resolve_workdir(&self.toml_path);
-        let mut s = String::new();
-        {
-            let mut f = File::open(&toml_path)?;
-            f.read_to_string(&mut s)?;
-        }
+        let s = read_config_file(&toml_path)?;
         let mut doc: DocumentMut = s.parse()?;
 
         // Helper table for applying internal deps. Note that we use the 0'th
@@ -543,11 +540,7 @@ impl Rewriter for CargoRewriter {
         // Load
 
         let toml_path = app.repo.resolve_workdir(&self.toml_path);
-        let mut s = String::new();
-        {
-            let mut f = File::open(&toml_path)?;
-            f.read_to_string(&mut s)?;
-        }
+        let s = read_config_file(&toml_path)?;
         let mut doc: DocumentMut = s.parse()?;
 
         // Modify.

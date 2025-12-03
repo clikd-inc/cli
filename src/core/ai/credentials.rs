@@ -53,8 +53,8 @@ impl ClaudeCredential {
 }
 
 pub fn store_credentials(creds: &ClaudeCredential) -> Result<()> {
-    let entry = Entry::new(SERVICE_NAME, CREDENTIAL_NAME)
-        .context("Failed to create keyring entry")?;
+    let entry =
+        Entry::new(SERVICE_NAME, CREDENTIAL_NAME).context("Failed to create keyring entry")?;
 
     let json = serde_json::to_string(creds).context("Failed to serialize credentials")?;
 
@@ -83,8 +83,8 @@ pub fn load_credentials() -> Result<Option<ClaudeCredential>> {
 }
 
 pub fn delete_credentials() -> Result<()> {
-    let entry = Entry::new(SERVICE_NAME, CREDENTIAL_NAME)
-        .context("Failed to create keyring entry")?;
+    let entry =
+        Entry::new(SERVICE_NAME, CREDENTIAL_NAME).context("Failed to create keyring entry")?;
 
     match entry.delete_credential() {
         Ok(()) => Ok(()),

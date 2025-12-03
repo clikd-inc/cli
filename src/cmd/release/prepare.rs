@@ -294,7 +294,10 @@ fn run_ci_mode(push: bool, github_release: bool) -> Result<i32> {
         let categorized = commit_analyzer::categorize_commits(&project.commit_messages);
 
         if categorized.is_empty() {
-            info!("{}: no user-facing changes, skipping changelog", project.name);
+            info!(
+                "{}: no user-facing changes, skipping changelog",
+                project.name
+            );
             continue;
         }
 
@@ -370,7 +373,10 @@ fn run_ci_mode(push: bool, github_release: bool) -> Result<i32> {
         })?;
 
         changelog_paths.push(changelog_repo_path);
-        info!("{}: wrote changelog to {}", project.name, changelog_rel_path);
+        info!(
+            "{}: wrote changelog to {}",
+            project.name, changelog_rel_path
+        );
     }
 
     let all_changed_paths: Vec<&crate::core::release::repository::RepoPath> = changes
@@ -425,13 +431,16 @@ fn run_ci_mode(push: bool, github_release: bool) -> Result<i32> {
             for project in &prepared_projects {
                 let tag_name = format!("{}-v{}", project.name, project.new_version);
 
-                let changelog_content = get_changelog_for_version(
-                    &sess,
-                    &project.prefix,
-                    &project.new_version,
-                )?;
+                let changelog_content =
+                    get_changelog_for_version(&sess, &project.prefix, &project.new_version)?;
 
-                match create_github_release(&sess, &tag_name, &project.name, &project.new_version, &changelog_content) {
+                match create_github_release(
+                    &sess,
+                    &tag_name,
+                    &project.name,
+                    &project.new_version,
+                    &changelog_content,
+                ) {
                     Ok(_) => info!("  created GitHub release: {}", tag_name),
                     Err(e) => warn!("  failed to create GitHub release for {}: {}", tag_name, e),
                 }
@@ -443,7 +452,11 @@ fn run_ci_mode(push: bool, github_release: bool) -> Result<i32> {
     info!(
         "successfully released {} project{}",
         prepared_projects.len(),
-        if prepared_projects.len() == 1 { "" } else { "s" }
+        if prepared_projects.len() == 1 {
+            ""
+        } else {
+            "s"
+        }
     );
 
     for project in &prepared_projects {
@@ -471,12 +484,12 @@ fn format_commit_message(projects: &[PreparedProject]) -> String {
             p.name, p.new_version, p.name, p.old_version, p.new_version
         )
     } else {
-        let mut msg = format!(
-            "chore(release): release {} packages\n\n",
-            projects.len()
-        );
+        let mut msg = format!("chore(release): release {} packages\n\n", projects.len());
         for p in projects {
-            msg.push_str(&format!("- {}: {} -> {}\n", p.name, p.old_version, p.new_version));
+            msg.push_str(&format!(
+                "- {}: {} -> {}\n",
+                p.name, p.old_version, p.new_version
+            ));
         }
         msg
     }
@@ -508,11 +521,7 @@ fn push_to_remote() -> Result<()> {
     Ok(())
 }
 
-fn get_changelog_for_version(
-    sess: &AppSession,
-    prefix: &str,
-    version: &str,
-) -> Result<String> {
+fn get_changelog_for_version(sess: &AppSession, prefix: &str, version: &str) -> Result<String> {
     let changelog_rel_path = if prefix.is_empty() {
         "CHANGELOG.md".to_string()
     } else {
@@ -522,8 +531,7 @@ fn get_changelog_for_version(
     let changelog_repo_path = RepoPathBuf::new(changelog_rel_path.as_bytes());
     let changelog_full_path = sess.repo.resolve_workdir(changelog_repo_path.as_ref());
 
-    let content = std::fs::read_to_string(&changelog_full_path)
-        .unwrap_or_default();
+    let content = std::fs::read_to_string(&changelog_full_path).unwrap_or_default();
 
     let version_header = format!("## [{}]", version);
     let mut in_version_section = false;
@@ -589,7 +597,9 @@ fn create_github_release(
 
     if !response.status().is_success() {
         let status = response.status();
-        let body = response.text().unwrap_or_else(|_| "unknown error".to_string());
+        let body = response
+            .text()
+            .unwrap_or_else(|_| "unknown error".to_string());
         return Err(anyhow::anyhow!(
             "GitHub API request failed ({}): {}",
             status,

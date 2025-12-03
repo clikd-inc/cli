@@ -17,6 +17,7 @@ use toml::Value;
 use tracing::warn;
 
 use crate::core::release::version::pep440::Pep440Version;
+use crate::utils::file_io::check_file_size;
 use crate::{
     a_ok_or, atry,
     core::release::{
@@ -95,6 +96,7 @@ impl PypaLoader {
 
                 let data = f
                     .map(|mut f| -> Result<PyProjectFile> {
+                        check_file_size(&f, &toml_path)?;
                         let mut text = String::new();
                         atry!(
                             f.read_to_string(&mut text);
@@ -139,6 +141,7 @@ impl PypaLoader {
 
                 let data = f
                     .map(|mut f| -> Result<Ini> {
+                        check_file_size(&f, &cfg_path)?;
                         let mut text = String::new();
                         atry!(
                             f.read_to_string(&mut text);

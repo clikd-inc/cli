@@ -114,9 +114,8 @@ edition = "2021"
     let after_init_cargo = repo.read_file("Cargo.toml");
     println!("After init Cargo.toml:\n{}", after_init_cargo);
     assert!(
-        after_init_cargo.contains("version = \"0.0.0-dev.0\"")
-            || after_init_cargo.contains("version = \"1.2.3-dev.0\""),
-        "Dev version not set correctly. Got: {}",
+        after_init_cargo.contains("version = \"1.2.3\""),
+        "Original version should be preserved after init. Got: {}",
         after_init_cargo
     );
 

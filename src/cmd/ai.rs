@@ -32,10 +32,7 @@ pub async fn login() -> Result<()> {
     println!("{}", "========================".dimmed());
     println!();
 
-    let options = vec![
-        "Claude Max/Pro Subscription (OAuth)",
-        "Anthropic API Key",
-    ];
+    let options = vec!["Claude Max/Pro Subscription (OAuth)", "Anthropic API Key"];
 
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("How would you like to authenticate?")
@@ -52,9 +49,7 @@ pub async fn login() -> Result<()> {
 
 async fn login_oauth() -> Result<()> {
     println!();
-    println!(
-        "This will authenticate clikd with your Claude Max/Pro subscription."
-    );
+    println!("This will authenticate clikd with your Claude Max/Pro subscription.");
     println!();
 
     let flow = OAuthFlow::new();
@@ -154,10 +149,7 @@ async fn login_api_key() -> Result<()> {
     store_credentials(&credential)?;
 
     println!();
-    println!(
-        "{} Successfully saved API key!",
-        "✓".green().bold()
-    );
+    println!("{} Successfully saved API key!", "✓".green().bold());
     println!();
     println!(
         "You can now use {} to generate AI-powered changelogs.",
@@ -226,7 +218,10 @@ pub async fn status() -> Result<()> {
         None => {
             println!("{} Not logged in", "✗".red());
             println!();
-            println!("Run {} to authenticate with Claude Max/Pro.", "clikd ai login".cyan());
+            println!(
+                "Run {} to authenticate with Claude Max/Pro.",
+                "clikd ai login".cyan()
+            );
             println!(
                 "Or set {} environment variable for API key auth.",
                 "ANTHROPIC_API_KEY".cyan()

@@ -248,10 +248,7 @@ edition = "2021"
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
 
-    assert!(
-        output.status.success(),
-        "Project detection should succeed"
-    );
+    assert!(output.status.success(), "Project detection should succeed");
 }
 
 #[test]
@@ -447,4 +444,245 @@ edition = "2021"
         "Both projects with shared name should be tracked (found {} occurrences)",
         name_count
     );
+}
+
+#[test]
+fn test_windows_reserved_names() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-package"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}");
+    repo.commit("initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    let windows_reserved = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "con",
+        "prn", "aux", "nul", "CON.txt", "PRN.json", "AUX.toml",
+    ];
+
+    for name in windows_reserved {
+        let output = repo.run_clikd_command(&["release", "status", name]);
+        assert!(
+            !output.status.success()
+                || String::from_utf8_lossy(&output.stderr).contains("not found"),
+            "Windows reserved name '{}' should be rejected or not found",
+            name
+        );
+    }
+}
+
+#[test]
+fn test_windows_path_traversal_backslash() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-package"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}");
+    repo.commit("initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    let backslash_traversals = [
+        "..\\..\\etc\\passwd",
+        "..\\..\\..\\windows\\system32\\config\\sam",
+        "subdir\\..\\..\\secret",
+        ".\\..\\..\\outside",
+    ];
+
+    for path in backslash_traversals {
+        let output = repo.run_clikd_command(&["release", "status", path]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert!(
+            !stdout.contains("root:") && !stdout.contains("SYSTEM32") && !stdout.contains("HKEY_"),
+            "Backslash traversal '{}' should not leak system file contents (stdout: {})",
+            path,
+            stdout.chars().take(200).collect::<String>()
+        );
+
+        assert!(
+            !output.status.success() || stdout.contains("no projects") || stdout.is_empty(),
+            "Backslash traversal '{}' should not succeed in accessing external files",
+            path
+        );
+    }
+}
+
+#[test]
+fn test_mixed_path_separators() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-package"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}");
+    repo.commit("initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    let mixed_separators = [
+        "../..\\secret",
+        "..\\../secret",
+        "foo/bar\\..\\..\\..\\secret",
+        "foo\\bar/../../../secret",
+    ];
+
+    for path in mixed_separators {
+        let output = repo.run_clikd_command(&["release", "status", path]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert!(
+            !stdout.contains("root:") && !stdout.contains("SYSTEM32"),
+            "Mixed separator traversal '{}' should not leak system file contents",
+            path
+        );
+
+        assert!(
+            !output.status.success() || stdout.contains("no projects") || stdout.is_empty(),
+            "Mixed separator traversal '{}' should not succeed in accessing external files",
+            path
+        );
+    }
+}
+
+#[test]
+fn test_unc_path_rejection() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-package"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}");
+    repo.commit("initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    let unc_paths = [
+        "\\\\server\\share\\file",
+        "\\\\?\\C:\\Windows\\System32",
+        "\\\\localhost\\c$\\secret",
+        "//server/share/file",
+    ];
+
+    for path in unc_paths {
+        let output = repo.run_clikd_command(&["release", "status", path]);
+        assert!(
+            !output.status.success()
+                || String::from_utf8_lossy(&output.stderr).contains("not found"),
+            "UNC path '{}' should be rejected",
+            path
+        );
+    }
+}
+
+#[test]
+fn test_windows_drive_letter_rejection() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-package"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}");
+    repo.commit("initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    let absolute_windows_paths = [
+        "C:\\Windows\\System32",
+        "D:\\secret\\file.txt",
+        "c:/windows/system32",
+        "C:/Users/Admin/secret",
+    ];
+
+    for path in absolute_windows_paths {
+        let output = repo.run_clikd_command(&["release", "status", path]);
+        assert!(
+            !output.status.success()
+                || String::from_utf8_lossy(&output.stderr).contains("not found"),
+            "Absolute Windows path '{}' should be rejected",
+            path
+        );
+    }
+}
+
+#[test]
+fn test_null_byte_in_path() {
+    use std::process::Command;
+
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "test-package"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}");
+    repo.commit("initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    let paths_with_nulls = ["file\x00.txt", "path/to\x00/file", "\x00secret"];
+
+    for path in paths_with_nulls {
+        let result = Command::new("clikd")
+            .args(["release", "status", path])
+            .current_dir(&repo.path)
+            .output();
+
+        match result {
+            Ok(output) => {
+                assert!(
+                    !output.status.success(),
+                    "Path with null byte '{}' should be rejected",
+                    path.escape_debug()
+                );
+            }
+            Err(e) => {
+                assert!(
+                    e.to_string().contains("nul byte"),
+                    "Null byte in path should cause an error, got: {}",
+                    e
+                );
+            }
+        }
+    }
 }

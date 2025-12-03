@@ -488,10 +488,7 @@ pub fn run() -> Result<i32> {
         let draft_changelog = entry.to_markdown();
 
         let final_changelog_entry = if ai_enabled {
-            info!(
-                "{}: polishing changelog with AI...",
-                proj.user_facing_name
-            );
+            info!("{}: polishing changelog with AI...", proj.user_facing_name);
 
             match polish_changelog_with_ai(&draft_changelog, &project_item.commit_messages) {
                 Ok(polished) => polished,
@@ -545,7 +542,10 @@ pub fn run() -> Result<i32> {
 
         if let Some(parent) = changelog_full_path.parent() {
             std::fs::create_dir_all(parent).with_context(|| {
-                format!("failed to create directory for {}", changelog_full_path.display())
+                format!(
+                    "failed to create directory for {}",
+                    changelog_full_path.display()
+                )
             })?;
         }
 

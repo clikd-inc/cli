@@ -60,11 +60,7 @@ impl AiChangelogGenerator {
         Ok(Self { client })
     }
 
-    pub async fn polish(
-        &self,
-        draft_changelog: &str,
-        raw_commits: &[String],
-    ) -> Result<String> {
+    pub async fn polish(&self, draft_changelog: &str, raw_commits: &[String]) -> Result<String> {
         if draft_changelog.trim().is_empty() {
             return Ok(draft_changelog.to_string());
         }
