@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/clikd-inc/cli/compare/v0.4.0...v0.5.0) (2025-12-03)
+
+
+### Features
+
+* **release:** add complete release management system with monorepo support ([86ef553](https://github.com/clikd-inc/cli/commit/86ef5533e859211af4d641d4b5f28cc91fdf4b64))
+
 # [0.4.0](https://github.com/clikd-inc/cli/compare/v0.3.0...v0.4.0) (2025-11-09)
 
 
