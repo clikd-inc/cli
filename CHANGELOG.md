@@ -1,3 +1,10 @@
+## [0.5.1](https://github.com/clikd-inc/cli/compare/v0.5.0...v0.5.1) (2025-12-04)
+
+
+### Bug Fixes
+
+* **release:** exclude clikd/ directory from dirty check during init ([#23](https://github.com/clikd-inc/cli/issues/23)) ([a797679](https://github.com/clikd-inc/cli/commit/a797679e7f6249e82c7ba40a57f4fdf34e964746))
+
 # [0.5.0](https://github.com/clikd-inc/cli/compare/v0.4.0...v0.5.0) (2025-12-03)
 
 
