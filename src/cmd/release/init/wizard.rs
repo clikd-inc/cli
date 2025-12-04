@@ -19,7 +19,9 @@ use tracing::info;
 use crate::{
     atry,
     core::release::{
-        config::ConfigurationFile, project::DepRequirement, repository::Repository,
+        config::ConfigurationFile,
+        project::DepRequirement,
+        repository::{PathMatcher, RepoPathBuf, Repository},
         session::AppSession,
     },
 };
@@ -102,8 +104,9 @@ pub fn run(force: bool, upstream: Option<String>) -> Result<i32> {
         ["clikd is not being run from a Git working directory"]
     );
 
+    let clikd_config_matcher = PathMatcher::new_include(RepoPathBuf::new(b"clikd"));
     if let Some(dirty) = atry!(
-        repo.check_if_dirty(&[]);
+        repo.check_if_dirty(&[clikd_config_matcher]);
         ["failed to check the repository for modified files"]
     ) {
         state.dirty_warning = Some(format!(
