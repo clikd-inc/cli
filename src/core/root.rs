@@ -15,13 +15,22 @@ pub fn pre_execute() {
 }
 
 pub fn write_cli_version() {
-    if let Ok(cwd) = env::current_dir() {
-        let temp_dir = cwd.join("clikd/.temp");
-        let _ = fs::create_dir_all(&temp_dir);
-        let version_file = temp_dir.join("cli-latest");
-        let version = format!("v{}", env!("CARGO_PKG_VERSION"));
-        let _ = fs::write(version_file, version);
+    let Ok(cwd) = env::current_dir() else {
+        return;
+    };
+
+    let has_project =
+        cwd.join("clikd/config.toml").is_file() || cwd.join("clikd/bootstrap.toml").is_file();
+
+    if !has_project {
+        return;
     }
+
+    let temp_dir = cwd.join("clikd/.temp");
+    let _ = fs::create_dir_all(&temp_dir);
+    let version_file = temp_dir.join("cli-latest");
+    let version = format!("v{}", env!("CARGO_PKG_VERSION"));
+    let _ = fs::write(version_file, version);
 }
 
 pub fn check_for_updates() {

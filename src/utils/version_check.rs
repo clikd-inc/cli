@@ -11,8 +11,22 @@ struct GithubRelease {
     tag_name: String,
 }
 
+fn is_clikd_project() -> bool {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    cwd.join("clikd/config.toml").is_file() || cwd.join("clikd/bootstrap.toml").is_file()
+}
+
 pub fn check_for_updates(current_version: &str, force_fetch: bool) {
-    let cache_path = get_cache_path();
+    let Some(cache_path) = get_cache_path() else {
+        if force_fetch {
+            if let Some(latest_version) = fetch_latest_from_github() {
+                if is_newer_version(&latest_version, current_version) {
+                    print_update_message(&latest_version, current_version);
+                }
+            }
+        }
+        return;
+    };
 
     if let Some(latest_version) = get_latest_version(&cache_path, force_fetch) {
         if is_newer_version(&latest_version, current_version) {
@@ -21,7 +35,11 @@ pub fn check_for_updates(current_version: &str, force_fetch: bool) {
     }
 }
 
-fn get_cache_path() -> PathBuf {
+fn get_cache_path() -> Option<PathBuf> {
+    if !is_clikd_project() {
+        return None;
+    }
+
     let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     path.push("clikd");
     path.push(".temp");
@@ -31,7 +49,7 @@ fn get_cache_path() -> PathBuf {
     }
 
     path.push("cli-latest");
-    path
+    Some(path)
 }
 
 fn should_fetch_latest(cache_path: &PathBuf, force_fetch: bool) -> bool {
