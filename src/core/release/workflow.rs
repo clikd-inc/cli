@@ -22,7 +22,7 @@ use crate::core::{
     release::{
         changelog_generator::{self, ChangelogEntry},
         commit_analyzer,
-        manifest::{ProjectRelease, ReleaseManifest},
+        manifest::{ProjectRelease, ReleaseManifest, MANIFEST_DIR},
         repository::{ChangeList, RepoPathBuf, Repository},
         session::AppSession,
     },
@@ -260,9 +260,9 @@ impl<'a> ReleasePipeline<'a> {
         let manifest_dir = self
             .sess
             .repo
-            .resolve_workdir(RepoPathBuf::new(b"clikd/releases").as_ref());
+            .resolve_workdir(RepoPathBuf::new(MANIFEST_DIR.as_bytes()).as_ref());
         std::fs::create_dir_all(&manifest_dir)
-            .context("failed to create clikd/releases directory")?;
+            .context(format!("failed to create {} directory", MANIFEST_DIR))?;
 
         let manifest_filename = ReleaseManifest::generate_filename();
         let manifest_path = manifest_dir.join(&manifest_filename);
@@ -270,16 +270,21 @@ impl<'a> ReleasePipeline<'a> {
         if let Ok(secret) = crate::core::auth::token::load_manifest_secret() {
             manifest.sign(&secret);
             info!("signed manifest with HMAC-SHA256");
+        } else {
+            warn!(
+                "manifest secret not configured - manifest will not be signed. \
+                Run 'clikd auth secret' to configure signing."
+            );
         }
 
         manifest
             .save_to_file(&manifest_path)
             .context("failed to save release manifest")?;
 
-        info!("wrote manifest to clikd/releases/{}", manifest_filename);
+        info!("wrote manifest to {}/{}", MANIFEST_DIR, manifest_filename);
 
         let manifest_repo_path =
-            RepoPathBuf::new(format!("clikd/releases/{}", manifest_filename).as_bytes());
+            RepoPathBuf::new(format!("{}/{}", MANIFEST_DIR, manifest_filename).as_bytes());
 
         Ok((manifest, manifest_filename, manifest_repo_path))
     }

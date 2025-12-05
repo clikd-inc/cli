@@ -15,8 +15,10 @@ use sha2::Sha256;
 use std::fs;
 use std::path::Path;
 use time::OffsetDateTime;
+use uuid::Uuid;
 
 const SCHEMA_VERSION: &str = "1.0";
+pub const MANIFEST_DIR: &str = "clikd/releases";
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -112,8 +114,9 @@ impl ReleaseManifest {
         let formatted = now
             .format(&format)
             .expect("UTC datetime should always format successfully");
+        let suffix = &Uuid::new_v4().to_string()[..8];
 
-        format!("release-{}.json", formatted)
+        format!("release-{}-{}.json", formatted, suffix)
     }
 }
 
@@ -254,7 +257,18 @@ mod tests {
         let filename = ReleaseManifest::generate_filename();
         assert!(filename.starts_with("release-"));
         assert!(filename.ends_with(".json"));
-        assert!(filename.len() > 20);
+
+        let without_ext = filename.strip_suffix(".json").unwrap();
+        let parts: Vec<&str> = without_ext.splitn(3, '-').collect();
+        assert_eq!(parts.len(), 3, "expected release-TIMESTAMP-UUID format");
+        assert_eq!(parts[0], "release");
+
+        let uuid_suffix = parts[2].split('-').last().unwrap();
+        assert_eq!(uuid_suffix.len(), 8, "UUID suffix should be 8 chars");
+        assert!(
+            uuid_suffix.chars().all(|c| c.is_ascii_hexdigit()),
+            "UUID suffix should be hex"
+        );
     }
 
     #[test]
