@@ -350,14 +350,6 @@ fn execute_bootstrap(state: &WizardState, repo: &Repository) -> Result<String> {
 
     repo.create_baseline_tag()?;
 
-    let project_versions: Vec<(String, String)> = bs_cfg
-        .project
-        .iter()
-        .map(|p| (p.qnames[0].clone(), p.version.clone()))
-        .collect();
-
-    repo.create_release_tags(&project_versions)?;
-
     Ok(format!(
         "Successfully initialized {} project(s)!\n\nNext steps:\n1. Review the changes\n2. Add clikd/ to your repository\n3. Commit the changes\n4. Try `clikd release status`",
         selected_names.len()

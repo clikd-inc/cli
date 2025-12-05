@@ -74,10 +74,6 @@ pub struct Repository {
     /// The name of the "upstream" remote.
     upstream_name: String,
 
-    /// The format specification to use for release tag names, as understood by
-    /// the `SimpleCurlyFormat` of the `dynfmt` crate.
-    release_tag_name_format: String,
-
     /// "Bootstrap" versioning information used to tell us where versions were at
     /// before the first Clikd release commit.
     bootstrap_info: BootstrapConfiguration,
@@ -104,12 +100,10 @@ impl Repository {
         }
 
         let upstream_name = "origin".to_owned();
-        let release_tag_name_format = "{project_slug}@{version}".to_owned();
 
         Ok(Repository {
             repo,
             upstream_name,
-            release_tag_name_format,
             bootstrap_info: BootstrapConfiguration::default(),
             analysis_config: super::config::syntax::AnalysisConfig::default(),
         })
@@ -231,10 +225,6 @@ impl Repository {
         } else {
             bail!("cannot identify the upstream Git remote");
         };
-
-        if let Some(n) = cfg.release_tag_name_format {
-            self.release_tag_name_format = n;
-        }
 
         self.analysis_config = cfg.analysis;
 
@@ -632,34 +622,6 @@ impl Repository {
             }
             Err(e) => Err(e.into()),
         }
-    }
-
-    pub fn create_release_tag(&self, project_name: &str, version: &str) -> Result<()> {
-        let tag_name = format!("{}-v{}", project_name, version);
-        let head = self.repo.head()?;
-        let target_oid = head.target().context("HEAD has no target")?;
-
-        match self
-            .repo
-            .tag_lightweight(&tag_name, &self.repo.find_object(target_oid, None)?, false)
-        {
-            Ok(_) => {
-                info!("created release tag '{}' at HEAD", tag_name);
-                Ok(())
-            }
-            Err(e) if e.code() == git2::ErrorCode::Exists => {
-                warn!("release tag '{}' already exists, not creating", tag_name);
-                Ok(())
-            }
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    pub fn create_release_tags(&self, project_versions: &[(String, String)]) -> Result<()> {
-        for (project_name, version) in project_versions {
-            self.create_release_tag(project_name, version)?;
-        }
-        Ok(())
     }
 
     pub fn create_commit(&self, message: &str, files: &[&RepoPath]) -> Result<()> {

@@ -290,22 +290,6 @@ impl BootstrapCommand {
             ["failed to create baseline tag"]
         );
 
-        info!("preserving existing package versions as Git tags");
-        let project_versions: Vec<(String, String)> = bs_cfg
-            .project
-            .iter()
-            .map(|p| (p.qnames[0].clone(), p.version.clone()))
-            .collect();
-
-        atry!(
-            repo.create_release_tags(&project_versions);
-            ["failed to create bootstrap tags"]
-        );
-
-        for (name, version) in &project_versions {
-            info!("  created tag: {}-v{}", name, version);
-        }
-
         info!("modifications complete!");
         println!();
         info!("Review changes, add `clikd/` to the repository, and commit.");

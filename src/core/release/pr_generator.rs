@@ -51,6 +51,8 @@ use std::collections::HashMap;
 
 use super::workflow::SelectedProject;
 
+const MAX_PROJECTS_IN_TITLE: usize = 3;
+
 /// Generates the PR title for a release.
 ///
 /// # Output Examples
@@ -62,7 +64,7 @@ pub fn generate_pr_title(projects: &[SelectedProject]) -> String {
     if projects.len() == 1 {
         let p = &projects[0];
         format!("chore(release): {} v{}", p.name, p.new_version)
-    } else if projects.len() <= 3 {
+    } else if projects.len() <= MAX_PROJECTS_IN_TITLE {
         let names: Vec<String> = projects
             .iter()
             .map(|p| format!("{} v{}", p.name, p.new_version))

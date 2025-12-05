@@ -6,11 +6,7 @@ use git_url_parse::types::provider::GenericProvider;
 use octocrab::Octocrab;
 use tracing::{debug, info};
 
-use crate::core::release::{
-    env::require_var,
-    errors::Result,
-    session::{AppBuilder, AppSession},
-};
+use crate::core::release::{env::require_var, errors::Result, session::AppSession};
 
 pub struct GitHubInformation {
     owner: String,
@@ -29,19 +25,22 @@ impl GitHubInformation {
             .map(|env| matches!(env, crate::core::release::session::ExecutionEnvironment::Ci))
             .unwrap_or(false);
 
-        let token = crate::core::auth::token::load_token()
-            .map_err(|e| {
+        let keyring_result = crate::core::auth::token::load_token();
+        let env_result = require_var("GITHUB_TOKEN");
+
+        let token = keyring_result
+            .inspect_err(|e| {
                 debug!("keyring token load failed: {}", e);
-                e
             })
             .ok()
             .or_else(|| {
-                require_var("GITHUB_TOKEN")
-                    .map_err(|e| {
+                env_result
+                    .as_ref()
+                    .inspect_err(|e| {
                         debug!("GITHUB_TOKEN env var not found: {}", e);
-                        e
                     })
                     .ok()
+                    .cloned()
             })
             .ok_or_else(|| {
                 if is_ci {
@@ -51,7 +50,8 @@ impl GitHubInformation {
                     )
                 } else {
                     anyhow!(
-                        "GitHub authentication required. Run 'clikd login' to authenticate."
+                        "GitHub authentication required. Run 'clikd login' to authenticate, \
+                        or set the GITHUB_TOKEN environment variable."
                     )
                 }
             })?;
@@ -114,76 +114,14 @@ impl GitHubInformation {
             Ok(html_url)
         })
     }
-
-    fn delete_release(&self, tag_name: &str) -> Result<()> {
-        let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
-
-        rt.block_on(async {
-            let release = self
-                .client
-                .repos(&self.owner, &self.repo)
-                .releases()
-                .get_by_tag(tag_name)
-                .await
-                .with_context(|| format!("no GitHub release for tag `{}`", tag_name))?;
-
-            self.client
-                .repos(&self.owner, &self.repo)
-                .releases()
-                .delete(release.id.into_inner())
-                .await
-                .with_context(|| {
-                    format!("could not delete GitHub release for tag `{}`", tag_name)
-                })?;
-
-            Ok(())
-        })
-    }
-
-    fn create_custom_release(
-        &self,
-        tag_name: String,
-        release_name: String,
-        body: String,
-        is_draft: bool,
-        is_prerelease: bool,
-    ) -> Result<octocrab::models::repos::Release> {
-        let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
-
-        rt.block_on(async {
-            let release = self
-                .client
-                .repos(&self.owner, &self.repo)
-                .releases()
-                .create(&tag_name)
-                .name(&release_name)
-                .body(&body)
-                .draft(is_draft)
-                .prerelease(is_prerelease)
-                .send()
-                .await
-                .with_context(|| format!("failed to create GitHub release for {}", tag_name))?;
-
-            info!("created GitHub release for {}", tag_name);
-            Ok(release)
-        })
-    }
 }
 
 /// The `github` subcommands.
 #[derive(Debug, Eq, PartialEq, Parser)]
 pub enum GithubCommands {
-    #[command(name = "create-custom-release")]
-    /// Create a single, customized GitHub release
-    CreateCustomRelease(CreateCustomReleaseCommand),
-
     #[command(name = "_credential-helper", hide = true)]
     /// (hidden) github credential helper
     CredentialHelper(CredentialHelperCommand),
-
-    #[command(name = "delete-release")]
-    /// Delete an existing GitHub release
-    DeleteRelease(DeleteReleaseCommand),
 
     #[command(name = "install-credential-helper")]
     /// Install Clikd as a Git "credential helper", using $GITHUB_TOKEN to log in
@@ -199,52 +137,9 @@ pub struct GithubCommand {
 impl GithubCommand {
     pub fn execute(self) -> Result<i32> {
         match self.command {
-            GithubCommands::CreateCustomRelease(o) => o.execute(),
             GithubCommands::CredentialHelper(o) => o.execute(),
-            GithubCommands::DeleteRelease(o) => o.execute(),
             GithubCommands::InstallCredentialHelper(o) => o.execute(),
         }
-    }
-}
-
-/// Create a single custom GitHub release.
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct CreateCustomReleaseCommand {
-    #[arg(long = "name", help = "The user-facing name for the release")]
-    release_name: String,
-
-    #[arg(
-        long = "desc",
-        help = "The release description text (Markdown-formatted)",
-        default_value = "Release automatically created by Clikd."
-    )]
-    body: String,
-
-    #[arg(long = "draft", help = "Whether to mark this release as a draft")]
-    is_draft: bool,
-
-    #[arg(
-        long = "prerelease",
-        help = "Whether to mark this release as a pre-release"
-    )]
-    is_prerelease: bool,
-
-    #[arg(help = "Name of the Git(Hub) tag to use as the release basis")]
-    tag_name: String,
-}
-
-impl CreateCustomReleaseCommand {
-    pub fn execute(self) -> Result<i32> {
-        let sess = AppBuilder::new()?.populate_graph(false).initialize()?;
-        let info = GitHubInformation::new(&sess)?;
-        info.create_custom_release(
-            self.tag_name,
-            self.release_name,
-            self.body,
-            self.is_draft,
-            self.is_prerelease,
-        )?;
-        Ok(0)
     }
 }
 
@@ -265,26 +160,6 @@ impl CredentialHelperCommand {
             println!("password={token}");
         }
 
-        Ok(0)
-    }
-}
-
-/// Delete a release from GitHub.
-#[derive(Debug, Eq, PartialEq, Parser)]
-pub struct DeleteReleaseCommand {
-    #[arg(help = "Name of the release's tag on GitHub")]
-    tag_name: String,
-}
-
-impl DeleteReleaseCommand {
-    pub fn execute(self) -> Result<i32> {
-        let sess = AppSession::initialize_default()?;
-        let info = GitHubInformation::new(&sess)?;
-        info.delete_release(&self.tag_name)?;
-        info!(
-            "deleted GitHub release associated with tag `{}`",
-            self.tag_name
-        );
         Ok(0)
     }
 }

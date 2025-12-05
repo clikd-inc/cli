@@ -115,6 +115,15 @@ impl ReleaseManifest {
         self.signature = Some(signature);
     }
 
+    pub fn verify_signature(&self, secret: &str) -> bool {
+        let Some(ref stored_signature) = self.signature else {
+            return false;
+        };
+        let payload = self.signature_payload();
+        let expected_signature = compute_hmac_signature(&payload, secret);
+        constant_time_compare(stored_signature.as_bytes(), expected_signature.as_bytes())
+    }
+
     fn signature_payload(&self) -> String {
         format!(
             "{}:{}:{}:{}:{}",
@@ -152,11 +161,11 @@ impl ReleaseManifest {
 
     pub fn generate_filename() -> String {
         let now = OffsetDateTime::now_utc();
-        let format = time::format_description::parse("[year][month][day]-[hour][minute][second]")
-            .expect("static format description should always parse");
-        let formatted = now
-            .format(&format)
-            .expect("UTC datetime should always format successfully");
+        let formatted =
+            time::format_description::parse("[year][month][day]-[hour][minute][second]")
+                .ok()
+                .and_then(|format| now.format(&format).ok())
+                .unwrap_or_else(|| now.unix_timestamp().to_string());
         let suffix = &Uuid::new_v4().to_string()[..8];
 
         format!("release-{}-{}.json", formatted, suffix)
@@ -198,6 +207,16 @@ fn compute_hmac_signature(payload: &str, secret: &str) -> String {
     mac.update(payload.as_bytes());
     let result = mac.finalize();
     format!("sha256={}", hex::encode(result.into_bytes()))
+}
+
+fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 #[cfg(test)]
@@ -435,5 +454,81 @@ mod tests {
         manifest2.sign("secret-two");
 
         assert_ne!(manifest1.signature, manifest2.signature);
+    }
+
+    #[test]
+    fn test_verify_signature_with_correct_secret() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "test-pkg".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "1.1.0".to_string(),
+            "minor".to_string(),
+            "Changes".to_string(),
+            "".to_string(),
+        ));
+
+        let secret = "correct-secret-key-for-verification";
+        manifest.sign(secret);
+
+        assert!(manifest.verify_signature(secret));
+    }
+
+    #[test]
+    fn test_verify_signature_with_wrong_secret() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "test-pkg".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "1.1.0".to_string(),
+            "minor".to_string(),
+            "Changes".to_string(),
+            "".to_string(),
+        ));
+
+        manifest.sign("correct-secret");
+
+        assert!(!manifest.verify_signature("wrong-secret"));
+    }
+
+    #[test]
+    fn test_verify_signature_without_signature() {
+        let manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+
+        assert!(!manifest.verify_signature("any-secret"));
+    }
+
+    #[test]
+    fn test_verify_signature_after_json_roundtrip() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "roundtrip".to_string(),
+            "npm".to_string(),
+            "2.0.0".to_string(),
+            "2.1.0".to_string(),
+            "minor".to_string(),
+            "Changelog".to_string(),
+            "packages/roundtrip".to_string(),
+        ));
+
+        let secret = "roundtrip-verification-secret";
+        manifest.sign(secret);
+
+        let json = manifest.to_json().unwrap();
+        let loaded = ReleaseManifest::from_json(&json).unwrap();
+
+        assert!(loaded.verify_signature(secret));
+        assert!(!loaded.verify_signature("tampered-secret"));
+    }
+
+    #[test]
+    fn test_constant_time_compare() {
+        assert!(constant_time_compare(b"hello", b"hello"));
+        assert!(!constant_time_compare(b"hello", b"world"));
+        assert!(!constant_time_compare(b"hello", b"hell"));
+        assert!(!constant_time_compare(b"", b"a"));
+        assert!(constant_time_compare(b"", b""));
     }
 }

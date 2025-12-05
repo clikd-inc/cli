@@ -111,6 +111,12 @@ impl<'a> ReleasePipeline<'a> {
         let mut changelog_paths: Vec<RepoPathBuf> = Vec::new();
         let mut changelog_contents: HashMap<String, String> = HashMap::new();
 
+        // AI Caching Strategy:
+        // - Projects may have a `cached_changelog` from a previous TUI selection session
+        // - We only initialize the AI generator if at least one project:
+        //   1. Has no cached changelog (needs AI polish)
+        //   2. Has user-facing commits (categorized commits not empty)
+        // - The runtime and generator are created once and reused for all projects
         let ai_generator: Option<(tokio::runtime::Runtime, AiChangelogGenerator)> =
             if self.ai_enabled {
                 let needs_ai = projects.iter().any(|p| {

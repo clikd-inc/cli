@@ -436,6 +436,8 @@ fn run_per_project_mode(projects: &[String]) -> Result<i32> {
 
     info!("running in per-project mode");
 
+    const VALID_BUMP_TYPES: &[&str] = &["major", "minor", "patch"];
+
     let mut bump_specs: HashMap<String, String> = HashMap::new();
     for spec in projects {
         let parts: Vec<&str> = spec.split(':').collect();
@@ -445,7 +447,16 @@ fn run_per_project_mode(projects: &[String]) -> Result<i32> {
                 spec
             ));
         }
-        bump_specs.insert(parts[0].to_string(), parts[1].to_string());
+        let bump_type = parts[1];
+        if !VALID_BUMP_TYPES.contains(&bump_type) {
+            return Err(anyhow::anyhow!(
+                "invalid bump type '{}' in spec '{}': expected one of {:?}",
+                bump_type,
+                spec,
+                VALID_BUMP_TYPES
+            ));
+        }
+        bump_specs.insert(parts[0].to_string(), bump_type.to_string());
     }
 
     let mut sess = atry!(
