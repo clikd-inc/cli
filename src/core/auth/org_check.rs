@@ -1,36 +1,23 @@
 use crate::error::{CliError, Result};
-use reqwest::Client;
-use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-struct OrgResponse {
-    login: String,
-}
+use octocrab::Octocrab;
 
 pub async fn verify_membership(token: &str, required_org: &str) -> Result<()> {
-    let client = Client::new();
+    let client = Octocrab::builder()
+        .personal_token(token.to_string())
+        .build()
+        .map_err(|e| CliError::GitHubApi(format!("Failed to build GitHub client: {}", e)))?;
 
-    let response = client
-        .get("https://api.github.com/user/orgs")
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "clikd")
+    let orgs = client
+        .current()
+        .list_org_memberships_for_authenticated_user()
         .send()
         .await
         .map_err(|e| CliError::GitHubApi(format!("Failed to fetch user organizations: {}", e)))?;
 
-    if !response.status().is_success() {
-        return Err(CliError::GitHubApi(format!(
-            "Failed to fetch user organizations: HTTP {}",
-            response.status()
-        )));
-    }
-
-    let orgs: Vec<OrgResponse> = response.json().await.map_err(|e| {
-        CliError::GitHubApi(format!("Failed to parse organizations response: {}", e))
-    })?;
-
-    let is_member = orgs.iter().any(|org| org.login == required_org);
+    let is_member = orgs
+        .items
+        .iter()
+        .any(|membership| membership.organization.login == required_org);
 
     if is_member {
         Ok(())

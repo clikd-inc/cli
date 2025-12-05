@@ -326,22 +326,13 @@ impl<'a> ReleasePipeline<'a> {
     ) -> Result<String> {
         let github =
             GitHubInformation::new(self.sess).context("failed to initialize GitHub client")?;
-        let client = github
-            .make_blocking_client()
-            .context("failed to create HTTP client")?;
 
         let pr_title = pr_generator::generate_pr_title(projects);
         let pr_body =
             pr_generator::generate_pr_body(projects, manifest_filename, changelog_contents);
 
         let pr_url = github
-            .create_pull_request(
-                &self.release_branch,
-                &self.base_branch,
-                &pr_title,
-                &pr_body,
-                &client,
-            )
+            .create_pull_request(&self.release_branch, &self.base_branch, &pr_title, &pr_body)
             .context("failed to create pull request")?;
 
         Ok(pr_url)

@@ -4,15 +4,15 @@ use crate::utils::theme::*;
 use anyhow::Result;
 
 pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
-    let device_response = github::request_device_code(&config.github_oauth_client_id).await?;
+    let device_codes = github::request_device_code(&config.github_oauth_client_id).await?;
 
     println!("{}", header("GitHub Authentication"));
 
     if !no_browser {
         println!("\n{}", step_message("Opening browser to:"));
-        println!("  {}", url(&device_response.verification_uri));
+        println!("  {}", url(&device_codes.verification_uri));
 
-        if let Err(e) = open::that(&device_response.verification_uri) {
+        if let Err(e) = open::that(&device_codes.verification_uri) {
             eprintln!(
                 "{}",
                 warning_message(&format!("Failed to open browser: {}", e))
@@ -21,23 +21,16 @@ pub async fn login(no_browser: bool, config: &Config) -> Result<()> {
         }
     } else {
         println!("\n{}", step_message("Please visit:"));
-        println!("  {}", url(&device_response.verification_uri));
+        println!("  {}", url(&device_codes.verification_uri));
     }
 
     println!("\n{}", step_message("Enter code:"));
-    println!("  {}", code(&device_response.user_code));
+    println!("  {}", code(&device_codes.user_code));
     println!();
 
     let mut sp = create_spinner("Waiting for authorization...");
 
-    let access_token = match github::poll_for_token(
-        &config.github_oauth_client_id,
-        &device_response.device_code,
-        device_response.interval,
-        device_response.expires_in,
-    )
-    .await
-    {
+    let access_token = match device_codes.poll_for_token().await {
         Ok(token) => {
             sp.success("Authorized!");
             token

@@ -63,6 +63,7 @@ semver = "1.0"
 
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "linux-native"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"] }
+octocrab = "0.48.1"
 ureq = { version = "3.1.2", features = ["json"] }
 json = "0.12"
 secrecy = "0.10.3"
