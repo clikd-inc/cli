@@ -4,10 +4,41 @@
 //! metadata about a pending release. It serves as a contract between the CLI
 //! (which creates releases) and the GitHub App (which finalizes them).
 //!
-//! Schema version `1.0` includes:
+//! # Schema version `1.0`
+//!
 //! - Release metadata (timestamp, author, base branch)
 //! - Per-project release info (versions, changelog, tag names)
 //! - HMAC-SHA256 signature for verification
+//!
+//! # Security: Signature Verification Protocol
+//!
+//! The CLI **signs** manifests but does **not verify** them. Verification is the
+//! responsibility of the GitHub App when processing release PRs.
+//!
+//! ## Signing (CLI side)
+//!
+//! 1. User configures a shared secret via `clikd auth secret`
+//! 2. CLI computes HMAC-SHA256 over the signature payload
+//! 3. Signature is stored as `sha256=<hex>` in the manifest JSON
+//!
+//! ## Verification (GitHub App side)
+//!
+//! The GitHub App should verify manifests as follows:
+//!
+//! ```text
+//! 1. Parse the manifest JSON
+//! 2. Extract and remove the `signature` field
+//! 3. Recompute the signature payload: "{schema}:{created_at}:{created_by}:{base_branch}:{releases}"
+//! 4. Compute HMAC-SHA256(payload, shared_secret)
+//! 5. Compare signatures using constant-time comparison
+//! 6. Reject manifests with invalid or missing signatures
+//! ```
+//!
+//! ## Secret Management
+//!
+//! - Secrets should be at least 32 bytes for security (CLI warns if shorter)
+//! - Generate secure secrets: `openssl rand -hex 32`
+//! - Store the same secret in both CLI (keyring) and GitHub App (repository secret)
 
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};

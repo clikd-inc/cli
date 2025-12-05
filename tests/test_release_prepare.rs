@@ -599,3 +599,178 @@ edition = "2021"
         beta_toml
     );
 }
+
+#[test]
+fn test_ci_mode_creates_manifest_directory() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "manifest-test"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+    repo.commit("chore: add clikd config");
+
+    repo.write_file("src/feature.rs", "pub fn feature() {}\n");
+    repo.commit("feat: add new feature");
+
+    let _ = repo.run_clikd_command(&["release", "prepare", "--ci"]);
+
+    assert!(
+        repo.file_exists("clikd/releases"),
+        "CI mode should create clikd/releases directory"
+    );
+
+    let manifest_files = repo.list_files_in_dir("clikd/releases");
+    assert!(
+        !manifest_files.is_empty(),
+        "CI mode should create at least one manifest file"
+    );
+
+    let manifest_file = &manifest_files[0];
+    assert!(
+        manifest_file.starts_with("release-") && manifest_file.ends_with(".json"),
+        "Manifest filename should match pattern release-*.json, got: {}",
+        manifest_file
+    );
+}
+
+#[test]
+fn test_ci_mode_manifest_has_valid_json_structure() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "json-test"
+version = "2.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+    repo.commit("chore: add clikd config");
+
+    repo.write_file("src/fix.rs", "pub fn fix() {}\n");
+    repo.commit("fix: critical bugfix");
+
+    let _ = repo.run_clikd_command(&["release", "prepare", "--ci"]);
+
+    let manifest_files = repo.list_files_in_dir("clikd/releases");
+    assert!(!manifest_files.is_empty(), "Should have manifest file");
+
+    let manifest_path = format!("clikd/releases/{}", manifest_files[0]);
+    let manifest_content = repo.read_file(&manifest_path);
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&manifest_content).expect("Manifest should be valid JSON");
+
+    assert_eq!(
+        manifest["schema_version"], "1.0",
+        "Schema version should be 1.0"
+    );
+    assert!(
+        manifest["created_at"].is_string(),
+        "created_at should be a string"
+    );
+    assert!(
+        manifest["created_by"].is_string(),
+        "created_by should be a string"
+    );
+    assert!(
+        manifest["base_branch"].is_string(),
+        "base_branch should be a string"
+    );
+    assert!(
+        manifest["releases"].is_array(),
+        "releases should be an array"
+    );
+
+    let releases = manifest["releases"].as_array().unwrap();
+    assert_eq!(releases.len(), 1, "Should have one release");
+
+    let release = &releases[0];
+    assert_eq!(release["name"], "json-test");
+    assert_eq!(release["ecosystem"], "Rust (Cargo)");
+    assert_eq!(release["previous_version"], "2.0.0");
+    assert_eq!(release["new_version"], "2.0.1");
+    assert_eq!(release["bump_type"], "patch");
+    assert!(release["changelog"].is_string());
+    assert!(release["tag_name"].is_string());
+}
+
+#[test]
+fn test_ci_mode_manifest_contains_multiple_projects() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[workspace]
+members = ["packages/*"]
+"#,
+    );
+
+    repo.write_file(
+        "packages/alpha/Cargo.toml",
+        r#"[package]
+name = "alpha"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("packages/alpha/src/lib.rs", "pub fn alpha() {}\n");
+
+    repo.write_file(
+        "packages/beta/Cargo.toml",
+        r#"[package]
+name = "beta"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("packages/beta/src/lib.rs", "pub fn beta() {}\n");
+
+    repo.commit("Initial monorepo");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+    repo.commit("chore: add clikd config");
+
+    repo.write_file("packages/alpha/src/new.rs", "pub fn new_alpha() {}\n");
+    repo.commit("feat(alpha): add new feature");
+
+    repo.write_file("packages/beta/src/fix.rs", "pub fn fix_beta() {}\n");
+    repo.commit("fix(beta): fix bug");
+
+    let _ = repo.run_clikd_command(&["release", "prepare", "--ci"]);
+
+    let manifest_files = repo.list_files_in_dir("clikd/releases");
+    assert!(!manifest_files.is_empty(), "Should have manifest file");
+
+    let manifest_path = format!("clikd/releases/{}", manifest_files[0]);
+    let manifest_content = repo.read_file(&manifest_path);
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&manifest_content).expect("Manifest should be valid JSON");
+
+    let releases = manifest["releases"].as_array().unwrap();
+    assert_eq!(releases.len(), 2, "Should have two releases in manifest");
+
+    let names: Vec<&str> = releases
+        .iter()
+        .map(|r| r["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"alpha"), "Should contain alpha project");
+    assert!(names.contains(&"beta"), "Should contain beta project");
+}

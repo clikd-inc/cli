@@ -106,16 +106,54 @@ impl<'a> ReleasePipeline<'a> {
         &self,
         projects: &[SelectedProject],
     ) -> Result<(Vec<RepoPathBuf>, HashMap<String, String>)> {
+        use crate::core::ai::changelog::AiChangelogGenerator;
+
         let mut changelog_paths: Vec<RepoPathBuf> = Vec::new();
         let mut changelog_contents: HashMap<String, String> = HashMap::new();
+
+        let ai_generator: Option<(tokio::runtime::Runtime, AiChangelogGenerator)> =
+            if self.ai_enabled {
+                let needs_ai = projects.iter().any(|p| {
+                    p.cached_changelog.is_none()
+                        && !commit_analyzer::categorize_commits(&p.commit_messages).is_empty()
+                });
+
+                if needs_ai {
+                    match tokio::runtime::Runtime::new() {
+                        Ok(rt) => match rt.block_on(AiChangelogGenerator::new()) {
+                            Ok(gen) => Some((rt, gen)),
+                            Err(e) => {
+                                warn!("failed to initialize AI generator: {}", e);
+                                None
+                            }
+                        },
+                        Err(e) => {
+                            warn!("failed to create async runtime: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
 
         for project in projects {
             let categorized = commit_analyzer::categorize_commits(&project.commit_messages);
 
             if categorized.is_empty() {
                 info!(
-                    "{}: no user-facing changes, skipping changelog",
+                    "{}: no user-facing changes, skipping changelog file update",
                     project.name
+                );
+                changelog_contents.insert(
+                    project.name.clone(),
+                    format!(
+                        "## [{}] - {}\n\nInternal changes only (no user-facing changes).\n",
+                        project.new_version,
+                        time::OffsetDateTime::now_utc().date()
+                    ),
                 );
                 continue;
             }
@@ -128,9 +166,10 @@ impl<'a> ReleasePipeline<'a> {
             let final_changelog_entry = if self.ai_enabled {
                 if let Some(cached) = &project.cached_changelog {
                     cached.clone()
-                } else {
+                } else if let Some((ref rt, ref generator)) = ai_generator {
                     info!("{}: polishing changelog with AI...", project.name);
-                    match polish_changelog_with_ai(&draft_changelog, &project.commit_messages) {
+                    match rt.block_on(generator.polish(&draft_changelog, &project.commit_messages))
+                    {
                         Ok(polished) => polished,
                         Err(e) => {
                             warn!(
@@ -140,6 +179,8 @@ impl<'a> ReleasePipeline<'a> {
                             draft_changelog
                         }
                     }
+                } else {
+                    draft_changelog
                 }
             } else {
                 project

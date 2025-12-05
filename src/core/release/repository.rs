@@ -14,6 +14,7 @@ use std::{
 };
 use thiserror::Error as ThisError;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 use crate::{
     atry,
@@ -1010,8 +1011,9 @@ impl Repository {
                 .ok()
                 .and_then(|format| now.format(&format).ok())
                 .unwrap_or_else(|| now.unix_timestamp().to_string());
+        let suffix = &Uuid::new_v4().to_string()[..8];
 
-        format!("release/{}", formatted)
+        format!("release/{}-{}", formatted, suffix)
     }
 }
 
