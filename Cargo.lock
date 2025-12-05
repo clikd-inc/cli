@@ -486,8 +486,6 @@ dependencies = [
  "git-conventional",
  "git-url-parse",
  "git2",
- "hex",
- "hmac",
  "insta",
  "jiff",
  "json5 1.0.0",

@@ -314,16 +314,6 @@ impl<'a> ReleasePipeline<'a> {
         let manifest_filename = ReleaseManifest::generate_filename();
         let manifest_path = manifest_dir.join(&manifest_filename);
 
-        if let Ok(secret) = crate::core::auth::token::load_manifest_secret() {
-            manifest.sign(&secret);
-            info!("signed manifest with HMAC-SHA256");
-        } else {
-            warn!(
-                "manifest secret not configured - manifest will not be signed. \
-                Run 'clikd auth secret' to configure signing."
-            );
-        }
-
         manifest
             .save_to_file(&manifest_path)
             .context("failed to save release manifest")?;
