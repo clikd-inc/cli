@@ -7,13 +7,18 @@
 //! Schema version `1.0` includes:
 //! - Release metadata (timestamp, author, base branch)
 //! - Per-project release info (versions, changelog, tag names)
+//! - HMAC-SHA256 signature for verification
 
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::fs;
 use std::path::Path;
 use time::OffsetDateTime;
 
 const SCHEMA_VERSION: &str = "1.0";
+
+type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReleaseManifest {
@@ -22,6 +27,8 @@ pub struct ReleaseManifest {
     pub created_by: String,
     pub base_branch: String,
     pub releases: Vec<ProjectRelease>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,11 +55,47 @@ impl ReleaseManifest {
             created_by,
             base_branch,
             releases: Vec::new(),
+            signature: None,
         }
     }
 
     pub fn add_release(&mut self, release: ProjectRelease) {
         self.releases.push(release);
+    }
+
+    pub fn sign(&mut self, secret: &str) {
+        self.signature = None;
+        let payload = self.signature_payload();
+        let signature = compute_hmac_signature(&payload, secret);
+        self.signature = Some(signature);
+    }
+
+    pub fn verify_signature(&self, secret: &str) -> bool {
+        let Some(ref signature) = self.signature else {
+            return false;
+        };
+
+        let mut manifest_without_sig = self.clone();
+        manifest_without_sig.signature = None;
+        let payload = manifest_without_sig.signature_payload();
+
+        let expected = compute_hmac_signature(&payload, secret);
+        constant_time_compare(signature, &expected)
+    }
+
+    fn signature_payload(&self) -> String {
+        format!(
+            "{}:{}:{}:{}:{}",
+            self.schema_version,
+            self.created_at,
+            self.created_by,
+            self.base_branch,
+            self.releases
+                .iter()
+                .map(|r| format!("{}@{}", r.name, r.new_version))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
     }
 
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
@@ -114,6 +157,25 @@ impl ProjectRelease {
             prefix,
         }
     }
+}
+
+fn compute_hmac_signature(payload: &str, secret: &str) -> String {
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
+    mac.update(payload.as_bytes());
+    let result = mac.finalize();
+    format!("sha256={}", hex::encode(result.into_bytes()))
+}
+
+fn constant_time_compare(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+
+    a.bytes()
+        .zip(b.bytes())
+        .fold(0, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 #[cfg(test)]
@@ -275,5 +337,101 @@ mod tests {
         assert_eq!(loaded.releases[0].name, "test");
 
         std::fs::remove_dir_all(temp_dir).ok();
+    }
+
+    #[test]
+    fn test_manifest_sign_and_verify() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "test-pkg".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "1.1.0".to_string(),
+            "minor".to_string(),
+            "Changes".to_string(),
+            "".to_string(),
+        ));
+
+        let secret = "test-secret-key";
+        manifest.sign(secret);
+
+        assert!(manifest.signature.is_some());
+        assert!(manifest.signature.as_ref().unwrap().starts_with("sha256="));
+        assert!(manifest.verify_signature(secret));
+    }
+
+    #[test]
+    fn test_manifest_verify_fails_with_wrong_secret() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "pkg".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "2.0.0".to_string(),
+            "major".to_string(),
+            "Breaking".to_string(),
+            "".to_string(),
+        ));
+
+        manifest.sign("correct-secret");
+        assert!(!manifest.verify_signature("wrong-secret"));
+    }
+
+    #[test]
+    fn test_manifest_verify_fails_when_tampered() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "pkg".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "1.0.1".to_string(),
+            "patch".to_string(),
+            "Fix".to_string(),
+            "".to_string(),
+        ));
+
+        let secret = "my-secret";
+        manifest.sign(secret);
+
+        manifest.releases[0].new_version = "9.9.9".to_string();
+        assert!(!manifest.verify_signature(secret));
+    }
+
+    #[test]
+    fn test_manifest_verify_fails_without_signature() {
+        let manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        assert!(!manifest.verify_signature("any-secret"));
+    }
+
+    #[test]
+    fn test_signature_included_in_json() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.sign("secret");
+
+        let json = manifest.to_json().unwrap();
+        assert!(json.contains("\"signature\":"));
+        assert!(json.contains("sha256="));
+    }
+
+    #[test]
+    fn test_signature_roundtrip_through_json() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "pkg".to_string(),
+            "npm".to_string(),
+            "0.1.0".to_string(),
+            "0.2.0".to_string(),
+            "minor".to_string(),
+            "Changelog".to_string(),
+            "".to_string(),
+        ));
+
+        let secret = "roundtrip-secret";
+        manifest.sign(secret);
+
+        let json = manifest.to_json().unwrap();
+        let loaded = ReleaseManifest::from_json(&json).unwrap();
+
+        assert!(loaded.verify_signature(secret));
     }
 }

@@ -52,7 +52,7 @@ pub async fn request_device_code(client_id: &str) -> Result<DeviceCodeResponse> 
         .header("Accept", "application/json")
         .form(&DeviceCodeRequest {
             client_id: client_id.to_string(),
-            scope: "read:org user:email read:packages".to_string(),
+            scope: "repo read:org user:email read:packages".to_string(),
         })
         .send()
         .await
@@ -186,4 +186,84 @@ pub async fn get_username(token: &str) -> Result<String> {
         .map_err(|e| CliError::GitHubApi(format!("Failed to parse user response: {}", e)))?;
 
     Ok(user.login)
+}
+
+pub async fn validate_token_scopes(token: &str, required_scopes: &[&str]) -> Result<()> {
+    let client = Client::new();
+
+    let response = client
+        .get("https://api.github.com/user")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "clikd")
+        .send()
+        .await
+        .map_err(|e| CliError::GitHubApi(format!("Failed to validate token: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(CliError::GitHubApi(format!(
+            "Token validation failed: HTTP {}",
+            response.status()
+        )));
+    }
+
+    let scopes = response
+        .headers()
+        .get("x-oauth-scopes")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    check_required_scopes(scopes, required_scopes)?;
+
+    debug!("Token scopes validated: {}", scopes);
+    Ok(())
+}
+
+pub fn validate_token_scopes_blocking(token: &str, required_scopes: &[&str]) -> Result<()> {
+    let client = reqwest::blocking::Client::new();
+
+    let response = client
+        .get("https://api.github.com/user")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "clikd")
+        .send()
+        .map_err(|e| CliError::GitHubApi(format!("Failed to validate token: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(CliError::GitHubApi(format!(
+            "Token validation failed: HTTP {}",
+            response.status()
+        )));
+    }
+
+    let scopes = response
+        .headers()
+        .get("x-oauth-scopes")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    check_required_scopes(scopes, required_scopes)?;
+
+    debug!("Token scopes validated: {}", scopes);
+    Ok(())
+}
+
+fn check_required_scopes(scopes: &str, required_scopes: &[&str]) -> Result<()> {
+    let token_scopes: Vec<&str> = scopes.split(", ").map(|s| s.trim()).collect();
+
+    let missing: Vec<&str> = required_scopes
+        .iter()
+        .filter(|&required| !token_scopes.iter().any(|s| s == required))
+        .copied()
+        .collect();
+
+    if !missing.is_empty() {
+        return Err(CliError::GitHubApi(format!(
+            "Token missing required scopes: {}. Please re-authenticate with 'clikd auth login'",
+            missing.join(", ")
+        )));
+    }
+
+    Ok(())
 }

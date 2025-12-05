@@ -7,13 +7,49 @@ use anyhow::{anyhow, Context};
 use clap::Parser;
 use git_url_parse::types::provider::GenericProvider;
 use json::{object, JsonValue};
-use tracing::info;
+use reqwest::StatusCode;
+use std::thread;
+use std::time::Duration;
+use tracing::{info, warn};
 
 use crate::core::release::{
     env::require_var,
     errors::Result,
     session::{AppBuilder, AppSession},
 };
+
+const MAX_RETRIES: u32 = 3;
+const INITIAL_BACKOFF_MS: u64 = 1000;
+const MAX_BACKOFF_MS: u64 = 30000;
+
+fn is_retryable_status(status: StatusCode) -> bool {
+    matches!(
+        status,
+        StatusCode::TOO_MANY_REQUESTS
+            | StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT
+    )
+}
+
+fn calculate_backoff(attempt: u32, base_ms: u64) -> Duration {
+    let backoff_ms = base_ms * 2u64.pow(attempt);
+    Duration::from_millis(backoff_ms.min(MAX_BACKOFF_MS))
+}
+
+fn extract_retry_after(response: &reqwest::blocking::Response) -> Option<Duration> {
+    response
+        .headers()
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(Duration::from_secs)
+}
+
+fn is_retryable_error(error: &reqwest::Error) -> bool {
+    error.is_timeout() || error.is_connect() || error.is_request()
+}
 
 pub struct GitHubInformation {
     slug: String,
@@ -22,6 +58,10 @@ pub struct GitHubInformation {
 
 impl GitHubInformation {
     pub fn new(sess: &AppSession) -> Result<Self> {
+        Self::new_with_scopes(sess, &["repo"])
+    }
+
+    pub fn new_with_scopes(sess: &AppSession, required_scopes: &[&str]) -> Result<Self> {
         let token = crate::core::auth::token::load_token()
             .ok()
             .or_else(|| require_var("GITHUB_TOKEN").ok())
@@ -30,6 +70,11 @@ impl GitHubInformation {
                     "GitHub authentication required. Run 'clikd login' or set GITHUB_TOKEN environment variable."
                 )
             })?;
+
+        if !required_scopes.is_empty() {
+            crate::core::auth::github::validate_token_scopes_blocking(&token, required_scopes)
+                .context("GitHub token scope validation failed")?;
+        }
 
         let upstream_url = sess.repo.upstream_url()?;
         info!("upstream url: {}", upstream_url);
@@ -63,11 +108,10 @@ impl GitHubInformation {
         format!("https://api.github.com/repos/{}/{}", self.slug, rest)
     }
 
-    /// Delete an existing release.
-    fn delete_release(&self, tag_name: &str, client: &mut reqwest::blocking::Client) -> Result<()> {
+    fn delete_release(&self, tag_name: &str, client: &reqwest::blocking::Client) -> Result<()> {
         let query_url = self.api_url(&format!("releases/tags/{tag_name}"));
 
-        let resp = client.get(query_url).send()?;
+        let resp = self.send_with_retry(|| client.get(&query_url))?;
         if !resp.status().is_success() {
             return Err(anyhow!(
                 "no GitHub release for tag `{}`: {}",
@@ -81,7 +125,7 @@ impl GitHubInformation {
         let id = metadata["id"].to_string();
 
         let delete_url = self.api_url(&format!("releases/{id}"));
-        let resp = client.delete(delete_url).send()?;
+        let resp = self.send_with_retry(|| client.delete(&delete_url))?;
         if !resp.status().is_success() {
             return Err(anyhow!(
                 "could not delete GitHub release for tag `{}`: {}",
@@ -94,7 +138,6 @@ impl GitHubInformation {
         Ok(())
     }
 
-    /// Create a new GitHub release.
     fn create_custom_release(
         &self,
         tag_name: String,
@@ -102,7 +145,7 @@ impl GitHubInformation {
         body: String,
         is_draft: bool,
         is_prerelease: bool,
-        client: &mut reqwest::blocking::Client,
+        client: &reqwest::blocking::Client,
     ) -> Result<JsonValue> {
         let saved_tag_name = tag_name.clone();
         let release_info = object! {
@@ -114,10 +157,8 @@ impl GitHubInformation {
         };
 
         let create_url = self.api_url("releases");
-        let resp = client
-            .post(create_url)
-            .body(json::stringify(release_info))
-            .send()?;
+        let request_body = json::stringify(release_info);
+        let resp = self.send_with_retry(|| client.post(&create_url).body(request_body.clone()))?;
         let status = resp.status();
         let parsed = json::parse(&resp.text()?)?;
 
@@ -149,10 +190,8 @@ impl GitHubInformation {
         };
 
         let create_url = self.api_url("pulls");
-        let resp = client
-            .post(create_url)
-            .body(json::stringify(pr_info))
-            .send()?;
+        let request_body = json::stringify(pr_info);
+        let resp = self.send_with_retry(|| client.post(&create_url).body(request_body.clone()))?;
 
         let status = resp.status();
         let parsed = json::parse(&resp.text()?)?;
@@ -167,6 +206,78 @@ impl GitHubInformation {
         } else {
             Err(anyhow!("failed to create pull request: {}", parsed))
         }
+    }
+
+    fn send_with_retry<F>(&self, build_request: F) -> Result<reqwest::blocking::Response>
+    where
+        F: Fn() -> reqwest::blocking::RequestBuilder,
+    {
+        let mut last_error = None;
+
+        for attempt in 0..=MAX_RETRIES {
+            let request = build_request();
+
+            match request.send() {
+                Ok(response) => {
+                    let status = response.status();
+
+                    if status.is_success() || !is_retryable_status(status) {
+                        return Ok(response);
+                    }
+
+                    if attempt < MAX_RETRIES {
+                        let backoff = extract_retry_after(&response)
+                            .unwrap_or_else(|| calculate_backoff(attempt, INITIAL_BACKOFF_MS));
+
+                        warn!(
+                            "GitHub API returned {} (attempt {}/{}), retrying in {:?}",
+                            status,
+                            attempt + 1,
+                            MAX_RETRIES + 1,
+                            backoff
+                        );
+
+                        thread::sleep(backoff);
+                    } else {
+                        return Ok(response);
+                    }
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES && is_retryable_error(&e) {
+                        let backoff = calculate_backoff(attempt, INITIAL_BACKOFF_MS);
+
+                        warn!(
+                            "GitHub API request failed: {} (attempt {}/{}), retrying in {:?}",
+                            e,
+                            attempt + 1,
+                            MAX_RETRIES + 1,
+                            backoff
+                        );
+
+                        thread::sleep(backoff);
+                        last_error = Some(e);
+                    } else {
+                        return Err(e.into());
+                    }
+                }
+            }
+        }
+
+        Err(last_error.map_or_else(
+            || {
+                anyhow!(
+                    "GitHub API request failed after {} retries",
+                    MAX_RETRIES + 1
+                )
+            },
+            |e| {
+                anyhow!(
+                    "GitHub API request failed after {} retries: {}",
+                    MAX_RETRIES + 1,
+                    e
+                )
+            },
+        ))
     }
 }
 
@@ -237,14 +348,14 @@ impl CreateCustomReleaseCommand {
     pub fn execute(self) -> Result<i32> {
         let sess = AppBuilder::new()?.populate_graph(false).initialize()?;
         let info = GitHubInformation::new(&sess)?;
-        let mut client = info.make_blocking_client()?;
+        let client = info.make_blocking_client()?;
         info.create_custom_release(
             self.tag_name,
             self.release_name,
             self.body,
             self.is_draft,
             self.is_prerelease,
-            &mut client,
+            &client,
         )?;
         Ok(0)
     }
@@ -282,8 +393,8 @@ impl DeleteReleaseCommand {
     pub fn execute(self) -> Result<i32> {
         let sess = AppSession::initialize_default()?;
         let info = GitHubInformation::new(&sess)?;
-        let mut client = info.make_blocking_client()?;
-        info.delete_release(&self.tag_name, &mut client)?;
+        let client = info.make_blocking_client()?;
+        info.delete_release(&self.tag_name, &client)?;
         info!(
             "deleted GitHub release associated with tag `{}`",
             self.tag_name
