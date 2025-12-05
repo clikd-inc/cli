@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context};
 use clap::Parser;
 use git_url_parse::types::provider::GenericProvider;
 use octocrab::Octocrab;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::core::release::{
     env::require_var,
@@ -30,8 +30,19 @@ impl GitHubInformation {
             .unwrap_or(false);
 
         let token = crate::core::auth::token::load_token()
+            .map_err(|e| {
+                debug!("keyring token load failed: {}", e);
+                e
+            })
             .ok()
-            .or_else(|| require_var("GITHUB_TOKEN").ok())
+            .or_else(|| {
+                require_var("GITHUB_TOKEN")
+                    .map_err(|e| {
+                        debug!("GITHUB_TOKEN env var not found: {}", e);
+                        e
+                    })
+                    .ok()
+            })
             .ok_or_else(|| {
                 if is_ci {
                     anyhow!(

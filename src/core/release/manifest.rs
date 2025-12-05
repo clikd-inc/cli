@@ -15,6 +15,7 @@ use sha2::Sha256;
 use std::fs;
 use std::path::Path;
 use time::OffsetDateTime;
+use tracing::warn;
 use uuid::Uuid;
 
 const SCHEMA_VERSION: &str = "1.0";
@@ -49,7 +50,10 @@ impl ReleaseManifest {
     pub fn new(base_branch: String, created_by: String) -> Self {
         let now = OffsetDateTime::now_utc();
         let format = time::format_description::well_known::Rfc3339;
-        let created_at = now.format(&format).unwrap_or_else(|_| now.to_string());
+        let created_at = now.format(&format).unwrap_or_else(|e| {
+            warn!("failed to format timestamp as RFC3339: {}", e);
+            now.to_string()
+        });
 
         Self {
             schema_version: SCHEMA_VERSION.to_string(),
@@ -66,6 +70,14 @@ impl ReleaseManifest {
     }
 
     pub fn sign(&mut self, secret: &str) {
+        const MIN_SECRET_LENGTH: usize = 32;
+        if secret.len() < MIN_SECRET_LENGTH {
+            warn!(
+                "manifest secret is {} bytes, recommended minimum is {} bytes for security",
+                secret.len(),
+                MIN_SECRET_LENGTH
+            );
+        }
         self.signature = None;
         let payload = self.signature_payload();
         let signature = compute_hmac_signature(&payload, secret);
