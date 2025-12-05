@@ -22,9 +22,13 @@ format:
 
 format-check:
     @echo "🎨 Checking format..."
-    cargo fmt --check
+    cargo fmt -- --check
 
-ci: check test lint format-check
+audit:
+    @echo "🔒 Running security audit..."
+    cargo audit
+
+ci: check test lint format-check audit
     @echo "✅ CI checks complete!"
 
 fix:

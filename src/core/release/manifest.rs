@@ -275,7 +275,7 @@ mod tests {
         assert_eq!(parts.len(), 3, "expected release-TIMESTAMP-UUID format");
         assert_eq!(parts[0], "release");
 
-        let uuid_suffix = parts[2].split('-').last().unwrap();
+        let uuid_suffix = parts[2].split('-').next_back().unwrap();
         assert_eq!(uuid_suffix.len(), 8, "UUID suffix should be 8 chars");
         assert!(
             uuid_suffix.chars().all(|c| c.is_ascii_hexdigit()),
