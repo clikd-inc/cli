@@ -15,14 +15,21 @@ use crate::core::release::{
     session::{AppBuilder, AppSession},
 };
 
-struct GitHubInformation {
+pub struct GitHubInformation {
     slug: String,
     token: String,
 }
 
 impl GitHubInformation {
-    fn new(sess: &AppSession) -> Result<Self> {
-        let token = require_var("GITHUB_TOKEN")?;
+    pub fn new(sess: &AppSession) -> Result<Self> {
+        let token = crate::core::auth::token::load_token()
+            .ok()
+            .or_else(|| require_var("GITHUB_TOKEN").ok())
+            .ok_or_else(|| {
+                anyhow!(
+                    "GitHub authentication required. Run 'clikd login' or set GITHUB_TOKEN environment variable."
+                )
+            })?;
 
         let upstream_url = sess.repo.upstream_url()?;
         info!("upstream url: {}", upstream_url);
@@ -38,7 +45,7 @@ impl GitHubInformation {
         Ok(GitHubInformation { slug, token })
     }
 
-    fn make_blocking_client(&self) -> Result<reqwest::blocking::Client> {
+    pub fn make_blocking_client(&self) -> Result<reqwest::blocking::Client> {
         use reqwest::header;
         let mut headers = header::HeaderMap::new();
         headers.insert(
@@ -123,6 +130,42 @@ impl GitHubInformation {
                 saved_tag_name,
                 parsed
             ))
+        }
+    }
+
+    pub fn create_pull_request(
+        &self,
+        head: &str,
+        base: &str,
+        title: &str,
+        body: &str,
+        client: &reqwest::blocking::Client,
+    ) -> Result<String> {
+        let pr_info = object! {
+            "title" => title,
+            "head" => head,
+            "base" => base,
+            "body" => body,
+        };
+
+        let create_url = self.api_url("pulls");
+        let resp = client
+            .post(create_url)
+            .body(json::stringify(pr_info))
+            .send()?;
+
+        let status = resp.status();
+        let parsed = json::parse(&resp.text()?)?;
+
+        if status.is_success() {
+            let html_url = parsed["html_url"]
+                .as_str()
+                .ok_or_else(|| anyhow!("PR response missing html_url"))?
+                .to_string();
+            info!("created pull request: {}", html_url);
+            Ok(html_url)
+        } else {
+            Err(anyhow!("failed to create pull request: {}", parsed))
         }
     }
 }

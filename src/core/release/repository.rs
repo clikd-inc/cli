@@ -7,9 +7,7 @@ use anyhow::{anyhow, bail, Context};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 
-use super::template::format_template;
 use std::{
-    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
@@ -537,7 +535,7 @@ impl Repository {
         rel_info
     }
 
-    fn get_signature(&self) -> Result<git2::Signature<'_>> {
+    pub fn get_signature(&self) -> Result<git2::Signature<'_>> {
         self.repo
             .signature()
             .or_else(|_| git2::Signature::now("clikd", "clikd@devnull"))
@@ -944,62 +942,59 @@ impl Repository {
         Ok(())
     }
 
-    /// Get a tag name for a release of this project.
-    pub fn get_tag_name(&self, proj: &Project, rel: &ReleasedProjectInfo) -> Result<String> {
-        let mut tagname_args = HashMap::new();
-        tagname_args.insert("project_slug", proj.user_facing_name.to_owned());
-        tagname_args.insert("version", rel.version.clone());
-
-        let basis = format_template(&self.release_tag_name_format, &tagname_args)
-            .map_err(|e| Error::msg(e.to_string()))?;
-
-        // See: https://git-scm.com/docs/git-check-ref-format . We don't
-        // exhaustively check for invalid tags. The main thing is that our qname
-        // separator ":" isn't allowed in tags. Most invalid characters we
-        // replace with _, but we replace that with '/' to reflect its
-        // hierarchical meaning in Clikd.
-
-        const REPLACEMENT: char = '_';
-
-        Ok(basis
-            .chars()
-            .map(|c| {
-                if c.is_alphanumeric() {
-                    c
-                } else if c.is_control() {
-                    REPLACEMENT
-                } else {
-                    match c {
-                        ':' => '/',
-                        ' ' | '~' | '^' | '?' | '*' | '[' => REPLACEMENT,
-                        c => c,
-                    }
-                }
-            })
-            .collect())
-    }
-
-    /// Create a tag for a project release pointing to HEAD.
-    pub fn tag_project_at_head(&self, proj: &Project, rel: &ReleasedProjectInfo) -> Result<()> {
+    pub fn create_branch(&self, name: &str) -> Result<()> {
         let head_ref = self.repo.head()?;
         let head_commit = head_ref.peel_to_commit()?;
-        let sig = self.get_signature()?;
-        let tagname = self.get_tag_name(proj, rel)?;
-
-        self.repo
-            .tag(&tagname, head_commit.as_object(), &sig, &tagname, false)?;
-
-        info!(
-            "created tag {} pointing at HEAD ({})",
-            &tagname,
-            head_commit
-                .as_object()
-                .short_id()?
-                .as_str()
-                .expect("BUG: git short_id should always be valid UTF-8")
-        );
-
+        self.repo.branch(name, &head_commit, false)?;
+        info!("created branch {}", name);
         Ok(())
+    }
+
+    pub fn checkout_branch(&self, name: &str) -> Result<()> {
+        let branch_ref = format!("refs/heads/{}", name);
+        let obj = self
+            .repo
+            .revparse_single(&branch_ref)
+            .with_context(|| format!("branch '{}' not found", name))?;
+
+        self.repo.checkout_tree(&obj, None)?;
+        self.repo.set_head(&branch_ref)?;
+        info!("checked out branch {}", name);
+        Ok(())
+    }
+
+    pub fn push_branch(&self, branch_name: &str) -> Result<()> {
+        let mut remote = self.repo.find_remote(&self.upstream_name)?;
+        let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+
+        let mut callbacks = git2::RemoteCallbacks::new();
+        callbacks.credentials(|_url, username_from_url, allowed_types| {
+            if allowed_types.contains(git2::CredentialType::SSH_KEY) {
+                git2::Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
+            } else if allowed_types.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+                if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+                    git2::Cred::userpass_plaintext("x-access-token", &token)
+                } else {
+                    git2::Cred::default()
+                }
+            } else {
+                git2::Cred::default()
+            }
+        });
+
+        let mut push_options = git2::PushOptions::new();
+        push_options.remote_callbacks(callbacks);
+
+        remote.push(&[&refspec], Some(&mut push_options))?;
+        info!("pushed branch {} to {}", branch_name, self.upstream_name);
+        Ok(())
+    }
+
+    pub fn generate_release_branch_name() -> String {
+        let now = time::OffsetDateTime::now_utc();
+        let format = time::format_description::parse("[year][month][day]-[hour][minute][second]")
+            .expect("valid format");
+        format!("release/{}", now.format(&format).expect("format datetime"))
     }
 }
 

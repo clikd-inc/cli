@@ -59,12 +59,15 @@ pub mod core {
         pub mod errors;
         pub mod git_validate;
         pub mod graph;
+        pub mod manifest;
+        pub mod pr_generator;
         pub mod project;
         pub mod repository;
         pub mod rewriters;
         pub mod session;
         mod template;
         pub mod version;
+        pub mod workflow;
     }
 
     pub mod ecosystem {
@@ -75,6 +78,7 @@ pub mod core {
         pub mod go;
         pub mod npm;
         pub mod pypa;
+        pub mod types;
     }
 
     pub mod github {
@@ -169,12 +173,9 @@ pub async fn execute(cli: Cli) -> Result<()> {
                 bump,
                 no_tui,
                 ci,
-                push,
-                github_release,
                 project,
             } => {
-                let exit_code =
-                    cmd::release::prepare::run(bump, no_tui, ci, push, github_release, project)?;
+                let exit_code = cmd::release::prepare::run(bump, no_tui, ci, project)?;
                 if exit_code != 0 {
                     std::process::exit(exit_code);
                 }
