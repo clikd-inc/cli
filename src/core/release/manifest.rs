@@ -70,19 +70,6 @@ impl ReleaseManifest {
         self.signature = Some(signature);
     }
 
-    pub fn verify_signature(&self, secret: &str) -> bool {
-        let Some(ref signature) = self.signature else {
-            return false;
-        };
-
-        let mut manifest_without_sig = self.clone();
-        manifest_without_sig.signature = None;
-        let payload = manifest_without_sig.signature_payload();
-
-        let expected = compute_hmac_signature(&payload, secret);
-        constant_time_compare(signature, &expected)
-    }
-
     fn signature_payload(&self) -> String {
         format!(
             "{}:{}:{}:{}:{}",
@@ -120,11 +107,11 @@ impl ReleaseManifest {
 
     pub fn generate_filename() -> String {
         let now = OffsetDateTime::now_utc();
-        let formatted =
-            time::format_description::parse("[year][month][day]-[hour][minute][second]")
-                .ok()
-                .and_then(|format| now.format(&format).ok())
-                .unwrap_or_else(|| now.unix_timestamp().to_string());
+        let format = time::format_description::parse("[year][month][day]-[hour][minute][second]")
+            .expect("static format description should always parse");
+        let formatted = now
+            .format(&format)
+            .expect("UTC datetime should always format successfully");
 
         format!("release-{}.json", formatted)
     }
@@ -165,17 +152,6 @@ fn compute_hmac_signature(payload: &str, secret: &str) -> String {
     mac.update(payload.as_bytes());
     let result = mac.finalize();
     format!("sha256={}", hex::encode(result.into_bytes()))
-}
-
-fn constant_time_compare(a: &str, b: &str) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    a.bytes()
-        .zip(b.bytes())
-        .fold(0, |acc, (x, y)| acc | (x ^ y))
-        == 0
 }
 
 #[cfg(test)]
@@ -340,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_manifest_sign_and_verify() {
+    fn test_manifest_sign_creates_signature() {
         let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
         manifest.add_release(ProjectRelease::new(
             "test-pkg".to_string(),
@@ -357,50 +333,7 @@ mod tests {
 
         assert!(manifest.signature.is_some());
         assert!(manifest.signature.as_ref().unwrap().starts_with("sha256="));
-        assert!(manifest.verify_signature(secret));
-    }
-
-    #[test]
-    fn test_manifest_verify_fails_with_wrong_secret() {
-        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
-        manifest.add_release(ProjectRelease::new(
-            "pkg".to_string(),
-            "cargo".to_string(),
-            "1.0.0".to_string(),
-            "2.0.0".to_string(),
-            "major".to_string(),
-            "Breaking".to_string(),
-            "".to_string(),
-        ));
-
-        manifest.sign("correct-secret");
-        assert!(!manifest.verify_signature("wrong-secret"));
-    }
-
-    #[test]
-    fn test_manifest_verify_fails_when_tampered() {
-        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
-        manifest.add_release(ProjectRelease::new(
-            "pkg".to_string(),
-            "cargo".to_string(),
-            "1.0.0".to_string(),
-            "1.0.1".to_string(),
-            "patch".to_string(),
-            "Fix".to_string(),
-            "".to_string(),
-        ));
-
-        let secret = "my-secret";
-        manifest.sign(secret);
-
-        manifest.releases[0].new_version = "9.9.9".to_string();
-        assert!(!manifest.verify_signature(secret));
-    }
-
-    #[test]
-    fn test_manifest_verify_fails_without_signature() {
-        let manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
-        assert!(!manifest.verify_signature("any-secret"));
+        assert_eq!(manifest.signature.as_ref().unwrap().len(), 71);
     }
 
     #[test]
@@ -428,10 +361,22 @@ mod tests {
 
         let secret = "roundtrip-secret";
         manifest.sign(secret);
+        let original_signature = manifest.signature.clone();
 
         let json = manifest.to_json().unwrap();
         let loaded = ReleaseManifest::from_json(&json).unwrap();
 
-        assert!(loaded.verify_signature(secret));
+        assert_eq!(loaded.signature, original_signature);
+    }
+
+    #[test]
+    fn test_different_secrets_produce_different_signatures() {
+        let mut manifest1 = ReleaseManifest::new("main".to_string(), "test".to_string());
+        let mut manifest2 = manifest1.clone();
+
+        manifest1.sign("secret-one");
+        manifest2.sign("secret-two");
+
+        assert_ne!(manifest1.signature, manifest2.signature);
     }
 }

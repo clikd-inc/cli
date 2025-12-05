@@ -2,11 +2,62 @@
 //!
 //! Generates formatted PR titles and bodies for release pull requests,
 //! including version tables, ecosystem badges, and changelog summaries.
+//!
+//! # Generated PR Format
+//!
+//! ## Title Examples
+//!
+//! Single package:
+//! ```text
+//! chore(release): my-crate v1.2.0
+//! ```
+//!
+//! Multiple packages (≤3):
+//! ```text
+//! chore(release): core v1.0.0, utils v2.1.0
+//! ```
+//!
+//! Many packages (>3):
+//! ```text
+//! chore(release): 5 packages
+//! ```
+//!
+//! ## Body Structure
+//!
+//! ```text
+//! ## 🚀 Release Preparation
+//!
+//! This PR was automatically created by `clikd release prepare`.
+//!
+//! ### 📦 Packages
+//!
+//! | Package | Ecosystem | Version | Bump |
+//! |---------|-----------|---------|------|
+//! | **my-crate** | 🦀 Rust | `1.0.0` → `1.1.0` | 🟡 MINOR |
+//!
+//! ### 📝 Changelogs
+//! [changelog content here]
+//!
+//! ### 📋 Release Manifest
+//! 📄 `clikd/releases/release-20250605-123456.json`
+//!
+//! ---
+//!
+//! ### ✅ Next Steps
+//! [automation steps]
+//! ```
 
 use std::collections::HashMap;
 
 use super::workflow::SelectedProject;
 
+/// Generates the PR title for a release.
+///
+/// # Output Examples
+///
+/// - Single: `chore(release): my-crate v1.2.0`
+/// - Few: `chore(release): core v1.0.0, utils v2.1.0`
+/// - Many: `chore(release): 5 packages`
 pub fn generate_pr_title(projects: &[SelectedProject]) -> String {
     if projects.len() == 1 {
         let p = &projects[0];
@@ -22,6 +73,20 @@ pub fn generate_pr_title(projects: &[SelectedProject]) -> String {
     }
 }
 
+/// Generates the PR body with version table, changelogs, and next steps.
+///
+/// # Sections
+///
+/// 1. **Packages table** - Shows each package with ecosystem badge, version diff, and bump badge
+/// 2. **Changelogs** - Inline for single package, collapsible `<details>` for multiple
+/// 3. **Manifest link** - Points to `clikd/releases/{filename}.json`
+/// 4. **Next steps** - Documents GitHub App automation
+///
+/// # Badge Examples
+///
+/// Ecosystem badges: `🦀 Rust`, `📦 Node.js`, `🐍 Python`, `🐹 Go`
+///
+/// Bump badges: `🔴 **MAJOR**`, `🟡 MINOR`, `🟢 patch`
 pub fn generate_pr_body(
     projects: &[SelectedProject],
     manifest_filename: &str,

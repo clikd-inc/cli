@@ -274,14 +274,12 @@ fn run_simple_bump_mode(bump: Option<String>) -> Result<i32> {
     );
 
     if changes.paths().count() > 0 {
-        println!();
         info!("modified files:");
         for path in changes.paths() {
-            println!("  {}", path.escaped());
+            info!("  {}", path.escaped());
         }
     }
 
-    println!();
     info!(
         "prepared {} project{} for release ({} skipped)",
         n_prepared,
@@ -416,14 +414,12 @@ fn run_auto_mode(bump: Option<String>) -> Result<i32> {
     );
 
     if changes.paths().count() > 0 {
-        println!();
         info!("modified files:");
         for path in changes.paths() {
-            println!("  {}", path.escaped());
+            info!("  {}", path.escaped());
         }
     }
 
-    println!();
     info!(
         "prepared {} project{} for release ({} skipped)",
         n_prepared,
@@ -438,7 +434,7 @@ fn run_auto_mode(bump: Option<String>) -> Result<i32> {
 fn run_per_project_mode(projects: &[String]) -> Result<i32> {
     use std::collections::HashMap;
 
-    println!("Running in per-project mode");
+    info!("running in per-project mode");
 
     let mut bump_specs: HashMap<String, String> = HashMap::new();
     for spec in projects {
@@ -492,12 +488,12 @@ fn run_per_project_mode(projects: &[String]) -> Result<i32> {
             Some(bump) => bump.as_str(),
             None => {
                 if n_commits == 0 {
-                    println!(
+                    info!(
                         "{}: no changes and no explicit bump, skipping",
                         proj.user_facing_name
                     );
                 } else {
-                    println!(
+                    info!(
                         "{}: no explicit bump specified, skipping ({} commit{})",
                         proj.user_facing_name,
                         n_commits,
@@ -527,7 +523,7 @@ fn run_per_project_mode(projects: &[String]) -> Result<i32> {
             ["failed to apply version bump to {}", proj_mut.user_facing_name]
         );
 
-        println!(
+        info!(
             "{}: {} -> {} ({})",
             proj_mut.user_facing_name, old_version, proj_mut.version, bump_scheme_text
         );
@@ -536,11 +532,11 @@ fn run_per_project_mode(projects: &[String]) -> Result<i32> {
     }
 
     if n_prepared == 0 {
-        println!("No projects matched the specified bumps");
+        info!("no projects matched the specified bumps");
         return Ok(0);
     }
 
-    println!("Updating project files with new versions...");
+    info!("updating project files with new versions...");
 
     let changes = atry!(
         sess.rewrite();
@@ -548,21 +544,19 @@ fn run_per_project_mode(projects: &[String]) -> Result<i32> {
     );
 
     if changes.paths().count() > 0 {
-        println!();
-        println!("Modified files:");
+        info!("modified files:");
         for path in changes.paths() {
-            println!("  {}", path.escaped());
+            info!("  {}", path.escaped());
         }
     }
 
-    println!();
-    println!(
-        "Prepared {} project{} for release ({} skipped)",
+    info!(
+        "prepared {} project{} for release ({} skipped)",
         n_prepared,
         if n_prepared == 1 { "" } else { "s" },
         n_skipped
     );
-    println!("Review changes and commit when ready");
+    info!("review changes and commit when ready");
 
     Ok(0)
 }

@@ -62,13 +62,25 @@ impl GitHubInformation {
     }
 
     pub fn new_with_scopes(sess: &AppSession, required_scopes: &[&str]) -> Result<Self> {
+        let is_ci = sess
+            .execution_environment()
+            .map(|env| matches!(env, crate::core::release::session::ExecutionEnvironment::Ci))
+            .unwrap_or(false);
+
         let token = crate::core::auth::token::load_token()
             .ok()
             .or_else(|| require_var("GITHUB_TOKEN").ok())
             .ok_or_else(|| {
-                anyhow!(
-                    "GitHub authentication required. Run 'clikd login' or set GITHUB_TOKEN environment variable."
-                )
+                if is_ci {
+                    anyhow!(
+                        "GitHub authentication required in CI. Set the GITHUB_TOKEN environment variable \
+                        (typically via secrets.GITHUB_TOKEN in GitHub Actions)."
+                    )
+                } else {
+                    anyhow!(
+                        "GitHub authentication required. Run 'clikd login' to authenticate."
+                    )
+                }
             })?;
 
         if !required_scopes.is_empty() {

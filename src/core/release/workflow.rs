@@ -217,10 +217,9 @@ impl<'a> ReleasePipeline<'a> {
             .collect();
 
         if !paths.is_empty() {
-            println!();
             info!("modified files:");
             for path in paths {
-                println!("  {}", path.escaped());
+                info!("  {}", path.escaped());
             }
         }
     }
@@ -267,6 +266,12 @@ impl<'a> ReleasePipeline<'a> {
 
         let manifest_filename = ReleaseManifest::generate_filename();
         let manifest_path = manifest_dir.join(&manifest_filename);
+
+        if let Ok(secret) = crate::core::auth::token::load_manifest_secret() {
+            manifest.sign(&secret);
+            info!("signed manifest with HMAC-SHA256");
+        }
+
         manifest
             .save_to_file(&manifest_path)
             .context("failed to save release manifest")?;
@@ -343,7 +348,6 @@ impl<'a> ReleasePipeline<'a> {
     }
 
     fn print_summary(&self, projects: &[SelectedProject], pr_url: &str) {
-        println!();
         info!(
             "prepared {} project{} for release",
             projects.len(),

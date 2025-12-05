@@ -192,7 +192,7 @@ pub async fn validate_token_scopes(token: &str, required_scopes: &[&str]) -> Res
     let client = Client::new();
 
     let response = client
-        .get("https://api.github.com/user")
+        .get(GITHUB_API_USER_URL)
         .header("Authorization", format!("Bearer {}", token))
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "clikd")
@@ -200,45 +200,38 @@ pub async fn validate_token_scopes(token: &str, required_scopes: &[&str]) -> Res
         .await
         .map_err(|e| CliError::GitHubApi(format!("Failed to validate token: {}", e)))?;
 
-    if !response.status().is_success() {
-        return Err(CliError::GitHubApi(format!(
-            "Token validation failed: HTTP {}",
-            response.status()
-        )));
-    }
-
-    let scopes = response
-        .headers()
-        .get("x-oauth-scopes")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    check_required_scopes(scopes, required_scopes)?;
-
-    debug!("Token scopes validated: {}", scopes);
-    Ok(())
+    validate_response_and_scopes(response.status(), response.headers(), required_scopes)
 }
 
 pub fn validate_token_scopes_blocking(token: &str, required_scopes: &[&str]) -> Result<()> {
     let client = reqwest::blocking::Client::new();
 
     let response = client
-        .get("https://api.github.com/user")
+        .get(GITHUB_API_USER_URL)
         .header("Authorization", format!("Bearer {}", token))
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "clikd")
         .send()
         .map_err(|e| CliError::GitHubApi(format!("Failed to validate token: {}", e)))?;
 
-    if !response.status().is_success() {
+    validate_response_and_scopes(response.status(), response.headers(), required_scopes)
+}
+
+const GITHUB_API_USER_URL: &str = "https://api.github.com/user";
+
+fn validate_response_and_scopes(
+    status: reqwest::StatusCode,
+    headers: &reqwest::header::HeaderMap,
+    required_scopes: &[&str],
+) -> Result<()> {
+    if !status.is_success() {
         return Err(CliError::GitHubApi(format!(
             "Token validation failed: HTTP {}",
-            response.status()
+            status
         )));
     }
 
-    let scopes = response
-        .headers()
+    let scopes = headers
         .get("x-oauth-scopes")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
