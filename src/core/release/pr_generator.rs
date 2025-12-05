@@ -1,3 +1,8 @@
+//! Pull Request content generation for release PRs.
+//!
+//! Generates formatted PR titles and bodies for release pull requests,
+//! including version tables, ecosystem badges, and changelog summaries.
+
 use std::collections::HashMap;
 
 use super::workflow::SelectedProject;

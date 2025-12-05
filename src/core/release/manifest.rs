@@ -1,3 +1,13 @@
+//! Release manifest handling for PR-based releases.
+//!
+//! The release manifest is a JSON file stored in `clikd/releases/` that contains
+//! metadata about a pending release. It serves as a contract between the CLI
+//! (which creates releases) and the GitHub App (which finalizes them).
+//!
+//! Schema version `1.0` includes:
+//! - Release metadata (timestamp, author, base branch)
+//! - Per-project release info (versions, changelog, tag names)
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -67,12 +77,13 @@ impl ReleaseManifest {
 
     pub fn generate_filename() -> String {
         let now = OffsetDateTime::now_utc();
-        let format = time::format_description::parse("[year][month][day]-[hour][minute][second]")
-            .expect("valid format");
-        format!(
-            "release-{}.json",
-            now.format(&format).expect("format datetime")
-        )
+        let formatted =
+            time::format_description::parse("[year][month][day]-[hour][minute][second]")
+                .ok()
+                .and_then(|format| now.format(&format).ok())
+                .unwrap_or_else(|| now.unix_timestamp().to_string());
+
+        format!("release-{}.json", formatted)
     }
 }
 
@@ -102,5 +113,167 @@ impl ProjectRelease {
             tag_name,
             prefix,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_manifest_new_has_correct_schema_version() {
+        let manifest = ReleaseManifest::new("main".to_string(), "test-user".to_string());
+        assert_eq!(manifest.schema_version, "1.0");
+    }
+
+    #[test]
+    fn test_manifest_new_has_rfc3339_timestamp() {
+        let manifest = ReleaseManifest::new("main".to_string(), "test-user".to_string());
+        assert!(manifest.created_at.contains('T'));
+        assert!(manifest.created_at.contains('Z') || manifest.created_at.contains('+'));
+    }
+
+    #[test]
+    fn test_manifest_serialization_roundtrip() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "github-actions".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "my-crate".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "1.1.0".to_string(),
+            "minor".to_string(),
+            "## Changes\n- Added feature".to_string(),
+            "".to_string(),
+        ));
+
+        let json = manifest.to_json().expect("serialization should succeed");
+        let deserialized =
+            ReleaseManifest::from_json(&json).expect("deserialization should succeed");
+
+        assert_eq!(deserialized.schema_version, manifest.schema_version);
+        assert_eq!(deserialized.base_branch, manifest.base_branch);
+        assert_eq!(deserialized.created_by, manifest.created_by);
+        assert_eq!(deserialized.releases.len(), 1);
+        assert_eq!(deserialized.releases[0].name, "my-crate");
+        assert_eq!(deserialized.releases[0].new_version, "1.1.0");
+    }
+
+    #[test]
+    fn test_manifest_json_contains_expected_fields() {
+        let mut manifest = ReleaseManifest::new("develop".to_string(), "ci-bot".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "test-pkg".to_string(),
+            "npm".to_string(),
+            "2.0.0".to_string(),
+            "3.0.0".to_string(),
+            "major".to_string(),
+            "Breaking changes".to_string(),
+            "packages/test".to_string(),
+        ));
+
+        let json = manifest.to_json().expect("serialization should succeed");
+
+        assert!(json.contains("\"schema_version\": \"1.0\""));
+        assert!(json.contains("\"base_branch\": \"develop\""));
+        assert!(json.contains("\"created_by\": \"ci-bot\""));
+        assert!(json.contains("\"name\": \"test-pkg\""));
+        assert!(json.contains("\"ecosystem\": \"npm\""));
+        assert!(json.contains("\"previous_version\": \"2.0.0\""));
+        assert!(json.contains("\"new_version\": \"3.0.0\""));
+        assert!(json.contains("\"bump_type\": \"major\""));
+    }
+
+    #[test]
+    fn test_project_release_tag_name_without_prefix() {
+        let release = ProjectRelease::new(
+            "crate".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "1.0.1".to_string(),
+            "patch".to_string(),
+            "Changelog".to_string(),
+            "".to_string(),
+        );
+        assert_eq!(release.tag_name, "v1.0.1");
+    }
+
+    #[test]
+    fn test_project_release_tag_name_with_prefix() {
+        let release = ProjectRelease::new(
+            "core".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "2.0.0".to_string(),
+            "major".to_string(),
+            "Changelog".to_string(),
+            "packages/core".to_string(),
+        );
+        assert_eq!(release.tag_name, "packages/core/v2.0.0");
+    }
+
+    #[test]
+    fn test_generate_filename_format() {
+        let filename = ReleaseManifest::generate_filename();
+        assert!(filename.starts_with("release-"));
+        assert!(filename.ends_with(".json"));
+        assert!(filename.len() > 20);
+    }
+
+    #[test]
+    fn test_manifest_multiple_releases() {
+        let mut manifest = ReleaseManifest::new("main".to_string(), "bot".to_string());
+
+        manifest.add_release(ProjectRelease::new(
+            "pkg-a".to_string(),
+            "cargo".to_string(),
+            "1.0.0".to_string(),
+            "1.1.0".to_string(),
+            "minor".to_string(),
+            "Changelog A".to_string(),
+            "".to_string(),
+        ));
+
+        manifest.add_release(ProjectRelease::new(
+            "pkg-b".to_string(),
+            "npm".to_string(),
+            "2.0.0".to_string(),
+            "2.0.1".to_string(),
+            "patch".to_string(),
+            "Changelog B".to_string(),
+            "packages/b".to_string(),
+        ));
+
+        assert_eq!(manifest.releases.len(), 2);
+        assert_eq!(manifest.releases[0].name, "pkg-a");
+        assert_eq!(manifest.releases[1].name, "pkg-b");
+    }
+
+    #[test]
+    fn test_manifest_save_and_load_file() {
+        let temp_dir = std::env::temp_dir().join("clikd_test_manifest");
+        let manifest_path = temp_dir.join("releases").join("test-release.json");
+
+        let mut manifest = ReleaseManifest::new("main".to_string(), "test".to_string());
+        manifest.add_release(ProjectRelease::new(
+            "test".to_string(),
+            "cargo".to_string(),
+            "0.1.0".to_string(),
+            "0.2.0".to_string(),
+            "minor".to_string(),
+            "Test changelog".to_string(),
+            "".to_string(),
+        ));
+
+        manifest
+            .save_to_file(&manifest_path)
+            .expect("save should succeed");
+
+        let loaded_json = std::fs::read_to_string(&manifest_path).expect("read should succeed");
+        let loaded = ReleaseManifest::from_json(&loaded_json).expect("parse should succeed");
+
+        assert_eq!(loaded.releases.len(), 1);
+        assert_eq!(loaded.releases[0].name, "test");
+
+        std::fs::remove_dir_all(temp_dir).ok();
     }
 }

@@ -992,9 +992,13 @@ impl Repository {
 
     pub fn generate_release_branch_name() -> String {
         let now = time::OffsetDateTime::now_utc();
-        let format = time::format_description::parse("[year][month][day]-[hour][minute][second]")
-            .expect("valid format");
-        format!("release/{}", now.format(&format).expect("format datetime"))
+        let formatted =
+            time::format_description::parse("[year][month][day]-[hour][minute][second]")
+                .ok()
+                .and_then(|format| now.format(&format).ok())
+                .unwrap_or_else(|| now.unix_timestamp().to_string());
+
+        format!("release/{}", formatted)
     }
 }
 

@@ -1,3 +1,17 @@
+//! Release workflow orchestration for PR-based releases.
+//!
+//! This module implements the [`ReleasePipeline`] which coordinates the complete
+//! release workflow:
+//!
+//! 1. Version bumping across all selected projects
+//! 2. Changelog generation (with optional AI enhancement)
+//! 3. Release manifest creation in `clikd/releases/`
+//! 4. Git branch management (create, commit, push)
+//! 5. GitHub Pull Request creation
+//!
+//! The workflow is designed for CI/CD environments where releases go through
+//! a PR review process before being finalized by a GitHub App.
+
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use tracing::{info, warn};

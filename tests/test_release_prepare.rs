@@ -423,3 +423,179 @@ edition = "2021"
         utils_toml
     );
 }
+
+#[test]
+fn test_ci_mode_rejects_dirty_repository() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "ci-dirty-test"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("src/feature.rs", "pub fn feature() {}\n");
+    repo.commit("feat: add feature");
+
+    repo.write_file("src/uncommitted.rs", "pub fn uncommitted() {}\n");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--ci"]);
+
+    assert!(
+        !output.status.success(),
+        "CI mode should fail with dirty repository"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("clean working directory") || stderr.contains("uncommitted"),
+        "Error should mention clean working directory. Got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_ci_mode_succeeds_with_clean_repo_no_changes() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "ci-clean-test"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.commit("chore: add clikd config");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--ci"]);
+
+    assert!(
+        output.status.success(),
+        "CI mode should succeed with clean repo when no changes need releasing. Got: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"1.0.0\""),
+        "Version should remain unchanged when no releases needed. Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_explicit_bump_type() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[package]
+name = "explicit-bump"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("src/lib.rs", "pub fn hello() {}\n");
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("src/fix.rs", "pub fn fix() {}\n");
+    repo.commit("fix: small fix");
+
+    let output = repo.run_clikd_command(&["release", "prepare", "--no-tui", "major"]);
+    assert!(
+        output.status.success(),
+        "Prepare with explicit major should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let cargo_toml = repo.read_file("Cargo.toml");
+    assert!(
+        cargo_toml.contains("version = \"2.0.0\""),
+        "Explicit major bump should result in 2.0.0. Got: {}",
+        cargo_toml
+    );
+}
+
+#[test]
+fn test_release_prepare_per_project_mode() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Cargo.toml",
+        r#"[workspace]
+members = ["packages/*"]
+resolver = "2"
+"#,
+    );
+
+    repo.write_file(
+        "packages/alpha/Cargo.toml",
+        r#"[package]
+name = "alpha"
+version = "1.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("packages/alpha/src/lib.rs", "pub fn alpha() {}\n");
+
+    repo.write_file(
+        "packages/beta/Cargo.toml",
+        r#"[package]
+name = "beta"
+version = "2.0.0"
+edition = "2021"
+"#,
+    );
+    repo.write_file("packages/beta/src/lib.rs", "pub fn beta() {}\n");
+
+    repo.commit("Initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+    assert!(output.status.success());
+
+    repo.write_file("packages/alpha/src/new.rs", "pub fn new_alpha() {}\n");
+    repo.commit("feat: add alpha feature");
+
+    repo.write_file("packages/beta/src/new.rs", "pub fn new_beta() {}\n");
+    repo.commit("feat: add beta feature");
+
+    let output =
+        repo.run_clikd_command(&["release", "prepare", "--project", "alpha:major,beta:patch"]);
+    assert!(
+        output.status.success(),
+        "Per-project mode should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let alpha_toml = repo.read_file("packages/alpha/Cargo.toml");
+    let beta_toml = repo.read_file("packages/beta/Cargo.toml");
+
+    assert!(
+        alpha_toml.contains("version = \"2.0.0\""),
+        "Alpha should be major bumped to 2.0.0. Got: {}",
+        alpha_toml
+    );
+    assert!(
+        beta_toml.contains("version = \"2.0.1\""),
+        "Beta should be patch bumped to 2.0.1. Got: {}",
+        beta_toml
+    );
+}
