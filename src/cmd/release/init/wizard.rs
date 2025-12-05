@@ -22,7 +22,7 @@ use crate::{
         config::ConfigurationFile,
         project::DepRequirement,
         repository::{PathMatcher, RepoPathBuf, Repository},
-        session::AppSession,
+        session::{AppBuilder, AppSession},
     },
 };
 
@@ -126,7 +126,7 @@ pub fn run(force: bool, upstream: Option<String>) -> Result<i32> {
     }
 
     let sess = atry!(
-        AppSession::initialize_default();
+        AppBuilder::new()?.with_progress(true).initialize();
         ["could not initialize app and project graph"]
     );
 

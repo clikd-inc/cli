@@ -427,15 +427,28 @@ impl Repository {
     where
         F: FnMut(&RepoPath) -> Result<()>,
     {
-        // We have to use a callback here since the IndexEntries iter holds a
-        // ref to the index, which therefore has to be immovable (pinned) during
-        // the iteration process.
-        let index = self.repo.index()?;
+        self.scan_paths_with_progress(|p, _, _| f(p))
+    }
 
-        for entry in index.iter() {
+    /// Get the number of entries in the repository index.
+    pub fn index_entry_count(&self) -> Result<usize> {
+        let index = self.repo.index()?;
+        Ok(index.len())
+    }
+
+    /// Scan the paths in the repository index with progress information.
+    /// The callback receives: (path, current_index, total_count)
+    pub fn scan_paths_with_progress<F>(&self, mut f: F) -> Result<()>
+    where
+        F: FnMut(&RepoPath, usize, usize) -> Result<()>,
+    {
+        let index = self.repo.index()?;
+        let total = index.len();
+
+        for (i, entry) in index.iter().enumerate() {
             let p = RepoPath::new(&entry.path);
             atry!(
-                f(p);
+                f(p, i, total);
                 ["encountered a problem while scanning repository entry `{}`", p.escaped()]
             );
         }

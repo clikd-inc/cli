@@ -190,3 +190,94 @@ pub fn format_docker_status(status: &str) -> String {
         dimmed(status)
     }
 }
+
+pub struct ReleaseProgressBar {
+    progress: RichProgress,
+    is_tty: bool,
+}
+
+impl ReleaseProgressBar {
+    pub fn new(total: usize, message: &str) -> Self {
+        use std::io::{stderr, IsTerminal};
+
+        let is_tty = stderr().is_terminal();
+        term::init(is_tty);
+
+        let bar = tqdm!(total = total, animation = "arrow", ncols = 40);
+
+        let progress = RichProgress::new(
+            bar,
+            vec![
+                Column::Text(format!("  {} ", "└─".dimmed())),
+                Column::Animation,
+                Column::Percentage(1),
+                Column::Text(format!(" {} ", message.dimmed())),
+                Column::Text("(".dimmed().to_string()),
+                Column::CountTotal,
+                Column::Text(")".dimmed().to_string()),
+            ],
+        );
+
+        Self { progress, is_tty }
+    }
+
+    pub fn update(&mut self, position: usize) {
+        if self.is_tty {
+            let _ = self.progress.update_to(position);
+        }
+    }
+
+    pub fn finish(self) {
+        if self.is_tty {
+            drop(self.progress);
+        }
+    }
+}
+
+pub struct PhaseSpinner {
+    spinner: Option<Spinner>,
+}
+
+impl PhaseSpinner {
+    pub fn new(message: impl Into<String>) -> Self {
+        use std::io::{stderr, IsTerminal};
+
+        let spinner = if stderr().is_terminal() {
+            Some(Spinner::new(
+                spinners::Arc,
+                format!("  └─ {}", message.into()),
+                Some(primary_spinoff()),
+            ))
+        } else {
+            None
+        };
+
+        Self { spinner }
+    }
+
+    pub fn update(&mut self, message: impl Into<String>) {
+        if let Some(ref mut spinner) = self.spinner {
+            spinner.update_text(format!("  └─ {}", message.into()));
+        }
+    }
+
+    pub fn success(self, message: impl Into<String>) {
+        if let Some(mut spinner) = self.spinner {
+            spinner.success(&message.into());
+        }
+    }
+
+    pub fn finish(self) {
+        if let Some(mut spinner) = self.spinner {
+            spinner.clear();
+        }
+    }
+}
+
+pub fn print_phase(current: usize, total: usize, message: &str) {
+    println!(
+        "\n{} {}",
+        format!("[{}/{}]", current, total).color(primary()).bold(),
+        message.bold()
+    );
+}

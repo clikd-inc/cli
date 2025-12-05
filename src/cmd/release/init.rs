@@ -13,6 +13,7 @@ use crate::atry;
 use crate::core::release::{
     errors::{Error, Result},
     project::DepRequirement,
+    session::AppBuilder,
 };
 
 /// The toplevel bootstrap state structure.
@@ -142,7 +143,7 @@ impl BootstrapCommand {
         }
 
         let mut sess = atry!(
-            crate::core::release::session::AppSession::initialize_default();
+            AppBuilder::new()?.with_progress(true).initialize();
             ["could not initialize app and project graph"]
         );
 
