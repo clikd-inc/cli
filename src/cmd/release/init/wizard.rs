@@ -22,7 +22,7 @@ use crate::{
         config::ConfigurationFile,
         project::DepRequirement,
         repository::{PathMatcher, RepoPathBuf, Repository},
-        session::AppSession,
+        session::{AppBuilder, AppSession},
     },
 };
 
@@ -126,7 +126,7 @@ pub fn run(force: bool, upstream: Option<String>) -> Result<i32> {
     }
 
     let sess = atry!(
-        AppSession::initialize_default();
+        AppBuilder::new()?.with_progress(true).initialize();
         ["could not initialize app and project graph"]
     );
 
@@ -349,14 +349,6 @@ fn execute_bootstrap(state: &WizardState, repo: &Repository) -> Result<String> {
     sess.rewrite_clikd_requirements()?;
 
     repo.create_baseline_tag()?;
-
-    let project_versions: Vec<(String, String)> = bs_cfg
-        .project
-        .iter()
-        .map(|p| (p.qnames[0].clone(), p.version.clone()))
-        .collect();
-
-    repo.create_release_tags(&project_versions)?;
 
     Ok(format!(
         "Successfully initialized {} project(s)!\n\nNext steps:\n1. Review the changes\n2. Add clikd/ to your repository\n3. Commit the changes\n4. Try `clikd release status`",

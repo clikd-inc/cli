@@ -74,9 +74,6 @@ pub mod syntax {
         #[serde(default)]
         pub upstream_urls: Vec<String>,
 
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub release_tag_name_format: Option<String>,
-
         #[serde(default)]
         pub analysis: AnalysisConfig,
     }

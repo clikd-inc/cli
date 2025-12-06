@@ -7,15 +7,14 @@ use anyhow::{anyhow, bail, Context};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 
-use super::template::format_template;
 use std::{
-    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
 };
 use thiserror::Error as ThisError;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 use crate::{
     atry,
@@ -75,10 +74,6 @@ pub struct Repository {
     /// The name of the "upstream" remote.
     upstream_name: String,
 
-    /// The format specification to use for release tag names, as understood by
-    /// the `SimpleCurlyFormat` of the `dynfmt` crate.
-    release_tag_name_format: String,
-
     /// "Bootstrap" versioning information used to tell us where versions were at
     /// before the first Clikd release commit.
     bootstrap_info: BootstrapConfiguration,
@@ -105,12 +100,10 @@ impl Repository {
         }
 
         let upstream_name = "origin".to_owned();
-        let release_tag_name_format = "{project_slug}@{version}".to_owned();
 
         Ok(Repository {
             repo,
             upstream_name,
-            release_tag_name_format,
             bootstrap_info: BootstrapConfiguration::default(),
             analysis_config: super::config::syntax::AnalysisConfig::default(),
         })
@@ -232,10 +225,6 @@ impl Repository {
         } else {
             bail!("cannot identify the upstream Git remote");
         };
-
-        if let Some(n) = cfg.release_tag_name_format {
-            self.release_tag_name_format = n;
-        }
 
         self.analysis_config = cfg.analysis;
 
@@ -429,15 +418,28 @@ impl Repository {
     where
         F: FnMut(&RepoPath) -> Result<()>,
     {
-        // We have to use a callback here since the IndexEntries iter holds a
-        // ref to the index, which therefore has to be immovable (pinned) during
-        // the iteration process.
-        let index = self.repo.index()?;
+        self.scan_paths_with_progress(|p, _, _| f(p))
+    }
 
-        for entry in index.iter() {
+    /// Get the number of entries in the repository index.
+    pub fn index_entry_count(&self) -> Result<usize> {
+        let index = self.repo.index()?;
+        Ok(index.len())
+    }
+
+    /// Scan the paths in the repository index with progress information.
+    /// The callback receives: (path, current_index, total_count)
+    pub fn scan_paths_with_progress<F>(&self, mut f: F) -> Result<()>
+    where
+        F: FnMut(&RepoPath, usize, usize) -> Result<()>,
+    {
+        let index = self.repo.index()?;
+        let total = index.len();
+
+        for (i, entry) in index.iter().enumerate() {
             let p = RepoPath::new(&entry.path);
             atry!(
-                f(p);
+                f(p, i, total);
                 ["encountered a problem while scanning repository entry `{}`", p.escaped()]
             );
         }
@@ -537,7 +539,7 @@ impl Repository {
         rel_info
     }
 
-    fn get_signature(&self) -> Result<git2::Signature<'_>> {
+    pub fn get_signature(&self) -> Result<git2::Signature<'_>> {
         self.repo
             .signature()
             .or_else(|_| git2::Signature::now("clikd", "clikd@devnull"))
@@ -620,34 +622,6 @@ impl Repository {
             }
             Err(e) => Err(e.into()),
         }
-    }
-
-    pub fn create_release_tag(&self, project_name: &str, version: &str) -> Result<()> {
-        let tag_name = format!("{}-v{}", project_name, version);
-        let head = self.repo.head()?;
-        let target_oid = head.target().context("HEAD has no target")?;
-
-        match self
-            .repo
-            .tag_lightweight(&tag_name, &self.repo.find_object(target_oid, None)?, false)
-        {
-            Ok(_) => {
-                info!("created release tag '{}' at HEAD", tag_name);
-                Ok(())
-            }
-            Err(e) if e.code() == git2::ErrorCode::Exists => {
-                warn!("release tag '{}' already exists, not creating", tag_name);
-                Ok(())
-            }
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    pub fn create_release_tags(&self, project_versions: &[(String, String)]) -> Result<()> {
-        for (project_name, version) in project_versions {
-            self.create_release_tag(project_name, version)?;
-        }
-        Ok(())
     }
 
     pub fn create_commit(&self, message: &str, files: &[&RepoPath]) -> Result<()> {
@@ -944,62 +918,64 @@ impl Repository {
         Ok(())
     }
 
-    /// Get a tag name for a release of this project.
-    pub fn get_tag_name(&self, proj: &Project, rel: &ReleasedProjectInfo) -> Result<String> {
-        let mut tagname_args = HashMap::new();
-        tagname_args.insert("project_slug", proj.user_facing_name.to_owned());
-        tagname_args.insert("version", rel.version.clone());
-
-        let basis = format_template(&self.release_tag_name_format, &tagname_args)
-            .map_err(|e| Error::msg(e.to_string()))?;
-
-        // See: https://git-scm.com/docs/git-check-ref-format . We don't
-        // exhaustively check for invalid tags. The main thing is that our qname
-        // separator ":" isn't allowed in tags. Most invalid characters we
-        // replace with _, but we replace that with '/' to reflect its
-        // hierarchical meaning in Clikd.
-
-        const REPLACEMENT: char = '_';
-
-        Ok(basis
-            .chars()
-            .map(|c| {
-                if c.is_alphanumeric() {
-                    c
-                } else if c.is_control() {
-                    REPLACEMENT
-                } else {
-                    match c {
-                        ':' => '/',
-                        ' ' | '~' | '^' | '?' | '*' | '[' => REPLACEMENT,
-                        c => c,
-                    }
-                }
-            })
-            .collect())
-    }
-
-    /// Create a tag for a project release pointing to HEAD.
-    pub fn tag_project_at_head(&self, proj: &Project, rel: &ReleasedProjectInfo) -> Result<()> {
+    pub fn create_branch(&self, name: &str) -> Result<()> {
         let head_ref = self.repo.head()?;
         let head_commit = head_ref.peel_to_commit()?;
-        let sig = self.get_signature()?;
-        let tagname = self.get_tag_name(proj, rel)?;
-
-        self.repo
-            .tag(&tagname, head_commit.as_object(), &sig, &tagname, false)?;
-
-        info!(
-            "created tag {} pointing at HEAD ({})",
-            &tagname,
-            head_commit
-                .as_object()
-                .short_id()?
-                .as_str()
-                .expect("BUG: git short_id should always be valid UTF-8")
-        );
-
+        self.repo.branch(name, &head_commit, false)?;
+        info!("created branch {}", name);
         Ok(())
+    }
+
+    pub fn checkout_branch(&self, name: &str) -> Result<()> {
+        let branch_ref = format!("refs/heads/{}", name);
+        let obj = self
+            .repo
+            .revparse_single(&branch_ref)
+            .with_context(|| format!("branch '{}' not found", name))?;
+
+        self.repo.checkout_tree(&obj, None)?;
+        self.repo.set_head(&branch_ref)?;
+        info!("checked out branch {}", name);
+        Ok(())
+    }
+
+    pub fn push_branch(&self, branch_name: &str) -> Result<()> {
+        let mut remote = self.repo.find_remote(&self.upstream_name)?;
+        let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+
+        let mut callbacks = git2::RemoteCallbacks::new();
+        callbacks.credentials(|_url, username_from_url, allowed_types| {
+            if allowed_types.contains(git2::CredentialType::SSH_KEY) {
+                git2::Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
+            } else if allowed_types.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+                if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+                    git2::Cred::userpass_plaintext("x-access-token", &token)
+                } else {
+                    git2::Cred::default()
+                }
+            } else {
+                git2::Cred::default()
+            }
+        });
+
+        let mut push_options = git2::PushOptions::new();
+        push_options.remote_callbacks(callbacks);
+
+        remote.push(&[&refspec], Some(&mut push_options))?;
+        info!("pushed branch {} to {}", branch_name, self.upstream_name);
+        Ok(())
+    }
+
+    pub fn generate_release_branch_name() -> String {
+        let now = time::OffsetDateTime::now_utc();
+        let formatted =
+            time::format_description::parse("[year][month][day]-[hour][minute][second]")
+                .ok()
+                .and_then(|format| now.format(&format).ok())
+                .unwrap_or_else(|| now.unix_timestamp().to_string());
+        let suffix = &Uuid::new_v4().to_string()[..8];
+
+        format!("release/{}-{}", formatted, suffix)
     }
 }
 

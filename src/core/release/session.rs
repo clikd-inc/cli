@@ -18,6 +18,7 @@ use crate::{
         repository::{ChangeList, PathMatcher, ReleaseAvailability, Repository},
         version::Version,
     },
+    utils::theme::ReleaseProgressBar,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -32,6 +33,7 @@ pub struct AppBuilder {
 
     ci_info: ci_info::types::CiInfo,
     populate_graph: bool,
+    show_progress: bool,
 }
 
 impl AppBuilder {
@@ -49,7 +51,13 @@ impl AppBuilder {
             repo,
             ci_info,
             populate_graph: true,
+            show_progress: false,
         })
+    }
+
+    pub fn with_progress(mut self, show_progress: bool) -> Self {
+        self.show_progress = show_progress;
+        self
     }
 
     pub fn populate_graph(mut self, do_populate: bool) -> Self {
@@ -92,18 +100,39 @@ impl AppBuilder {
             // the graph while iterating over the repo:
             let repo = self.repo;
             let mut graph = self.graph;
+            let show_progress = self.show_progress;
 
-            repo.scan_paths(|p| {
-                let (dirname, basename) = p.split_basename();
-                cargo.process_index_item(dirname, basename);
-                #[cfg(feature = "csharp")]
-                csproj.process_index_item(&repo, p, dirname, basename)?;
-                npm.process_index_item(&repo, &mut graph, p, dirname, basename, &proj_config)?;
-                pypa.process_index_item(dirname, basename);
-                go.process_index_item(dirname, basename);
-                elixir.process_index_item(dirname, basename);
-                Ok(())
-            })?;
+            if show_progress {
+                let total = repo.index_entry_count().unwrap_or(0);
+                let mut progress = ReleaseProgressBar::new(total, "Scanning repository");
+
+                repo.scan_paths_with_progress(|p, current, _total| {
+                    progress.update(current);
+                    let (dirname, basename) = p.split_basename();
+                    cargo.process_index_item(dirname, basename);
+                    #[cfg(feature = "csharp")]
+                    csproj.process_index_item(&repo, p, dirname, basename)?;
+                    npm.process_index_item(&repo, &mut graph, p, dirname, basename, &proj_config)?;
+                    pypa.process_index_item(dirname, basename);
+                    go.process_index_item(dirname, basename);
+                    elixir.process_index_item(dirname, basename);
+                    Ok(())
+                })?;
+
+                progress.finish();
+            } else {
+                repo.scan_paths(|p| {
+                    let (dirname, basename) = p.split_basename();
+                    cargo.process_index_item(dirname, basename);
+                    #[cfg(feature = "csharp")]
+                    csproj.process_index_item(&repo, p, dirname, basename)?;
+                    npm.process_index_item(&repo, &mut graph, p, dirname, basename, &proj_config)?;
+                    pypa.process_index_item(dirname, basename);
+                    go.process_index_item(dirname, basename);
+                    elixir.process_index_item(dirname, basename);
+                    Ok(())
+                })?;
+            }
 
             self.repo = repo;
             self.graph = graph;

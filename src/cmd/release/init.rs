@@ -13,6 +13,7 @@ use crate::atry;
 use crate::core::release::{
     errors::{Error, Result},
     project::DepRequirement,
+    session::AppBuilder,
 };
 
 /// The toplevel bootstrap state structure.
@@ -142,7 +143,7 @@ impl BootstrapCommand {
         }
 
         let mut sess = atry!(
-            crate::core::release::session::AppSession::initialize_default();
+            AppBuilder::new()?.with_progress(true).initialize();
             ["could not initialize app and project graph"]
         );
 
@@ -288,22 +289,6 @@ impl BootstrapCommand {
             repo.create_baseline_tag();
             ["failed to create baseline tag"]
         );
-
-        info!("preserving existing package versions as Git tags");
-        let project_versions: Vec<(String, String)> = bs_cfg
-            .project
-            .iter()
-            .map(|p| (p.qnames[0].clone(), p.version.clone()))
-            .collect();
-
-        atry!(
-            repo.create_release_tags(&project_versions);
-            ["failed to create bootstrap tags"]
-        );
-
-        for (name, version) in &project_versions {
-            info!("  created tag: {}-v{}", name, version);
-        }
 
         info!("modifications complete!");
         println!();

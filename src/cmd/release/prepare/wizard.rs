@@ -18,13 +18,16 @@ use tracing::info;
 use crate::{
     atry,
     core::{
+        ecosystem::types::EcosystemType,
         release::{
-            changelog_generator::{self, ChangelogEntry},
             commit_analyzer::{self, BumpRecommendation},
             graph::GraphQueryBuilder,
             project::ProjectId,
-            repository::RepoPathBuf,
             session::AppSession,
+            workflow::{
+                create_release_branch, generate_changelog_body, polish_changelog_with_ai,
+                ReleasePipeline, SelectedProject,
+            },
         },
         ui::markdown,
     },
@@ -68,6 +71,8 @@ struct ProjectItem {
     suggested_bump: BumpRecommendation,
     chosen_bump: Option<BumpStrategy>,
     commit_messages: Vec<String>,
+    project_type: EcosystemType,
+    cached_changelog: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,10 +114,11 @@ struct WizardState {
     bump_list_state: ListState,
     show_changelog: bool,
     show_help: bool,
+    ai_enabled: bool,
 }
 
 impl WizardState {
-    fn new(projects: Vec<ProjectItem>) -> Self {
+    fn new(projects: Vec<ProjectItem>, ai_enabled: bool) -> Self {
         let mut project_list_state = ListState::default();
         if !projects.is_empty() {
             project_list_state.select(Some(0));
@@ -128,6 +134,7 @@ impl WizardState {
             bump_list_state,
             show_changelog: false,
             show_help: false,
+            ai_enabled,
         }
     }
 
@@ -161,6 +168,36 @@ impl WizardState {
         self.show_help = !self.show_help;
     }
 
+    fn ensure_current_changelog_cached(&mut self) {
+        let ai_enabled = self.ai_enabled;
+        let changelog_data = {
+            let project = match self.get_current_project() {
+                Some(p) => p,
+                None => return,
+            };
+
+            if project.cached_changelog.is_some() {
+                return;
+            }
+
+            let commit_messages = project.commit_messages.clone();
+            let draft = generate_changelog_body(&commit_messages);
+
+            if ai_enabled {
+                match polish_changelog_with_ai(&draft, &commit_messages) {
+                    Ok(polished) => polished,
+                    Err(_) => draft,
+                }
+            } else {
+                draft
+            }
+        };
+
+        if let Some(project) = self.get_current_project_mut() {
+            project.cached_changelog = Some(changelog_data);
+        }
+    }
+
     fn next_step(&mut self) -> bool {
         match &self.step {
             WizardStep::ProjectSelection => {
@@ -180,6 +217,7 @@ impl WizardState {
                         }
                     }
                     self.show_changelog = true;
+                    self.ensure_current_changelog_cached();
                     true
                 } else {
                     if *project_index + 1 < self.selected_count() {
@@ -335,6 +373,8 @@ pub fn run() -> Result<i32> {
         );
     }
 
+    let (base_branch, release_branch) = create_release_branch(&mut sess)?;
+
     let q = GraphQueryBuilder::default();
     let idents = sess.graph().query(q).context("could not select projects")?;
 
@@ -366,6 +406,12 @@ pub fn run() -> Result<i32> {
         let analysis = commit_analyzer::analyze_commit_messages(&commit_messages)
             .context("failed to analyze commit messages")?;
 
+        let qnames = proj.qualified_names();
+        let project_type = qnames
+            .get(1)
+            .and_then(|s| EcosystemType::from_qname(s))
+            .unwrap_or(EcosystemType::Cargo);
+
         projects.push(ProjectItem {
             ident: *ident,
             name: proj.user_facing_name.clone(),
@@ -375,6 +421,8 @@ pub fn run() -> Result<i32> {
             suggested_bump: analysis.recommendation,
             chosen_bump: None,
             commit_messages,
+            project_type,
+            cached_changelog: None,
         });
     }
 
@@ -383,7 +431,8 @@ pub fn run() -> Result<i32> {
         return Ok(0);
     }
 
-    let wizard_result = run_wizard_ui(projects)?;
+    let ai_enabled = sess.changelog_config.ai_enabled;
+    let wizard_result = run_wizard_ui(projects, ai_enabled)?;
 
     let selected_projects = match wizard_result {
         Some(projects) => projects,
@@ -398,10 +447,11 @@ pub fn run() -> Result<i32> {
         selected_projects.len()
     );
 
-    let mut n_prepared = 0;
+    let mut prepared: Vec<SelectedProject> = Vec::new();
 
     for project_item in &selected_projects {
         let proj = sess.graph().lookup(project_item.ident);
+        let history = histories.lookup(project_item.ident);
 
         let bump_strategy = project_item.chosen_bump.unwrap_or(BumpStrategy::Auto);
 
@@ -427,19 +477,25 @@ pub fn run() -> Result<i32> {
                 )
             })?;
 
+        let old_version = history
+            .release_version()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| proj.version.to_string());
+
         let proj_mut = sess.graph_mut().lookup_mut(project_item.ident);
-        let old_version = proj_mut.version.clone();
 
         atry!(
             bump_scheme.apply(&mut proj_mut.version);
             ["failed to apply version bump to {}", proj_mut.user_facing_name]
         );
 
+        let new_version = proj_mut.version.to_string();
+
         info!(
             "{}: {} -> {} ({} commit{})",
             proj_mut.user_facing_name,
             old_version,
-            proj_mut.version,
+            new_version,
             project_item.commit_count,
             if project_item.commit_count == 1 {
                 ""
@@ -448,180 +504,37 @@ pub fn run() -> Result<i32> {
             }
         );
 
-        n_prepared += 1;
+        prepared.push(SelectedProject {
+            name: proj_mut.user_facing_name.clone(),
+            prefix: project_item.prefix.clone(),
+            old_version,
+            new_version,
+            bump_type: bump_scheme_text.to_string(),
+            commit_messages: project_item.commit_messages.clone(),
+            ecosystem: project_item.project_type,
+            cached_changelog: project_item.cached_changelog.clone(),
+        });
     }
 
-    if n_prepared == 0 {
+    if prepared.is_empty() {
         info!("no projects needed version bumps");
         return Ok(0);
     }
 
-    info!("updating project files with new versions...");
-
-    let changes = atry!(
-        sess.rewrite();
-        ["failed to update project files"]
-    );
-
-    info!("generating changelogs for each project...");
-
-    let ai_enabled = sess.changelog_config.ai_enabled;
-    let mut changelog_paths: Vec<RepoPathBuf> = Vec::new();
-
-    for project_item in &selected_projects {
-        let proj = sess.graph().lookup(project_item.ident);
-        let new_version = proj.version.to_string();
-
-        let categorized = commit_analyzer::categorize_commits(&project_item.commit_messages);
-
-        if categorized.is_empty() {
-            info!(
-                "{}: no user-facing changes, skipping changelog",
-                proj.user_facing_name
-            );
-            continue;
-        }
-
-        let mut entry = ChangelogEntry::new(new_version.clone());
-        entry.add_commits(&categorized);
-
-        let draft_changelog = entry.to_markdown();
-
-        let final_changelog_entry = if ai_enabled {
-            info!("{}: polishing changelog with AI...", proj.user_facing_name);
-
-            match polish_changelog_with_ai(&draft_changelog, &project_item.commit_messages) {
-                Ok(polished) => polished,
-                Err(e) => {
-                    info!(
-                        "{}: AI polish failed ({}), using standard changelog",
-                        proj.user_facing_name, e
-                    );
-                    draft_changelog
-                }
-            }
-        } else {
-            draft_changelog
-        };
-
-        let changelog_rel_path = if project_item.prefix.is_empty() {
-            "CHANGELOG.md".to_string()
-        } else {
-            format!("{}/CHANGELOG.md", project_item.prefix)
-        };
-
-        let changelog_repo_path = RepoPathBuf::new(changelog_rel_path.as_bytes());
-        let changelog_full_path = sess.repo.resolve_workdir(changelog_repo_path.as_ref());
-
-        let existing_content =
-            changelog_generator::parse_existing_changelog(&changelog_full_path).unwrap_or_default();
-
-        let full_changelog = changelog_generator::generate_changelog(
-            &proj.user_facing_name,
-            &entry,
-            &existing_content,
-        );
-
-        let final_content = if ai_enabled && !final_changelog_entry.is_empty() {
-            let header = format!(
-                "# Changelog\n\n\
-                All notable changes to {} will be documented in this file.\n\n\
-                The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\n\
-                and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n",
-                proj.user_facing_name
-            );
-            let ai_entry = if final_changelog_entry.starts_with("## [") {
-                final_changelog_entry.clone()
-            } else {
-                entry.to_markdown()
-            };
-            format!("{}{}\n{}", header, ai_entry, existing_content)
-        } else {
-            full_changelog
-        };
-
-        if let Some(parent) = changelog_full_path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!(
-                    "failed to create directory for {}",
-                    changelog_full_path.display()
-                )
-            })?;
-        }
-
-        std::fs::write(&changelog_full_path, &final_content).with_context(|| {
-            format!(
-                "failed to write changelog to {}",
-                changelog_full_path.display()
-            )
-        })?;
-
-        changelog_paths.push(changelog_repo_path);
-        info!(
-            "{}: wrote changelog to {}",
-            proj.user_facing_name, changelog_rel_path
-        );
-    }
-
-    let mut all_changed_paths: Vec<&crate::core::release::repository::RepoPath> =
-        changes.paths().collect();
-    for path in &changelog_paths {
-        all_changed_paths.push(path.as_ref());
-    }
-
-    if !all_changed_paths.is_empty() {
-        println!();
-        info!("modified files:");
-        for path in &all_changed_paths {
-            println!("  {}", path.escaped());
-        }
-    }
-
-    info!("collecting project versions for tagging...");
-    let mut project_versions = Vec::new();
-    for item in &selected_projects {
-        let proj = sess.graph().lookup(item.ident);
-        project_versions.push((proj.user_facing_name.clone(), proj.version.to_string()));
-    }
-
-    info!("creating release commit...");
-    let commit_message = format!(
-        "chore(release): prepare release for {} project{}",
-        n_prepared,
-        if n_prepared == 1 { "" } else { "s" }
-    );
-
-    atry!(
-        sess.repo.create_commit(&commit_message, &all_changed_paths);
-        ["failed to create release commit"]
-    );
-
-    info!("creating release tags...");
-    atry!(
-        sess.repo.create_release_tags(&project_versions);
-        ["failed to create release tags"]
-    );
-
-    println!();
-    info!(
-        "prepared {} project{} for release",
-        n_prepared,
-        if n_prepared == 1 { "" } else { "s" }
-    );
-    info!("commit created and tags applied successfully");
-    info!("push to remote with: git push && git push --tags");
+    let pipeline = ReleasePipeline::new(&mut sess, base_branch, release_branch)?;
+    pipeline.execute(prepared)?;
 
     Ok(0)
 }
 
-fn run_wizard_ui(projects: Vec<ProjectItem>) -> Result<Option<Vec<ProjectItem>>> {
+fn run_wizard_ui(projects: Vec<ProjectItem>, ai_enabled: bool) -> Result<Option<Vec<ProjectItem>>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut state = WizardState::new(projects);
+    let mut state = WizardState::new(projects, ai_enabled);
     let result = run_app(&mut terminal, &mut state);
 
     disable_raw_mode()?;
@@ -870,8 +783,6 @@ fn render_project_changelog(f: &mut Frame, area: Rect, state: &WizardState) {
         BumpStrategy::Patch => "PATCH",
     };
 
-    let categorized = commit_analyzer::categorize_commits(&current_project.commit_messages);
-
     let mut changelog_content = format!(
         "# Changelog Preview for {}\n\n\
         **Selected bump:** `{}`\n\
@@ -879,35 +790,15 @@ fn render_project_changelog(f: &mut Frame, area: Rect, state: &WizardState) {
         current_project.name, bump_text, current_project.commit_count
     );
 
-    if categorized.is_empty() {
-        changelog_content.push_str(
-            "## No User-Facing Changes\n\n\
-            All commits are internal (docs, chore, ci, test, style).\n\
-            These are typically excluded from user-facing changelogs.\n\n",
-        );
-    } else {
-        use std::collections::BTreeMap;
-        let mut by_category: BTreeMap<
-            commit_analyzer::ChangelogCategory,
-            Vec<&commit_analyzer::CategorizedCommit>,
-        > = BTreeMap::new();
+    let cached_body = current_project
+        .cached_changelog
+        .as_deref()
+        .unwrap_or("Loading changelog...");
 
-        for commit in &categorized {
-            by_category.entry(commit.category).or_default().push(commit);
-        }
-
-        for (category, commits) in by_category {
-            changelog_content.push_str(&format!("## {}\n\n", category.as_str()));
-            for commit in commits {
-                changelog_content.push_str(&commit.format_for_changelog());
-                changelog_content.push('\n');
-            }
-            changelog_content.push('\n');
-        }
-    }
+    changelog_content.push_str(cached_body);
 
     changelog_content.push_str(
-        "---\n\n\
+        "\n\n---\n\n\
         Press Tab to go back to bump selection.\n\
         Press Enter to continue to the next project.",
     );
@@ -976,9 +867,20 @@ fn render_confirmation(f: &mut Frame, area: Rect, state: &WizardState) {
         "Files that will be modified:",
         Style::default().fg(Color::Magenta),
     )));
-    confirmation_lines.push(Line::from("  • Cargo.toml (version bump)"));
+
+    let mut ecosystems: std::collections::HashSet<EcosystemType> = std::collections::HashSet::new();
+    for project in &selected_projects {
+        ecosystems.insert(project.project_type);
+    }
+
+    for ecosystem in &ecosystems {
+        confirmation_lines.push(Line::from(format!(
+            "  • {} (version bump)",
+            ecosystem.version_file()
+        )));
+    }
     confirmation_lines.push(Line::from("  • CHANGELOG.md (new entries)"));
-    confirmation_lines.push(Line::from("  • package.json (if applicable)"));
+    confirmation_lines.push(Line::from("  • clikd/releases/*.json (release manifest)"));
 
     confirmation_lines.push(Line::from(""));
     confirmation_lines.push(Line::from(""));
@@ -1085,21 +987,4 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
-}
-
-fn polish_changelog_with_ai(draft: &str, commits: &[String]) -> Result<String> {
-    use crate::core::ai::changelog::AiChangelogGenerator;
-
-    let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
-
-    rt.block_on(async {
-        let generator = AiChangelogGenerator::new()
-            .await
-            .context("failed to initialize AI changelog generator")?;
-
-        generator
-            .polish(draft, commits)
-            .await
-            .context("failed to polish changelog with AI")
-    })
 }

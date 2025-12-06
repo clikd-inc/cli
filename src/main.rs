@@ -19,7 +19,8 @@ async fn main() -> Result<()> {
     }
 
     if let Some(command) = cli.command {
-        // Only run pre_execute for Docker commands, NOT for Release commands
+        let is_completions = matches!(command, clikd::cli::Commands::Completions { .. });
+
         let should_pre_execute = !matches!(
             command,
             clikd::cli::Commands::Release(_) | clikd::cli::Commands::Completions { .. }
@@ -38,7 +39,9 @@ async fn main() -> Result<()> {
         })
         .await;
 
-        clikd::utils::version_check::check_for_updates(env!("CARGO_PKG_VERSION"), false);
+        if !is_completions {
+            clikd::utils::version_check::check_for_updates(env!("CARGO_PKG_VERSION"), false);
+        }
 
         if let Err(e) = res {
             print_error(&e);

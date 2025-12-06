@@ -94,4 +94,36 @@ impl TestRepo {
     pub fn has_config_dir(&self) -> bool {
         self.path.join("clikd").is_dir()
     }
+
+    pub fn list_files_in_dir(&self, relative_dir: &str) -> Vec<String> {
+        let dir_path = self.path.join(relative_dir);
+        if !dir_path.exists() {
+            return Vec::new();
+        }
+        std::fs::read_dir(dir_path)
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn run_clikd_command_with_env(
+        &self,
+        args: &[&str],
+        env_vars: &[(&str, &str)],
+    ) -> std::process::Output {
+        let clikd_bin = env!("CARGO_BIN_EXE_clikd");
+
+        let mut cmd = Command::new(clikd_bin);
+        cmd.args(args).current_dir(&self.path);
+
+        for (key, value) in env_vars {
+            cmd.env(key, value);
+        }
+
+        cmd.output().expect("failed to run clikd command")
+    }
 }

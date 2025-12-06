@@ -1,571 +1,363 @@
-# Clikd GitHub App - Implementierungsplan
+# clikd-bot: GitHub App + Dashboard
 
 ## Übersicht
 
-Eine GitHub App die automatisch Release-PRs erstellt und GitHub Releases publiziert.
-Nutzt den gemeinsamen `clikd-core` Code für konsistentes Verhalten mit der CLI.
-
-## Technologie-Stack
-
-| Komponente | Technologie | Begründung |
-|------------|-------------|------------|
-| **Backend** | Rust + Axum | Shared code mit CLI |
-| **Hosting** | Shuttle.rs | Native Rust, managed, einfach |
-| **Database** | PostgreSQL (Shuttle) | State, Logs, Analytics |
-| **Frontend** | SvelteKit | Schnell, modern, SSR |
-| **Auth** | GitHub OAuth | Native Integration |
-
-## Architektur
+Die GitHub App automatisiert Releases nach PR-Merge und bietet ein Dashboard für Release-Metriken.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        CLIKD WORKSPACE                           │
+│                         clikd-bot                               │
+│                     (Shuttle.rs hosted)                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  crates/                                                         │
-│  ├── clikd-core/           ← Shared Library                     │
-│  │   ├── analysis/         - Commit Analysis                    │
-│  │   ├── changelog/        - Changelog Generation               │
-│  │   ├── ai/               - Claude Integration                 │
-│  │   ├── version/          - Version Parsing & Bumping          │
-│  │   ├── ecosystem/        - Cargo, NPM, PyPA, Go, etc.         │
-│  │   └── github/           - GitHub API Client                  │
-│  │                                                               │
-│  ├── clikd-cli/            ← CLI Binary                         │
-│  │   └── (uses clikd-core)                                      │
-│  │                                                               │
-│  └── clikd-app/            ← GitHub App (Shuttle)               │
-│      ├── src/                                                    │
-│      │   ├── main.rs       - Shuttle entrypoint                 │
-│      │   ├── webhooks/     - GitHub webhook handlers            │
-│      │   ├── api/          - REST API for dashboard             │
-│      │   ├── jobs/         - Background job processing          │
-│      │   └── db/           - Database models                    │
-│      └── web/              - SvelteKit Dashboard                │
-│                                                                  │
+│                                                                 │
+│  🔗 GitHub App                                                  │
+│  ├── Webhooks: pull_request.closed (merged)                    │
+│  ├── Permissions: Contents, PRs, Issues, Releases              │
+│  └── OAuth: GitHub Login für Dashboard                         │
+│                                                                 │
+│  🎯 Core Automation                                             │
+│  ├── Release nach Merge (Tags + GitHub Releases)               │
+│  ├── Changelog Preview auf PRs                                 │
+│  ├── Impact Analysis für Monorepos                             │
+│  └── Auto-Labeling                                             │
+│                                                                 │
+│  📊 Dashboard (Dioxus Fullstack)                                │
+│  ├── Release Overview & Metrics                                │
+│  ├── Pending Releases                                          │
+│  ├── Contributor Stats                                         │
+│  └── Settings pro Repo                                         │
+│                                                                 │
+│  🔌 Integrations                                                │
+│  ├── Slack/Discord Webhooks                                    │
+│  ├── clikd CLI (sendet Manifest-Daten)                         │
+│  └── GitHub Actions (Fallback)                                 │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Datenbank Schema
+---
 
-```sql
--- Installierte Repositories
-CREATE TABLE installations (
-    id SERIAL PRIMARY KEY,
-    github_installation_id BIGINT UNIQUE NOT NULL,
-    github_account_login TEXT NOT NULL,
-    github_account_type TEXT NOT NULL, -- 'User' or 'Organization'
-    created_at TIMESTAMP DEFAULT NOW(),
-    settings JSONB DEFAULT '{}'
-);
+## Tech Stack
 
--- Repositories unter einer Installation
-CREATE TABLE repositories (
-    id SERIAL PRIMARY KEY,
-    installation_id INT REFERENCES installations(id),
-    github_repo_id BIGINT UNIQUE NOT NULL,
-    full_name TEXT NOT NULL, -- 'owner/repo'
-    default_branch TEXT DEFAULT 'main',
-    config JSONB DEFAULT '{}',
-    last_analyzed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+| Layer | Technologie | Beschreibung |
+|-------|-------------|--------------|
+| **Fullstack** | Dioxus 0.6+ | Frontend + Backend in einem (Axum intern) |
+| **Hosting** | Shuttle.rs | Rust-native, einfaches Deployment |
+| **Database** | Turso | SQLite Edge, global repliziert |
+| **Auth** | GitHub OAuth | Via GitHub App Installation |
 
--- Release PRs
-CREATE TABLE release_prs (
-    id SERIAL PRIMARY KEY,
-    repository_id INT REFERENCES repositories(id),
-    pr_number INT NOT NULL,
-    status TEXT DEFAULT 'open', -- 'open', 'merged', 'closed'
-    packages JSONB NOT NULL, -- [{name, from, to, bump_type}]
-    changelog_content TEXT,
-    ai_enhanced BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT NOW(),
-    merged_at TIMESTAMP,
-    UNIQUE(repository_id, pr_number)
-);
+### Warum Dioxus Fullstack?
 
--- Veröffentlichte Releases
-CREATE TABLE releases (
-    id SERIAL PRIMARY KEY,
-    repository_id INT REFERENCES repositories(id),
-    release_pr_id INT REFERENCES release_prs(id),
-    package_name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    github_release_id BIGINT,
-    tag_name TEXT NOT NULL,
-    published_at TIMESTAMP DEFAULT NOW()
-);
-
--- Audit Log
-CREATE TABLE events (
-    id SERIAL PRIMARY KEY,
-    repository_id INT REFERENCES repositories(id),
-    event_type TEXT NOT NULL,
-    payload JSONB,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-## Webhook Events
-
-| Event | Action | App Response |
-|-------|--------|--------------|
-| `installation` | created | Store installation, scan repos |
-| `installation` | deleted | Cleanup data |
-| `installation_repositories` | added/removed | Update repo list |
-| `push` | (to default branch) | Analyze & create/update Release PR |
-| `pull_request` | closed + merged | If Release PR → publish releases |
-| `pull_request` | edited | If Release PR → update internal state |
-
-## API Endpoints
-
-### Public API (für Dashboard)
-
-```
-GET  /api/installations           - List user's installations
-GET  /api/repos                   - List repos for installation
-GET  /api/repos/:owner/:repo      - Get repo details + pending releases
-POST /api/repos/:owner/:repo/analyze  - Trigger manual analysis
-GET  /api/repos/:owner/:repo/releases - Release history
-PATCH /api/repos/:owner/:repo/config  - Update repo config
-```
-
-### Webhook Endpoint
-
-```
-POST /webhooks/github             - GitHub webhook receiver
-```
-
-### OAuth Endpoints
-
-```
-GET  /auth/github                 - Start GitHub OAuth
-GET  /auth/github/callback        - OAuth callback
-POST /auth/logout                 - Logout
-GET  /auth/me                     - Current user
-```
-
-## Shuttle.rs Setup
+- **Ein Framework** für alles (kein separates Axum Setup nötig)
+- **Server Functions** werden automatisch zu Axum Handlers
+- **Built-in**: WebSockets, SSE, Streaming, SSR, Forms, Hot-Reload
+- **Type-safe RPC** zwischen Frontend und Backend
+- **Cross-Platform** möglich (Web, Desktop, Mobile)
 
 ```rust
-// clikd-app/src/main.rs
-use axum::{routing::{get, post}, Router};
-use shuttle_axum::ShuttleAxum;
-use shuttle_runtime::SecretStore;
-use shuttle_shared_db::Postgres;
-use sqlx::PgPool;
+// Server Function - läuft auf dem Server
+#[server]
+async fn get_pending_releases(org: String) -> Result<Vec<Release>, ServerFnError> {
+    let releases = db::fetch_pending_releases(&org).await?;
+    Ok(releases)
+}
 
-#[shuttle_runtime::main]
-async fn main(
-    #[shuttle_shared_db::Postgres] pool: PgPool,
-    #[shuttle_runtime::Secrets] secrets: SecretStore,
-) -> ShuttleAxum {
-    // Run migrations
-    sqlx::migrate!().run(&pool).await?;
+// Frontend - ruft Server Function direkt auf
+fn PendingReleases(org: String) -> Element {
+    let releases = use_server_future(move || get_pending_releases(org.clone()))?;
 
-    // Get secrets
-    let github_app_id = secrets.get("GITHUB_APP_ID").unwrap();
-    let github_private_key = secrets.get("GITHUB_PRIVATE_KEY").unwrap();
-    let github_webhook_secret = secrets.get("GITHUB_WEBHOOK_SECRET").unwrap();
-    let anthropic_api_key = secrets.get("ANTHROPIC_API_KEY").ok();
-
-    // Build app state
-    let state = AppState::new(pool, github_app_id, github_private_key, anthropic_api_key);
-
-    // Build router
-    let app = Router::new()
-        // Webhooks
-        .route("/webhooks/github", post(webhooks::github_handler))
-        // API
-        .route("/api/installations", get(api::list_installations))
-        .route("/api/repos", get(api::list_repos))
-        .route("/api/repos/:owner/:repo", get(api::get_repo))
-        .route("/api/repos/:owner/:repo/analyze", post(api::trigger_analysis))
-        .route("/api/repos/:owner/:repo/releases", get(api::list_releases))
-        .route("/api/repos/:owner/:repo/config", patch(api::update_config))
-        // Auth
-        .route("/auth/github", get(auth::start_oauth))
-        .route("/auth/github/callback", get(auth::oauth_callback))
-        .route("/auth/logout", post(auth::logout))
-        .route("/auth/me", get(auth::current_user))
-        // Static files (SvelteKit build)
-        .nest_service("/", ServeDir::new("web/build"))
-        .with_state(state);
-
-    Ok(app.into())
+    rsx! {
+        for release in releases() {
+            ReleaseCard { release }
+        }
+    }
 }
 ```
 
-## Webhook Handler Flow
+---
+
+## Projekt-Struktur
+
+```
+clikd-bot/
+├── Cargo.toml
+├── Shuttle.toml
+├── src/
+│   ├── main.rs                 # Shuttle + Dioxus Entry
+│   ├── lib.rs
+│   │
+│   ├── app/                    # Dioxus Frontend
+│   │   ├── mod.rs
+│   │   ├── routes/
+│   │   │   ├── dashboard.rs
+│   │   │   ├── releases.rs
+│   │   │   ├── settings.rs
+│   │   │   └── login.rs
+│   │   └── components/
+│   │       ├── release_card.rs
+│   │       ├── metrics_chart.rs
+│   │       ├── pending_list.rs
+│   │       └── nav.rs
+│   │
+│   ├── server/                 # Server Functions + Webhooks
+│   │   ├── mod.rs
+│   │   ├── webhooks/
+│   │   │   ├── mod.rs
+│   │   │   ├── pull_request.rs
+│   │   │   └── installation.rs
+│   │   ├── functions/
+│   │   │   ├── releases.rs
+│   │   │   ├── metrics.rs
+│   │   │   └── settings.rs
+│   │   └── github/
+│   │       ├── client.rs
+│   │       ├── auth.rs
+│   │       └── api.rs
+│   │
+│   ├── db/                     # Turso/SQLite
+│   │   ├── mod.rs
+│   │   ├── schema.rs
+│   │   ├── releases.rs
+│   │   └── installations.rs
+│   │
+│   └── models/
+│       ├── mod.rs
+│       ├── release.rs
+│       ├── manifest.rs
+│       └── installation.rs
+│
+├── migrations/
+│   └── 001_initial.sql
+│
+└── assets/
+    └── styles.css
+```
+
+---
+
+## Phasen
+
+### Phase 1: CLI (✅ ABGESCHLOSSEN)
+
+- [x] PR-Based Workflow
+- [x] Release Manifest in `clikd/releases/*.json`
+- [x] Branch `release/YYYYMMDD-HHMMSS`
+- [x] PR via GitHub API
+- [x] Changelog Generation
+
+### Phase 2: GitHub App Core
+
+**Ziel:** Automatische Releases nach PR-Merge
+
+```
+PR merged → Webhook → Parse Manifest → Create Tags → Create GitHub Releases
+```
+
+| Task | Beschreibung |
+|------|--------------|
+| GitHub App erstellen | App Registration auf github.com |
+| Webhook Endpoint | `POST /webhooks/github` |
+| Manifest Parser | `clikd/releases/*.json` lesen |
+| Tag Creation | Git Tags via GitHub API |
+| Release Creation | GitHub Releases mit Changelog |
+| Manifest Cleanup | Datei nach Release löschen |
+
+**Webhook Handler:**
 
 ```rust
-// clikd-app/src/webhooks/push.rs
-pub async fn handle_push(
-    state: &AppState,
-    payload: PushPayload,
-) -> Result<(), AppError> {
-    // 1. Check if push is to default branch
-    if !payload.is_default_branch() {
+#[server]
+async fn handle_pr_webhook(payload: PullRequestEvent) -> Result<(), ServerFnError> {
+    if payload.action != "closed" || !payload.pull_request.merged {
         return Ok(());
     }
 
-    // 2. Get repository config
-    let repo = state.db.get_repository(payload.repository.id).await?;
-    let config = repo.config.merge_with_defaults();
+    let manifests = github::get_release_manifests(&payload.repository).await?;
 
-    // 3. Clone repo (shallow) to temp dir
-    let temp_dir = tempfile::tempdir()?;
-    let token = state.github.get_installation_token(repo.installation_id).await?;
-    clone_repo(&payload.repository.clone_url, &temp_dir, &token).await?;
-
-    // 4. Use clikd-core for analysis
-    let analysis = clikd_core::analyze_repository(&temp_dir, &config).await?;
-
-    if analysis.packages_to_release.is_empty() {
-        return Ok(()); // Nothing to release
-    }
-
-    // 5. Generate changelogs (with AI if enabled)
-    let changelogs = if config.changelog.ai_enabled {
-        clikd_core::generate_ai_changelogs(&analysis, &state.anthropic_client).await?
-    } else {
-        clikd_core::generate_changelogs(&analysis)?
-    };
-
-    // 6. Check for existing Release PR
-    let existing_pr = state.db.get_open_release_pr(repo.id).await?;
-
-    // 7. Create or update Release PR
-    let pr = if let Some(pr) = existing_pr {
-        update_release_pr(&state.github, &repo, &pr, &analysis, &changelogs).await?
-    } else {
-        create_release_pr(&state.github, &repo, &analysis, &changelogs).await?
-    };
-
-    // 8. Store in database
-    state.db.upsert_release_pr(&pr).await?;
-
-    // 9. Log event
-    state.db.log_event(repo.id, "release_pr_updated", &pr).await?;
-
-    Ok(())
-}
-```
-
-## Release PR Erstellung
-
-```rust
-// clikd-app/src/github/pr.rs
-pub async fn create_release_pr(
-    github: &GitHubClient,
-    repo: &Repository,
-    analysis: &ReleaseAnalysis,
-    changelogs: &HashMap<String, String>,
-) -> Result<ReleasePr, AppError> {
-    // 1. Create branch
-    let branch_name = format!("clikd/release-{}", chrono::Utc::now().format("%Y%m%d"));
-    github.create_branch(&repo.full_name, &branch_name, &analysis.base_sha).await?;
-
-    // 2. Apply changes to branch
-    for package in &analysis.packages_to_release {
-        // Update version files
-        let version_changes = clikd_core::generate_version_changes(package)?;
-        for (path, content) in version_changes {
-            github.update_file(&repo.full_name, &branch_name, &path, &content).await?;
+    for manifest in manifests {
+        for release in manifest.releases {
+            github::create_tag(&release).await?;
+            github::create_release(&release).await?;
         }
-
-        // Update CHANGELOG.md
-        let changelog_path = format!("{}/CHANGELOG.md", package.prefix);
-        let changelog_content = changelogs.get(&package.name).unwrap();
-        github.update_file(&repo.full_name, &branch_name, &changelog_path, changelog_content).await?;
+        github::delete_manifest_file(&manifest.path).await?;
     }
-
-    // 3. Create PR
-    let title = format_pr_title(&analysis.packages_to_release);
-    let body = format_pr_body(&analysis, changelogs);
-
-    let pr = github.create_pull_request(&repo.full_name, CreatePrRequest {
-        title,
-        body,
-        head: branch_name,
-        base: repo.default_branch.clone(),
-        labels: vec!["release".into(), "automated".into()],
-    }).await?;
-
-    Ok(ReleasePr {
-        pr_number: pr.number,
-        packages: analysis.packages_to_release.clone(),
-        changelog_content: body,
-        ai_enhanced: changelogs.values().any(|c| c.contains("AI")),
-    })
-}
-
-fn format_pr_body(analysis: &ReleaseAnalysis, changelogs: &HashMap<String, String>) -> String {
-    let mut body = String::new();
-
-    body.push_str("## 🚀 Release\n\n");
-    body.push_str("This PR was automatically created by [Clikd](https://clikd.dev).\n\n");
-
-    // Package table
-    body.push_str("### 📦 Packages\n\n");
-    body.push_str("| Package | Current | Next | Type |\n");
-    body.push_str("|---------|---------|------|------|\n");
-    for pkg in &analysis.packages_to_release {
-        body.push_str(&format!(
-            "| {} | {} | {} | {} |\n",
-            pkg.name, pkg.current_version, pkg.next_version, pkg.bump_type
-        ));
-    }
-    body.push_str("\n");
-
-    // Changelogs
-    body.push_str("### 📝 Changelogs\n\n");
-    for (name, changelog) in changelogs {
-        body.push_str(&format!("<details>\n<summary>{}</summary>\n\n", name));
-        body.push_str(changelog);
-        body.push_str("\n</details>\n\n");
-    }
-
-    // Footer
-    body.push_str("---\n");
-    body.push_str("🤖 *Merge this PR to publish releases.*\n");
-
-    body
-}
-```
-
-## Release Publishing (nach PR Merge)
-
-```rust
-// clikd-app/src/webhooks/pull_request.rs
-pub async fn handle_pr_merged(
-    state: &AppState,
-    payload: PullRequestPayload,
-) -> Result<(), AppError> {
-    // 1. Check if this is a Release PR
-    let release_pr = match state.db.get_release_pr_by_number(
-        payload.repository.id,
-        payload.pull_request.number,
-    ).await? {
-        Some(pr) => pr,
-        None => return Ok(()), // Not a release PR
-    };
-
-    // 2. Create GitHub Releases for each package
-    for package in &release_pr.packages {
-        let tag_name = format!("{}-v{}", package.name, package.next_version);
-
-        // Get changelog for this package
-        let changelog = extract_changelog_for_package(&release_pr.changelog_content, &package.name);
-
-        // Create tag
-        state.github.create_tag(
-            &payload.repository.full_name,
-            &tag_name,
-            &payload.pull_request.merge_commit_sha,
-        ).await?;
-
-        // Create release
-        let release = state.github.create_release(
-            &payload.repository.full_name,
-            CreateReleaseRequest {
-                tag_name: tag_name.clone(),
-                name: format!("{} v{}", package.name, package.next_version),
-                body: changelog,
-                draft: false,
-                prerelease: package.next_version.contains("-"),
-            },
-        ).await?;
-
-        // Store in database
-        state.db.create_release(Release {
-            repository_id: payload.repository.id,
-            release_pr_id: release_pr.id,
-            package_name: package.name.clone(),
-            version: package.next_version.clone(),
-            github_release_id: release.id,
-            tag_name,
-        }).await?;
-    }
-
-    // 3. Update Release PR status
-    state.db.update_release_pr_status(release_pr.id, "merged").await?;
-
-    // 4. Log event
-    state.db.log_event(
-        payload.repository.id,
-        "releases_published",
-        &release_pr.packages,
-    ).await?;
 
     Ok(())
 }
 ```
 
-## Dashboard (SvelteKit)
+### Phase 3: Changelog Preview + Labels
+
+**Ziel:** Bot kommentiert auf PRs mit Release-Preview
+
+| Task | Beschreibung |
+|------|--------------|
+| PR Comment Bot | Preview des Changelogs als Kommentar |
+| Auto-Labels | `release:major`, `release:minor`, `release:patch` |
+| Breaking Change Warning | ⚠️ Alert bei BREAKING CHANGE |
+| Impact Analysis | "Dieser PR betrifft: pkg-a, pkg-b" |
+
+### Phase 4: Dashboard Basic
+
+**Ziel:** Web UI für Release-Übersicht
 
 ```
-clikd-app/web/
-├── src/
-│   ├── routes/
-│   │   ├── +layout.svelte      - Main layout with nav
-│   │   ├── +page.svelte        - Dashboard home
-│   │   ├── repos/
-│   │   │   ├── +page.svelte    - Repository list
-│   │   │   └── [owner]/
-│   │   │       └── [repo]/
-│   │   │           ├── +page.svelte     - Repo details
-│   │   │           ├── releases/
-│   │   │           │   └── +page.svelte - Release history
-│   │   │           └── settings/
-│   │   │               └── +page.svelte - Repo settings
-│   │   └── auth/
-│   │       └── callback/
-│   │           └── +page.svelte
-│   ├── lib/
-│   │   ├── api.ts              - API client
-│   │   ├── components/         - Reusable components
-│   │   └── stores/             - Svelte stores
-│   └── app.html
-├── static/
-├── svelte.config.js
-└── package.json
+┌─────────────────────────────────────────────────────────────────┐
+│  🚀 clikd Dashboard                              [org-selector] │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  📊 Release Overview (letzte 30 Tage)                          │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐              │
+│  │   47    │ │   12    │ │  3.2d   │ │   98%   │              │
+│  │Releases │ │ Projekte│ │Avg Time │ │ Success │              │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘              │
+│                                                                 │
+│  📈 Release Timeline                                           │
+│  [═══════════════════════════════════════════════════════]     │
+│                                                                 │
+│  📦 Recent Releases                                            │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ rig v1.2.0        │ 2h ago  │ 🟢 Published │ [View]      │  │
+│  │ requip v2.0.0     │ 2h ago  │ 🟢 Published │ [View]      │  │
+│  │ mondo v3.1.0      │ 5d ago  │ 🟢 Published │ [View]      │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  🔄 Pending Releases (PRs mit Release-Manifests)               │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ PR #142: Release gate, jiji │ Awaiting Review │ [View]   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Deployment
+| Task | Beschreibung |
+|------|--------------|
+| GitHub OAuth | Login via GitHub |
+| Org/Repo Selector | Multi-Org Support |
+| Release List | Recent + Pending Releases |
+| Basic Metrics | Count, Avg Time, Success Rate |
 
-### Shuttle.rs Konfiguration
+### Phase 5: Dashboard Advanced
+
+**Ziel:** Metriken, Notifications, Settings
+
+| Feature | Beschreibung |
+|---------|--------------|
+| DORA Metrics | Lead Time, Deployment Frequency |
+| Release Timeline | Visualisierung über Zeit |
+| Contributor Stats | Wer hat zu welchen Releases beigetragen |
+| Slack/Discord | Notifications bei Release |
+| Repo Settings | Per-Repo Konfiguration |
+
+---
+
+## Database Schema (Turso)
+
+```sql
+-- GitHub App Installations
+CREATE TABLE installations (
+    id INTEGER PRIMARY KEY,
+    github_installation_id INTEGER UNIQUE NOT NULL,
+    account_login TEXT NOT NULL,
+    account_type TEXT NOT NULL, -- 'User' or 'Organization'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tracked Repositories
+CREATE TABLE repositories (
+    id INTEGER PRIMARY KEY,
+    installation_id INTEGER REFERENCES installations(id),
+    github_repo_id INTEGER UNIQUE NOT NULL,
+    full_name TEXT NOT NULL, -- 'owner/repo'
+    default_branch TEXT DEFAULT 'main',
+    settings JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Releases
+CREATE TABLE releases (
+    id INTEGER PRIMARY KEY,
+    repository_id INTEGER REFERENCES repositories(id),
+    package_name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    bump_type TEXT NOT NULL,
+    changelog TEXT,
+    tag_name TEXT,
+    github_release_id INTEGER,
+    pr_number INTEGER,
+    created_by TEXT,
+    released_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Release Metrics (aggregated)
+CREATE TABLE metrics (
+    id INTEGER PRIMARY KEY,
+    repository_id INTEGER REFERENCES repositories(id),
+    date DATE NOT NULL,
+    release_count INTEGER DEFAULT 0,
+    avg_lead_time_hours REAL,
+    success_rate REAL,
+    UNIQUE(repository_id, date)
+);
+```
+
+---
+
+## Cargo.toml
 
 ```toml
-# Shuttle.toml
-name = "clikd-app"
-assets = ["web/build/*"]
+[package]
+name = "clikd-bot"
+version = "0.1.0"
+edition = "2021"
 
-[build]
-# Build SvelteKit before Rust
-pre_build = "cd web && npm install && npm run build"
+[dependencies]
+dioxus = { version = "0.6", features = ["fullstack", "router"] }
+shuttle-runtime = "0.49"
+shuttle-turso = "0.49"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libsql = "0.6"
+hmac = "0.12"
+sha2 = "0.10"
+octocrab = "0.41"
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+
+[features]
+default = ["web"]
+server = ["dioxus/server"]
+web = ["dioxus/web"]
 ```
 
-### Secrets (via Shuttle Console)
+---
 
-```
-GITHUB_APP_ID=123456
-GITHUB_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----...
-GITHUB_WEBHOOK_SECRET=whsec_...
-GITHUB_CLIENT_ID=Iv1.abc123
-GITHUB_CLIENT_SECRET=...
-ANTHROPIC_API_KEY=sk-ant-...  # Optional
-```
+## Nächste Schritte
 
-### Deploy Commands
+1. **GitHub App Registration**
+   - App auf github.com/settings/apps erstellen
+   - Webhook URL: `https://clikd-bot.shuttleapp.rs/webhooks/github`
+   - Permissions: Contents (read/write), Pull Requests (read), Issues (read/write)
 
-```bash
-# Install Shuttle CLI
-cargo install cargo-shuttle
+2. **Projekt Setup**
+   ```bash
+   cargo shuttle init clikd-bot
+   cd clikd-bot
+   cargo add dioxus --features fullstack,router
+   cargo add shuttle-turso octocrab serde serde_json
+   ```
 
-# Login
-cargo shuttle login
+3. **Webhook Handler implementieren**
 
-# Deploy
-cd clikd-app
-cargo shuttle deploy
-```
+4. **Dashboard UI bauen**
 
-## GitHub App Registration
+---
 
-1. Gehe zu https://github.com/settings/apps/new
-2. Konfiguriere:
-   - **Name**: Clikd Release Manager
-   - **Homepage URL**: https://clikd.dev
-   - **Webhook URL**: https://clikd-app.shuttleapp.rs/webhooks/github
-   - **Webhook Secret**: (generieren und in Shuttle Secrets speichern)
+## Links
 
-3. Permissions:
-   - **Repository permissions**:
-     - Contents: Read & Write
-     - Metadata: Read
-     - Pull requests: Read & Write
-   - **Organization permissions**:
-     - Members: Read (optional, für Team-Features)
-
-4. Events:
-   - Installation
-   - Push
-   - Pull request
-
-5. Nach Erstellung:
-   - App ID notieren
-   - Private Key generieren und herunterladen
-   - In Shuttle Secrets speichern
-
-## Phasen-Plan
-
-### Phase 1: Core Library Extraktion (1 Woche)
-- [ ] `clikd-core` Crate erstellen
-- [ ] Code aus CLI extrahieren
-- [ ] Public API definieren
-- [ ] Tests migrieren
-
-### Phase 2: CLI --ci Mode (1 Woche)
-- [ ] `--ci` Flag implementieren
-- [ ] Changelog in Non-TUI Mode
-- [ ] Auto-Commit + Tags
-- [ ] GitHub Release Creation
-- [ ] Testen
-
-### Phase 3: App Backend Basics (2 Wochen)
-- [ ] Shuttle.rs Projekt Setup
-- [ ] Database Schema + Migrations
-- [ ] GitHub App Registration
-- [ ] Webhook Handler (Installation, Push)
-- [ ] Basic Analysis Flow
-
-### Phase 4: Release PR Creation (1 Woche)
-- [ ] Branch Creation
-- [ ] File Updates via GitHub API
-- [ ] PR Creation mit Changelog
-- [ ] PR Update bei neuen Commits
-
-### Phase 5: Release Publishing (1 Woche)
-- [ ] PR Merge Detection
-- [ ] Tag Creation
-- [ ] GitHub Release Creation
-- [ ] Database Updates
-
-### Phase 6: Dashboard UI (2 Wochen)
-- [ ] SvelteKit Setup
-- [ ] OAuth Flow
-- [ ] Repository List
-- [ ] Repo Details + Pending Releases
-- [ ] Settings Page
-
-### Phase 7: Polish & Launch (1 Woche)
-- [ ] Error Handling
-- [ ] Rate Limiting
-- [ ] Logging & Monitoring
-- [ ] Documentation
-- [ ] Beta Launch
-
-## Kosten-Schätzung
-
-| Service | Free Tier | Paid |
-|---------|-----------|------|
-| Shuttle.rs | 3 projects, shared resources | $20/mo pro project |
-| PostgreSQL | Included in Shuttle | - |
-| GitHub App | Free | Free |
-| Claude API | - | ~$0.01 per changelog |
-
-**Für Start: Shuttle Free Tier reicht völlig aus.**
-
-## Unique Selling Points vs Konkurrenz
-
-| Feature | Release Please | Semantic Release | Changesets | **Clikd** |
-|---------|---------------|------------------|------------|-----------|
-| Multi-Language | ⚠️ Limited | ⚠️ JS-fokussiert | ❌ JS only | ✅ |
-| Monorepo | ✅ | ⚠️ Plugin | ✅ | ✅ |
-| AI Changelogs | ❌ | ❌ | ❌ | ✅ |
-| Local TUI | ❌ | ❌ | ❌ | ✅ |
-| Web Dashboard | ❌ | ❌ | ❌ | ✅ |
-| GitHub App | ❌ | ❌ | ❌ | ✅ |
-| Changelog Editor | ❌ | ❌ | ❌ | ✅ |
+- [Dioxus Docs](https://dioxuslabs.com/learn/0.6/)
+- [Shuttle.rs Docs](https://docs.shuttle.rs/)
+- [Turso Docs](https://docs.turso.tech/)
+- [GitHub Apps Docs](https://docs.github.com/en/apps)
+- [Octocrab (GitHub API Client)](https://docs.rs/octocrab)

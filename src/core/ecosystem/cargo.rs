@@ -27,6 +27,7 @@ use crate::core::release::{
     version::Version,
 };
 use crate::utils::file_io::read_config_file;
+use crate::utils::theme::PhaseSpinner;
 
 /// Framework for auto-loading Cargo projects from the repository contents.
 #[derive(Debug, Default)]
@@ -126,7 +127,24 @@ impl CargoLoader {
                 cmd.manifest_path(&toml_path);
                 cmd.features(cargo_metadata::CargoOpt::AllFeatures);
 
-                if let Ok(meta) = cmd.exec() {
+                let display_path = toml_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|name| {
+                        toml_path
+                            .parent()
+                            .and_then(|p| p.file_name())
+                            .and_then(|p| p.to_str())
+                            .map(|parent| format!("{}/{}", parent, name))
+                            .unwrap_or_else(|| name.to_string())
+                    })
+                    .unwrap_or_else(|| "Cargo.toml".to_string());
+
+                let spinner = PhaseSpinner::new(format!("Loading {}", display_path));
+                let result = cmd.exec();
+                spinner.finish();
+
+                if let Ok(meta) = result {
                     let mut has_new_packages = false;
 
                     for pkg in &meta.workspace_packages() {
@@ -149,7 +167,24 @@ impl CargoLoader {
             cmd.manifest_path(&first_toml);
             cmd.features(cargo_metadata::CargoOpt::AllFeatures);
 
-            if let Ok(meta) = cmd.exec() {
+            let display_path = first_toml
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|name| {
+                    first_toml
+                        .parent()
+                        .and_then(|p| p.file_name())
+                        .and_then(|p| p.to_str())
+                        .map(|parent| format!("{}/{}", parent, name))
+                        .unwrap_or_else(|| name.to_string())
+                })
+                .unwrap_or_else(|| "Cargo.toml".to_string());
+
+            let spinner = PhaseSpinner::new(format!("Loading {}", display_path));
+            let result = cmd.exec();
+            spinner.finish();
+
+            if let Ok(meta) = result {
                 workspace_data.push((first_toml, meta));
             }
         }
