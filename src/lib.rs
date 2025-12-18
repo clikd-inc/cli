@@ -78,6 +78,7 @@ pub mod core {
         pub mod go;
         pub mod npm;
         pub mod pypa;
+        pub mod swift;
         pub mod types;
     }
 
