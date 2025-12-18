@@ -5,6 +5,10 @@ use std::{
     io::{BufRead, BufReader},
 };
 
+// Swift Package Manager does not store version in Package.swift.
+// Versions are derived from git tags (e.g., v1.0.0), similar to Go modules.
+// Therefore, no Rewriter implementation is needed for Swift packages.
+
 use crate::utils::file_io::check_file_size;
 use crate::{
     atry,
@@ -81,6 +85,10 @@ impl SwiftLoader {
 
 fn extract_package_name(line: &str) -> Option<String> {
     let trimmed = line.trim();
+
+    if trimmed.starts_with("//") {
+        return None;
+    }
 
     if !trimmed.contains("name:") && !trimmed.contains("name :") {
         return None;
@@ -188,7 +196,7 @@ mod tests {
     #[test]
     fn test_extract_package_name_comment_line() {
         let line = "// name: \"CommentedOut\"";
-        assert_eq!(extract_package_name(line), Some("CommentedOut".to_string()));
+        assert_eq!(extract_package_name(line), None);
     }
 
     #[test]
