@@ -51,12 +51,12 @@ configparser = "3.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_jsonc = "1.0.108"
-toml = "0.9.8"
+toml = "0.9.9"
 dirs = "6.0"
-minijinja = "2.13"
+minijinja = "2.14"
 
 bollard = "0.19.3"
-git2 = "0.20.2"
+git2 = "0.20.3"
 regex = "1.11"
 once_cell = "1.20"
 semver = "1.0"
@@ -89,7 +89,7 @@ next_version = "0.2"             # Calculate semantic version bumps from commits
 atomicwrites = "0.4"           # Atomic file writes to prevent corruption
 nom = "8.0.0"                      # Parser combinators for Python setup.py parsing
 quick-xml = "0.38.4"             # XML parsing for C# .csproj files
-json5 = "1.0.0"                  # Relaxed JSON parsing for package.json with comments
+json5 = "1.3.0"                  # Relaxed JSON parsing for package.json with comments
 lru = "0.16.2"                   # LRU cache for parsed project metadata
 git-url-parse = "0.6.0"          # Parse Git URLs for GitHub release integration
 percent-encoding = "2"         # URL encoding for Git URLs and API calls
