@@ -136,7 +136,7 @@ pub fn draw(area: Rect, colors: AppColors, f: &mut Frame, fd: &FrameData) {
             .data(&mem.0)];
 
         let cpu_stats = CpuStats::new(cpu.0.last().map_or(0.00, |f| f.1));
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let mem_stats = ByteStats::new(mem.0.last().map_or(0, |f| f.1 as u64));
         let cpu_chart = make_chart(
             ChartVariant::Cpu,
@@ -161,7 +161,6 @@ pub fn draw(area: Rect, colors: AppColors, f: &mut Frame, fd: &FrameData) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use insta::assert_snapshot;
     use ratatui::style::{Color, Modifier};

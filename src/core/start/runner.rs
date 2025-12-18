@@ -2,7 +2,10 @@ use crate::config::Config;
 use crate::core::docker::{health, manager::DockerManager, network, services};
 use crate::core::git::branch;
 use crate::error::Result;
-use crate::utils::theme::*;
+use crate::utils::theme::{
+    code, create_spinner, dimmed, header, highlight, step_message, success_message, url,
+    warning_message,
+};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 

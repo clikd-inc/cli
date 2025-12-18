@@ -163,7 +163,7 @@ impl AppData {
     }
 
     /// Current time as unix timestamp
-    #[allow(clippy::expect_used)]
+    #[expect(clippy::expect_used)]
     fn get_systemtime() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -464,8 +464,6 @@ impl AppData {
     }
 
     /// Get all the ContainerItems
-    /// Thnk this allow block can be removed with the 1.87 release of Clippy
-    #[allow(clippy::missing_const_for_fn)]
     pub fn get_container_items(&self) -> &[ContainerItem] {
         &self.containers.items
     }
@@ -1042,7 +1040,6 @@ impl AppData {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
 
     use super::*;

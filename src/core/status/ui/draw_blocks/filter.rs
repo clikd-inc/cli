@@ -68,7 +68,6 @@ pub fn draw(area: Rect, colors: AppColors, frame: &mut Frame, fd: &FrameData) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
 
     use insta::assert_snapshot;

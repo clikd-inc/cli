@@ -133,110 +133,16 @@ non_snake_case = "warn"
 non_camel_case_types = "warn"
 
 # =============================================================================
-# CLIPPY LINTS
+# CLIPPY LINTS - Minimal essential lints only
 # =============================================================================
 [lints.clippy]
 
-# -----------------------------------------------------------------------------
-# Lint Groups (lower priority so individual lints can override)
-# -----------------------------------------------------------------------------
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
+# Module Organization (strict)
+mod_module_files = "deny"                    # Bans mod.rs files
+wildcard_imports = "deny"                    # No glob imports
+enum_glob_use = "deny"                       # No enum wildcard imports
 
-# -----------------------------------------------------------------------------
-# Module Organization
-# -----------------------------------------------------------------------------
-mod_module_files = "forbid"                    # Bans mod.rs files - enforces foo.rs + foo/ style
-wildcard_imports = "forbid"                    # No glob imports (use xxx::* forbidden)
-enum_glob_use = "forbid"                       # No enum wildcard imports
-single_component_path_imports = "warn"         # Prefer full paths over single component
-module_name_repetitions = "warn"               # Warns about foo::foo_bar style names
-
-# -----------------------------------------------------------------------------
-# Code Quality & Safety (Restriction Lints)
-# -----------------------------------------------------------------------------
-todo = "warn"                                  # Flag TODO comments
-dbg_macro = "warn"                             # No dbg!() in production
-print_stdout = "warn"                          # No println!/print! in library code
-print_stderr = "warn"                          # No eprintln!/eprint! in library code
-unimplemented = "warn"                         # No unimplemented!() macro
-panic = "warn"                                 # Warns about explicit panic!() calls
-unwrap_used = "warn"                           # Prefer proper error handling over .unwrap()
-expect_used = "warn"                           # Prefer proper error handling over .expect()
-undocumented_unsafe_blocks = "warn"            # Require safety comments for unsafe blocks
-allow_attributes = "warn"                      # Warns about #[allow] without reason
-
-# -----------------------------------------------------------------------------
-# Performance
-# -----------------------------------------------------------------------------
-needless_collect = "warn"                      # Avoid unnecessary .collect() calls
-clone_on_copy = "warn"                         # Don't clone Copy types
-inefficient_to_string = "warn"                 # Use more efficient string conversions
-unnecessary_sort_by = "warn"                   # Simplify sort operations
-redundant_clone = "warn"                       # Remove redundant .clone() calls
-needless_pass_by_value = "warn"                # Prefer borrowing over moves when possible
-clone_on_ref_ptr = "warn"                      # Prefer Arc::clone(&x) over x.clone()
-
-# -----------------------------------------------------------------------------
-# Error Handling & Documentation
-# -----------------------------------------------------------------------------
-large_enum_variant = "warn"                    # Warns about large enum variants (box them)
-result_unit_err = "warn"                       # Prefer meaningful error types over ()
-missing_errors_doc = "warn"                    # Document error conditions
-missing_panics_doc = "warn"                    # Document panic conditions
-doc_markdown = "warn"                          # Proper markdown formatting in docs
-
-# -----------------------------------------------------------------------------
-# API Design & Conventions
-# -----------------------------------------------------------------------------
-must_use_candidate = "warn"                    # Suggest #[must_use] for pure functions
-wrong_self_convention = "warn"                 # Check self/&self/&mut self conventions
-len_zero = "warn"                              # Use .is_empty() instead of len() == 0
-new_without_default = "warn"                   # Implement Default when providing new()
-should_implement_trait = "warn"                # Suggest implementing standard traits
-fn_params_excessive_bools = "warn"             # Too many bool parameters
-
-# -----------------------------------------------------------------------------
-# Type Safety & Casts
-# -----------------------------------------------------------------------------
-cast_possible_truncation = "warn"              # Warns about potential data loss in casts
-cast_possible_wrap = "warn"                    # Warns about integer overflow in casts
-cast_lossless = "warn"                         # Prefer From trait over as casts
-cast_sign_loss = "warn"                        # Warns about sign loss in casts
-checked_conversions = "warn"                   # Use checked conversions (try_from)
-
-# -----------------------------------------------------------------------------
-# Concurrency & Async
-# -----------------------------------------------------------------------------
-await_holding_lock = "warn"                    # Don't hold locks across await points
-await_holding_refcell_ref = "warn"             # Don't hold RefCell refs across await
-future_not_send = "warn"                       # Ensure futures implement Send
-
-# -----------------------------------------------------------------------------
-# Maintainability & Complexity
-# -----------------------------------------------------------------------------
-cognitive_complexity = "warn"                  # Flag overly complex functions
-too_many_arguments = "warn"                    # Functions with >7 parameters need refactoring
-too_many_lines = "warn"                        # Flag excessively long functions
-type_complexity = "warn"                       # Simplify overly complex type signatures
-
-# -----------------------------------------------------------------------------
-# Boolean Logic & Pattern Matching
-# -----------------------------------------------------------------------------
-match_bool = "warn"                            # Simplify match on bool to if-else
-bool_comparison = "warn"                       # No `if x == true`, just `if x`
-if_same_then_else = "warn"                     # Identical if/else blocks need merging
-zero_sized_map_values = "warn"                 # Warns about Map<K, ()> (use Set instead)
-
-# -----------------------------------------------------------------------------
-# Naming
-# -----------------------------------------------------------------------------
-upper_case_acronyms = "warn"                   # Acronyms should be CamelCase (e.g., HttpUrl)
-
-# -----------------------------------------------------------------------------
-# Pedantic Overrides (allow some overly strict pedantic lints if needed)
-# -----------------------------------------------------------------------------
-# Uncomment to reduce noise during early development:
-# missing_errors_doc = "allow"
-# missing_panics_doc = "allow"
-# module_name_repetitions = "allow"
+# Code Quality (strict)
+todo = "warn"                                # Flag TODO comments
+dbg_macro = "warn"                           # No dbg!() in production
+allow_attributes = "warn"                    # Must use #[expect] instead of #[allow]

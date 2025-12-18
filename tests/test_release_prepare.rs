@@ -37,8 +37,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"1.0.1\""),
-        "Version should be bumped to 1.0.1 for fix commit. Got: {}",
-        cargo_toml
+        "Version should be bumped to 1.0.1 for fix commit. Got: {cargo_toml}"
     );
 }
 
@@ -73,8 +72,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"2.1.0\""),
-        "Version should be bumped to 2.1.0 for feat commit. Got: {}",
-        cargo_toml
+        "Version should be bumped to 2.1.0 for feat commit. Got: {cargo_toml}"
     );
 }
 
@@ -109,8 +107,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"2.0.0\""),
-        "Version should be bumped to 2.0.0 for breaking change. Got: {}",
-        cargo_toml
+        "Version should be bumped to 2.0.0 for breaking change. Got: {cargo_toml}"
     );
 }
 
@@ -145,8 +142,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"0.2.0\""),
-        "Version should be bumped to 0.2.0 for feat commit. Got: {}",
-        cargo_toml
+        "Version should be bumped to 0.2.0 for feat commit. Got: {cargo_toml}"
     );
 }
 
@@ -182,8 +178,7 @@ fn test_release_prepare_npm_package() {
     let package_json = repo.read_file("package.json");
     assert!(
         package_json.contains("\"version\": \"3.1.0\""),
-        "package.json version should be bumped to 3.1.0. Got: {}",
-        package_json
+        "package.json version should be bumped to 3.1.0. Got: {package_json}"
     );
 }
 
@@ -193,11 +188,11 @@ fn test_release_prepare_python_package() {
 
     repo.write_file(
         "setup.cfg",
-        r#"[metadata]
+        r"[metadata]
 name = my-python-pkg
 version = 1.0.0
 description = Test package
-"#,
+",
     );
     repo.write_file(
         "setup.py",
@@ -232,8 +227,7 @@ setup(version=__version__)
     let setup_py = repo.read_file("setup.py");
     assert!(
         setup_py.contains("\"1.0.1\""),
-        "setup.py version should be bumped to 1.0.1. Got: {}",
-        setup_py
+        "setup.py version should be bumped to 1.0.1. Got: {setup_py}"
     );
 }
 
@@ -274,8 +268,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"1.1.0\""),
-        "feat should result in minor bump (1.1.0). Got: {}",
-        cargo_toml
+        "feat should result in minor bump (1.1.0). Got: {cargo_toml}"
     );
 }
 
@@ -302,8 +295,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"1.0.0\""),
-        "Version should remain 1.0.0 with no changes. Got: {}",
-        cargo_toml
+        "Version should remain 1.0.0 with no changes. Got: {cargo_toml}"
     );
 }
 
@@ -414,13 +406,11 @@ edition = "2021"
 
     assert!(
         core_toml.contains("version = \"1.1.0\"") || core_toml.contains("version = \"1.0.1\""),
-        "Core should be bumped. Got: {}",
-        core_toml
+        "Core should be bumped. Got: {core_toml}"
     );
     assert!(
         utils_toml.contains("version = \"2.0.1\"") || utils_toml.contains("version = \"2.1.0\""),
-        "Utils should be bumped. Got: {}",
-        utils_toml
+        "Utils should be bumped. Got: {utils_toml}"
     );
 }
 
@@ -457,8 +447,7 @@ edition = "2021"
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("clean working directory") || stderr.contains("uncommitted"),
-        "Error should mention clean working directory. Got: {}",
-        stderr
+        "Error should mention clean working directory. Got: {stderr}"
     );
 }
 
@@ -493,8 +482,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"1.0.0\""),
-        "Version should remain unchanged when no releases needed. Got: {}",
-        cargo_toml
+        "Version should remain unchanged when no releases needed. Got: {cargo_toml}"
     );
 }
 
@@ -529,8 +517,7 @@ edition = "2021"
     let cargo_toml = repo.read_file("Cargo.toml");
     assert!(
         cargo_toml.contains("version = \"2.0.0\""),
-        "Explicit major bump should result in 2.0.0. Got: {}",
-        cargo_toml
+        "Explicit major bump should result in 2.0.0. Got: {cargo_toml}"
     );
 }
 
@@ -590,13 +577,11 @@ edition = "2021"
 
     assert!(
         alpha_toml.contains("version = \"2.0.0\""),
-        "Alpha should be major bumped to 2.0.0. Got: {}",
-        alpha_toml
+        "Alpha should be major bumped to 2.0.0. Got: {alpha_toml}"
     );
     assert!(
         beta_toml.contains("version = \"2.0.1\""),
-        "Beta should be patch bumped to 2.0.1. Got: {}",
-        beta_toml
+        "Beta should be patch bumped to 2.0.1. Got: {beta_toml}"
     );
 }
 
@@ -638,8 +623,7 @@ edition = "2021"
     let manifest_file = &manifest_files[0];
     assert!(
         manifest_file.starts_with("release-") && manifest_file.ends_with(".json"),
-        "Manifest filename should match pattern release-*.json, got: {}",
-        manifest_file
+        "Manifest filename should match pattern release-*.json, got: {manifest_file}"
     );
 }
 

@@ -65,8 +65,7 @@ dep-core = { path = "../core" }
     let core_toml = repo.read_file("packages/core/Cargo.toml");
     assert!(
         core_toml.contains("version = \"1.1.0\""),
-        "Core should be bumped to 1.1.0. Got: {}",
-        core_toml
+        "Core should be bumped to 1.1.0. Got: {core_toml}"
     );
 }
 
@@ -140,8 +139,7 @@ chain-middle = { path = "../middle" }
     let base_toml = repo.read_file("packages/base/Cargo.toml");
     assert!(
         base_toml.contains("version = \"1.1.0\""),
-        "Base should be bumped. Got: {}",
-        base_toml
+        "Base should be bumped. Got: {base_toml}"
     );
 }
 
@@ -232,8 +230,7 @@ diamond-right = { path = "../right" }
     let shared_toml = repo.read_file("packages/shared/Cargo.toml");
     assert!(
         shared_toml.contains("version = \"1.1.0\""),
-        "Shared should be bumped. Got: {}",
-        shared_toml
+        "Shared should be bumped. Got: {shared_toml}"
     );
 }
 
@@ -288,13 +285,11 @@ edition = "2021"
 
     assert!(
         alpha_toml.contains("version = \"1.1.0\""),
-        "Alpha should be bumped. Got: {}",
-        alpha_toml
+        "Alpha should be bumped. Got: {alpha_toml}"
     );
     assert!(
         beta_toml.contains("version = \"2.0.0\""),
-        "Beta should NOT be bumped (independent). Got: {}",
-        beta_toml
+        "Beta should NOT be bumped (independent). Got: {beta_toml}"
     );
 }
 
@@ -345,13 +340,11 @@ workspace-lib-a = { path = "../lib-a" }
     let bootstrap = repo.read_file("clikd/bootstrap.toml");
     assert!(
         bootstrap.contains("workspace-lib-a") || bootstrap.contains("lib-a"),
-        "Should detect workspace-lib-a. Bootstrap: {}",
-        bootstrap
+        "Should detect workspace-lib-a. Bootstrap: {bootstrap}"
     );
     assert!(
         bootstrap.contains("workspace-lib-b") || bootstrap.contains("lib-b"),
-        "Should detect workspace-lib-b. Bootstrap: {}",
-        bootstrap
+        "Should detect workspace-lib-b. Bootstrap: {bootstrap}"
     );
 }
 
@@ -445,16 +438,16 @@ edition = "2021"
 
     repo.write_file(
         "python/setup.cfg",
-        r#"[metadata]
+        r"[metadata]
 name = mixed-python
 version = 1.0.0
-"#,
+",
     );
     repo.write_file(
         "python/setup.py",
-        r#"from setuptools import setup
+        r"from setuptools import setup
 setup()
-"#,
+",
     );
     repo.write_file("python/src/__init__.py", "");
 

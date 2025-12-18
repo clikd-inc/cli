@@ -1,6 +1,9 @@
 use crate::config::Config;
 use crate::core::auth::{github, org_check, token};
-use crate::utils::theme::*;
+use crate::utils::theme::{
+    code, create_spinner, header, highlight, info_message, step_message, success_message, url,
+    warning_message,
+};
 use anyhow::Result;
 
 pub async fn login(no_browser: bool, config: &Config) -> Result<()> {

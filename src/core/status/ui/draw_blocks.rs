@@ -25,12 +25,12 @@ pub mod popup;
 pub mod ports;
 pub mod search_logs;
 
-pub const NAME_TEXT: &str = r#"
+pub const NAME_TEXT: &str = r"
   ____ _ _ _       _
  / ___| (_) | ____| |
 | |   | | | |/ / _` |
 | |___| | |   < (_| |
- \____|_|_|_|\_\__,_|"#;
+ \____|_|_|_|\_\__,_|";
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const REPO: &str = env!("CARGO_PKG_REPOSITORY");
@@ -118,7 +118,6 @@ fn generate_block<'a>(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 pub mod tests {
 
     use std::{
@@ -237,7 +236,7 @@ pub mod tests {
         setup.app_data.lock().update_log_by_id(logs, &setup.ids[0]);
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     // Add fixed data to the cpu & mem vecdeques
     pub fn insert_chart_data(setup: &TuiTestSetup) {
         for i in 1..=10 {
@@ -294,7 +293,6 @@ pub mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
     /// Check that the whole layout is drawn correctly
     fn test_draw_blocks_whole_layout_with_filter_bar() {
         let mut setup = test_setup(160, 30, true, true);

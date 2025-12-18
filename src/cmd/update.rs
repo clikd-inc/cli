@@ -3,7 +3,9 @@ use crate::core::config::{
     images,
     version_manager::{compare_versions, VersionManager},
 };
-use crate::utils::theme::*;
+use crate::utils::theme::{
+    dimmed, header, highlight, step_message, success_message, warning_message,
+};
 use anyhow::Result;
 use dialoguer::Confirm;
 

@@ -92,7 +92,6 @@ pub fn draw(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use crate::core::status::{
         app_error::AppError,

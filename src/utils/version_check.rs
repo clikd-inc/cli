@@ -102,7 +102,7 @@ fn is_newer_version(latest: &str, current: &str) -> bool {
 }
 
 fn print_update_message(latest: &str, current: &str) {
-    use crate::utils::theme::*;
+    use crate::utils::theme::{highlight, warning_message};
 
     eprintln!();
     eprintln!(

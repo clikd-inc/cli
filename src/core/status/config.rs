@@ -14,7 +14,7 @@ mod parse_args;
 mod parse_config_file;
 
 #[derive(Debug, Clone)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct Config {
     pub app_colors: AppColors,
     pub color_logs: bool,
@@ -230,7 +230,6 @@ impl Config {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use jiff::tz::TimeZone;
 

@@ -54,7 +54,6 @@ pub fn draw(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use insta::assert_snapshot;
     use ratatui::style::Color;

@@ -1,5 +1,7 @@
 use crate::core::docker::manager::DockerManager;
-use crate::utils::theme::*;
+use crate::utils::theme::{
+    create_spinner, dimmed, header, highlight, info_message, success_message, warning_message,
+};
 use crate::{cli::StopArgs, config::Config};
 use anyhow::Result;
 

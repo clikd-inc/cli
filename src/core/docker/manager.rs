@@ -1,7 +1,9 @@
 use crate::core::docker::registry;
 use crate::core::docker::services::ServiceDefinition;
 use crate::error::{CliError, Result};
-use crate::utils::theme::*;
+use crate::utils::theme::{
+    create_progress_bar, dimmed, format_docker_status, highlight, success_icon,
+};
 use bollard::models::{
     ContainerCreateBody, EndpointSettings, HealthConfig, HostConfig, NetworkingConfig, PortBinding,
     RestartPolicy, RestartPolicyNameEnum, VolumeCreateOptions,

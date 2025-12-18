@@ -16,7 +16,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("src/fix.rs", "pub fn fix() {}");
     repo.commit("fix: patch bug");
@@ -45,7 +45,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("src/feature.rs", "pub fn feature() {}");
     repo.commit("feat: add new feature");
@@ -74,7 +74,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("src/breaking.rs", "pub fn breaking() {}");
     repo.commit("feat!: breaking change\n\nBREAKING CHANGE: Old API removed");
@@ -109,14 +109,13 @@ edition = "2021"
         "Original version not correct"
     );
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     let after_init_cargo = repo.read_file("Cargo.toml");
-    println!("After init Cargo.toml:\n{}", after_init_cargo);
+    println!("After init Cargo.toml:\n{after_init_cargo}");
     assert!(
         after_init_cargo.contains("version = \"1.2.3\""),
-        "Original version should be preserved after init. Got: {}",
-        after_init_cargo
+        "Original version should be preserved after init. Got: {after_init_cargo}"
     );
 
     repo.write_file("src/fix.rs", "pub fn fix() {}");
@@ -147,7 +146,7 @@ fn test_version_bump_npm_package() {
     repo.write_file("index.js", "module.exports = {};\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("index.js", "module.exports = { api: true };");
     repo.commit("feat: add new API");
@@ -167,11 +166,11 @@ fn test_version_bump_python_package() {
 
     repo.write_file(
         "setup.cfg",
-        r#"[metadata]
+        r"[metadata]
 name = my-pkg
 version = 0.5.0
 description = Test Python package
-"#,
+",
     );
     repo.write_file(
         "setup.py",
@@ -183,7 +182,7 @@ setup()
     repo.write_file("my_pkg/__init__.py", "");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("my_pkg/__init__.py", "__version__ = '0.5.0'");
     repo.commit("feat: add module");
@@ -225,7 +224,7 @@ edition = "2021"
     repo.write_file("crates/api/src/lib.rs", "pub fn api() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("crates/web/src/feature.rs", "pub fn feature() {}");
     repo.commit("feat(web): add feature");
@@ -279,7 +278,7 @@ common = { path = "../common" }
 
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("common/src/new.rs", "pub fn new() {}");
     repo.commit("feat(common): add new function");

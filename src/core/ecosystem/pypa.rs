@@ -3,7 +3,7 @@
 
 //! Python Packaging Authority (PyPA) projects.
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use clap::Parser;
 use configparser::ini::Ini;
 use serde::Deserialize;
@@ -13,7 +13,6 @@ use std::{
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Read, Write},
 };
-use toml::Value;
 use tracing::warn;
 
 use crate::core::release::version::pep440::Pep440Version;
@@ -429,7 +428,8 @@ fn scan_rewritten_file(
 }
 
 pub(crate) mod simple_py_parse {
-    use super::*;
+    use crate::{a_ok_or, core::release::errors::Result};
+    use anyhow::{anyhow, bail};
 
     pub fn has_commented_marker(line: &str, marker: &str) -> bool {
         match line.find('#') {
@@ -584,20 +584,12 @@ pub(crate) mod simple_py_parse {
 #[derive(Debug, Deserialize)]
 struct PyProjectFile {
     pub tool: Option<PyProjectTool>,
-
-    #[allow(dead_code)]
-    #[serde(flatten)]
-    pub rest: Value,
 }
 
 /// `pyproject.toml` section `tool` deserialization container.
 #[derive(Debug, Deserialize)]
 struct PyProjectTool {
     pub clikd: Option<PyProjectClikd>,
-
-    #[allow(dead_code)]
-    #[serde(flatten)]
-    pub rest: Value,
 }
 
 /// Clikd metadata in `pyproject.toml`.
@@ -833,7 +825,10 @@ impl InstallTokenCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{PypaLoader, PypaProjectData, RepoPathBuf};
+    use crate::core::release::version::pep440::Pep440Version;
+    use std::collections::HashSet;
+    use toml::Value;
 
     #[test]
     fn test_process_index_item_detects_setup_py() {
@@ -973,7 +968,7 @@ version = {attr = "package.__version__"}
     #[test]
     fn test_simple_py_parse_different_quotes() {
         let double = r#"version = "1.0.0""#;
-        let single = r#"version = '1.0.0'"#;
+        let single = r"version = '1.0.0'";
 
         assert!(double.contains('"'));
         assert!(single.contains('\''));

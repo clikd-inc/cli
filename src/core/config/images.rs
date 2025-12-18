@@ -79,17 +79,14 @@ mod tests {
     fn test_image_format() {
         let images = parse_dockerfile().expect("BUG: should parse dockerfile");
 
-        for (service, image) in images.iter() {
+        for (service, image) in &images {
             assert!(
                 image.contains(':'),
-                "Image {} for service {} should contain version tag",
-                image,
-                service
+                "Image {image} for service {service} should contain version tag"
             );
             assert!(
                 image.starts_with("ghcr.io/clikd-inc/"),
-                "Image {} should start with ghcr.io/clikd-inc/",
-                image
+                "Image {image} should start with ghcr.io/clikd-inc/"
             );
         }
     }
