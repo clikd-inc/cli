@@ -29,6 +29,7 @@ pub mod tests {
     use bollard::service::{ContainerSummary, Port};
     use std::{str::FromStr, sync::Arc};
 
+    #[must_use]
     pub fn gen_config() -> Config {
         Config {
             color_logs: false,
@@ -51,6 +52,9 @@ pub mod tests {
         }
     }
 
+    /// # Panics
+    /// Panics if `index` exceeds `u64::MAX`.
+    #[must_use]
     pub fn gen_item(id: &ContainerId, index: usize) -> ContainerItem {
         ContainerItem::new(
             u64::try_from(index).expect("BUG: test index should fit in u64"),
@@ -68,6 +72,7 @@ pub mod tests {
         )
     }
 
+    #[must_use]
     pub fn gen_appdata(containers: &[ContainerItem]) -> AppData {
         AppData {
             containers: StatefulList::new(containers.to_vec()),
@@ -81,6 +86,7 @@ pub mod tests {
         }
     }
 
+    #[must_use]
     pub fn gen_containers() -> (Vec<ContainerId>, Vec<ContainerItem>) {
         let ids = (1..=3)
             .map(|i| ContainerId::from(format!("{i}").as_str()))
@@ -93,6 +99,9 @@ pub mod tests {
         (ids, containers)
     }
 
+    /// # Panics
+    /// Panics if `index` exceeds `i64::MAX` or if `state` is not a valid container state.
+    #[must_use]
     pub fn gen_container_summary(index: usize, state: &str) -> ContainerSummary {
         ContainerSummary {
             image_manifest_descriptor: None,

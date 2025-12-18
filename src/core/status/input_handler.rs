@@ -546,7 +546,6 @@ impl InputHandler {
     }
 
     /// Handle button presses in all other scenarios
-    #[allow(clippy::cognitive_complexity)]
     async fn handle_others(&mut self, key_code: KeyCode, modifier: KeyModifiers) {
         self.handle_sort(key_code);
         // shift key plus arrows

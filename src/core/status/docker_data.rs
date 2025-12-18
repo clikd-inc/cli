@@ -75,7 +75,7 @@ pub struct DockerData {
 
 impl DockerData {
     /// Use docker stats to calculate current cpu usage
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn calculate_usage(stats: &ContainerStatsResponse) -> f64 {
         let mut cpu_percentage = 0.0;
 
@@ -474,7 +474,7 @@ impl DockerData {
 
 // tests, use redis-test container, check logs exists, and selector of logs, and that it increases, and matches end, when you run restart on the docker containers
 #[cfg(test)]
-#[allow(clippy::float_cmp)]
+#[expect(clippy::float_cmp)]
 mod tests {
 
     use bollard::secret::{ContainerCpuStats, ContainerCpuUsage};

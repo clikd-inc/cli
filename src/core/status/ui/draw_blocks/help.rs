@@ -85,7 +85,7 @@ impl HelpInfo {
     }
 
     /// Generate the button information span + metadata
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines)]
     fn gen_keymap_info(colors: AppColors, zone: Option<&TimeZone>, show_timestamp: bool) -> Self {
         let button_item = |x: &str| Self::highlighted_text_span(&format!(" ( {x} ) "), colors);
         let button_desc = |x: &str| Self::text_span(x, colors);
@@ -450,7 +450,6 @@ pub fn draw(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::too_many_lines)]
 mod tests {
     use crate::core::status::config::{AppColors, Keymap};
     use insta::assert_snapshot;

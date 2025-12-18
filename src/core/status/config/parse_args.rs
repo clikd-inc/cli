@@ -2,7 +2,7 @@ use clap::Parser;
 use serde::Deserialize;
 
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools)]
 #[command(version, about)]
 pub struct Args {
     /// Docker update interval in ms, minimum effectively 1000

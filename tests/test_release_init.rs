@@ -149,7 +149,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     let original_config = repo.read_file("clikd/config.toml");
 

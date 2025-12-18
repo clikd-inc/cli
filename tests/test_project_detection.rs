@@ -35,10 +35,10 @@ fn test_detect_single_go_project() {
 
     repo.write_file(
         "go.mod",
-        r#"module myapp
+        r"module myapp
 
 go 1.21
-"#,
+",
     );
     repo.write_file("main.go", "package main\n\nfunc main() {}\n");
     repo.commit("initial commit");
@@ -123,11 +123,11 @@ fn test_detect_single_python_project() {
 
     repo.write_file(
         "setup.cfg",
-        r#"[metadata]
+        r"[metadata]
 name = my-python-pkg
 version = 3.0.0
 description = Test Python package
-"#,
+",
     );
     repo.write_file(
         "setup.py",
@@ -236,10 +236,10 @@ edition = "2021"
 
     repo.write_file(
         "scripts/setup.cfg",
-        r#"[metadata]
+        r"[metadata]
 name = deployment-tools
 version = 0.1.0
-"#,
+",
     );
     repo.write_file(
         "scripts/setup.py",
@@ -315,4 +315,45 @@ common = { path = "../common" }
     let bootstrap = repo.read_file("clikd/bootstrap.toml");
     assert!(bootstrap.contains("common"), "common crate not detected");
     assert!(bootstrap.contains("app"), "app crate not detected");
+}
+
+#[test]
+fn test_detect_single_swift_package() {
+    let repo = TestRepo::new();
+
+    repo.write_file(
+        "Package.swift",
+        r#"// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "MySwiftLibrary",
+    products: [
+        .library(name: "MySwiftLibrary", targets: ["MySwiftLibrary"]),
+    ],
+    targets: [
+        .target(name: "MySwiftLibrary"),
+    ]
+)
+"#,
+    );
+    repo.write_file(
+        "Sources/MySwiftLibrary/MySwiftLibrary.swift",
+        "public struct MySwiftLibrary {}\n",
+    );
+    repo.commit("initial commit");
+
+    let output = repo.run_clikd_command(&["release", "init", "--force"]);
+
+    assert!(
+        output.status.success(),
+        "Failed to init: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let bootstrap = repo.read_file("clikd/bootstrap.toml");
+    assert!(
+        bootstrap.contains("MySwiftLibrary"),
+        "Swift package not detected"
+    );
 }

@@ -3,7 +3,7 @@ use crate::core::config::{images, version_manager::VersionManager};
 use crate::core::git::{branch, gitignore};
 use crate::core::ide::{intellij, vscode};
 use crate::error::{CliError, Result};
-use crate::utils::theme::*;
+use crate::utils::theme::{header, highlight, step_message, success_message};
 use dialoguer::Confirm;
 use std::env;
 use std::fs;

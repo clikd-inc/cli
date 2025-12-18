@@ -82,14 +82,14 @@ end
 fn test_go_github_module() {
     let repo = TestRepo::new();
 
-    let go_mod = r#"module github.com/organization/project
+    let go_mod = r"module github.com/organization/project
 
 go 1.21
 
 require (
     github.com/gin-gonic/gin v1.9.0
 )
-"#;
+";
 
     repo.write_file("go.mod", go_mod);
     repo.write_file("main.go", "package main\n\nfunc main() {}\n");
@@ -114,10 +114,10 @@ require (
 fn test_go_vanity_url_module() {
     let repo = TestRepo::new();
 
-    let go_mod = r#"module gopkg.in/yaml.v3
+    let go_mod = r"module gopkg.in/yaml.v3
 
 go 1.20
-"#;
+";
 
     repo.write_file("go.mod", go_mod);
     repo.write_file("yaml.go", "package yaml\n");
@@ -142,23 +142,23 @@ go 1.20
 fn test_go_workspace() {
     let repo = TestRepo::new();
 
-    let go_work = r#"go 1.21
+    let go_work = r"go 1.21
 
 use (
     ./cmd/app
     ./pkg/lib
 )
-"#;
+";
 
-    let app_mod = r#"module myproject/cmd/app
-
-go 1.21
-"#;
-
-    let lib_mod = r#"module myproject/pkg/lib
+    let app_mod = r"module myproject/cmd/app
 
 go 1.21
-"#;
+";
+
+    let lib_mod = r"module myproject/pkg/lib
+
+go 1.21
+";
 
     repo.write_file("go.work", go_work);
     repo.write_file("cmd/app/go.mod", app_mod);
@@ -190,10 +190,10 @@ go 1.21
 fn test_go_simple_module() {
     let repo = TestRepo::new();
 
-    let go_mod = r#"module example
+    let go_mod = r"module example
 
 go 1.21
-"#;
+";
 
     repo.write_file("go.mod", go_mod);
     repo.write_file("main.go", "package main\n\nfunc main() {}\n");
@@ -230,10 +230,10 @@ fn test_mixed_elixir_and_go() {
 end
 "#;
 
-    let go_mod = r#"module github.com/org/backend
+    let go_mod = r"module github.com/org/backend
 
 go 1.21
-"#;
+";
 
     repo.write_file("frontend/mix.exs", mix_exs);
     repo.write_file("backend/go.mod", go_mod);
@@ -300,7 +300,7 @@ end
 fn test_go_with_replace_directive() {
     let repo = TestRepo::new();
 
-    let go_mod = r#"module myproject
+    let go_mod = r"module myproject
 
 go 1.21
 
@@ -309,7 +309,7 @@ require (
 )
 
 replace github.com/external/dep => ../local-dep
-"#;
+";
 
     repo.write_file("go.mod", go_mod);
     repo.write_file("main.go", "package main\n\nfunc main() {}\n");

@@ -95,6 +95,7 @@ impl AppBuilder {
             let mut pypa = crate::core::ecosystem::pypa::PypaLoader::default();
             let mut go = crate::core::ecosystem::go::GoLoader::default();
             let mut elixir = crate::core::ecosystem::elixir::ElixirLoader::default();
+            let mut swift = crate::core::ecosystem::swift::SwiftLoader::default();
 
             // Dumb hack around the borrowchecker to allow mutable reference to
             // the graph while iterating over the repo:
@@ -116,6 +117,7 @@ impl AppBuilder {
                     pypa.process_index_item(dirname, basename);
                     go.process_index_item(dirname, basename);
                     elixir.process_index_item(dirname, basename);
+                    swift.process_index_item(dirname, basename);
                     Ok(())
                 })?;
 
@@ -130,6 +132,7 @@ impl AppBuilder {
                     pypa.process_index_item(dirname, basename);
                     go.process_index_item(dirname, basename);
                     elixir.process_index_item(dirname, basename);
+                    swift.process_index_item(dirname, basename);
                     Ok(())
                 })?;
             }
@@ -145,6 +148,7 @@ impl AppBuilder {
             pypa.finalize(&mut self, &proj_config)?;
             go.finalize(&mut self, &proj_config)?;
             elixir.finalize(&mut self, &proj_config)?;
+            swift.finalize(&mut self, &proj_config)?;
         }
 
         // Apply project config and compile the graph.
@@ -303,9 +307,12 @@ impl AppSession {
                         // this batch.
                         DepRequirement::Commit(ref cid) => {
                             let dependee_proj = self.graph.lookup(dep.ident);
-                            let avail = self
-                                .repo
-                                .find_earliest_release_containing(dependee_proj, cid)?;
+                            let is_single_project = self.graph.projects().count() == 1;
+                            let avail = self.repo.find_earliest_release_containing(
+                                dependee_proj,
+                                cid,
+                                is_single_project,
+                            )?;
 
                             let resolved = match avail {
                                 ReleaseAvailability::NotAvailable => {

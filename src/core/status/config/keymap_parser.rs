@@ -342,7 +342,6 @@ impl Keymap {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use crossterm::event::{KeyCode, KeyModifiers};
 

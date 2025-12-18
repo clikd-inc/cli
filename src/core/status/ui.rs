@@ -284,7 +284,7 @@ impl Ui {
 
 /// Frequent data required by multiple frame drawing functions, can reduce mutex reads by placing it all in here
 #[derive(Debug, Clone)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct FrameData {
     chart_data: Option<(CpuTuple, MemTuple)>,
     color_logs: bool,

@@ -33,7 +33,7 @@ impl AppColors {
 }
 
 impl From<Option<ConfigColors>> for AppColors {
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines)]
     fn from(value: Option<ConfigColors>) -> Self {
         let mut app_colors = Self::new();
 

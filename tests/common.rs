@@ -9,15 +9,21 @@ pub struct TestRepo {
     pub path: PathBuf,
 }
 
+impl Default for TestRepo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestRepo {
-    #[allow(clippy::new_without_default)]
+    #[must_use]
     pub fn new() -> Self {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_path_buf();
 
         Self::init_git(&path);
 
-        TestRepo { _dir: dir, path }
+        Self { _dir: dir, path }
     }
 
     fn init_git(path: &Path) {
@@ -73,6 +79,7 @@ impl TestRepo {
             .expect("failed to git commit");
     }
 
+    #[must_use]
     pub fn run_clikd_command(&self, args: &[&str]) -> std::process::Output {
         let clikd_bin = env!("CARGO_BIN_EXE_clikd");
 
@@ -83,18 +90,22 @@ impl TestRepo {
             .expect("failed to run clikd command")
     }
 
+    #[must_use]
     pub fn file_exists(&self, relative_path: &str) -> bool {
         self.path.join(relative_path).exists()
     }
 
+    #[must_use]
     pub fn read_file(&self, relative_path: &str) -> String {
         std::fs::read_to_string(self.path.join(relative_path)).expect("failed to read file")
     }
 
+    #[must_use]
     pub fn has_config_dir(&self) -> bool {
         self.path.join("clikd").is_dir()
     }
 
+    #[must_use]
     pub fn list_files_in_dir(&self, relative_dir: &str) -> Vec<String> {
         let dir_path = self.path.join(relative_dir);
         if !dir_path.exists() {
@@ -103,13 +114,14 @@ impl TestRepo {
         std::fs::read_dir(dir_path)
             .map(|entries| {
                 entries
-                    .filter_map(|e| e.ok())
+                    .filter_map(std::result::Result::ok)
                     .filter_map(|e| e.file_name().into_string().ok())
                     .collect()
             })
             .unwrap_or_default()
     }
 
+    #[must_use]
     pub fn run_clikd_command_with_env(
         &self,
         args: &[&str],

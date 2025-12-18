@@ -88,11 +88,10 @@ fn test_very_long_package_name() {
     let long_name = "a".repeat(64);
     let cargo_toml = format!(
         r#"[package]
-name = "{}"
+name = "{long_name}"
 version = "1.0.0"
 edition = "2021"
-"#,
-        long_name
+"#
     );
 
     repo.write_file("Cargo.toml", &cargo_toml);
@@ -148,8 +147,7 @@ edition = "2021"
         let output = repo.run_clikd_command(&["release", "set-version", "test-package", version]);
         assert!(
             !output.status.success() || !String::from_utf8_lossy(&output.stderr).is_empty(),
-            "Malformed version '{}' should be rejected or warned",
-            version
+            "Malformed version '{version}' should be rejected or warned"
         );
     }
 }
@@ -188,13 +186,11 @@ edition = "2021"
 
         assert!(
             !stdout.contains("pwned"),
-            "Command injection '{}' should not execute",
-            injection
+            "Command injection '{injection}' should not execute"
         );
         assert!(
             !stderr.contains("pwned"),
-            "Command injection '{}' should not execute",
-            injection
+            "Command injection '{injection}' should not execute"
         );
     }
 }
@@ -206,14 +202,14 @@ fn test_deeply_nested_directory_project() {
     let deep_path = "a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t";
 
     repo.write_file(
-        &format!("{}/Cargo.toml", deep_path),
+        &format!("{deep_path}/Cargo.toml"),
         r#"[package]
 name = "deep-package"
 version = "1.0.0"
 edition = "2021"
 "#,
     );
-    repo.write_file(&format!("{}/src/lib.rs", deep_path), "pub fn hello() {}");
+    repo.write_file(&format!("{deep_path}/src/lib.rs"), "pub fn hello() {}");
     repo.commit("initial commit");
 
     let output = repo.run_clikd_command(&["release", "init", "--force"]);
@@ -441,8 +437,7 @@ edition = "2021"
     let name_count = bootstrap.matches("shared-name").count();
     assert!(
         name_count >= 2,
-        "Both projects with shared name should be tracked (found {} occurrences)",
-        name_count
+        "Both projects with shared name should be tracked (found {name_count} occurrences)"
     );
 }
 
@@ -475,8 +470,7 @@ edition = "2021"
         assert!(
             !output.status.success()
                 || String::from_utf8_lossy(&output.stderr).contains("not found"),
-            "Windows reserved name '{}' should be rejected or not found",
-            name
+            "Windows reserved name '{name}' should be rejected or not found"
         );
     }
 }
@@ -519,8 +513,7 @@ edition = "2021"
 
         assert!(
             !output.status.success() || stdout.contains("no projects") || stdout.is_empty(),
-            "Backslash traversal '{}' should not succeed in accessing external files",
-            path
+            "Backslash traversal '{path}' should not succeed in accessing external files"
         );
     }
 }
@@ -556,14 +549,12 @@ edition = "2021"
 
         assert!(
             !stdout.contains("root:") && !stdout.contains("SYSTEM32"),
-            "Mixed separator traversal '{}' should not leak system file contents",
-            path
+            "Mixed separator traversal '{path}' should not leak system file contents"
         );
 
         assert!(
             !output.status.success() || stdout.contains("no projects") || stdout.is_empty(),
-            "Mixed separator traversal '{}' should not succeed in accessing external files",
-            path
+            "Mixed separator traversal '{path}' should not succeed in accessing external files"
         );
     }
 }
@@ -598,8 +589,7 @@ edition = "2021"
         assert!(
             !output.status.success()
                 || String::from_utf8_lossy(&output.stderr).contains("not found"),
-            "UNC path '{}' should be rejected",
-            path
+            "UNC path '{path}' should be rejected"
         );
     }
 }
@@ -634,8 +624,7 @@ edition = "2021"
         assert!(
             !output.status.success()
                 || String::from_utf8_lossy(&output.stderr).contains("not found"),
-            "Absolute Windows path '{}' should be rejected",
-            path
+            "Absolute Windows path '{path}' should be rejected"
         );
     }
 }
@@ -679,8 +668,7 @@ edition = "2021"
             Err(e) => {
                 assert!(
                     e.to_string().contains("nul byte"),
-                    "Null byte in path should cause an error, got: {}",
-                    e
+                    "Null byte in path should cause an error, got: {e}"
                 );
             }
         }

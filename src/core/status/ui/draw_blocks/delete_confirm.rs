@@ -125,7 +125,6 @@ pub fn draw(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use crossterm::event::KeyCode;
     use insta::assert_snapshot;

@@ -1,4 +1,4 @@
-use crate::utils::theme::*;
+use crate::utils::theme::{dimmed, highlight, url, warning_message};
 use serde::Deserialize;
 use std::env;
 use std::fs;

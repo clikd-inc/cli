@@ -95,7 +95,7 @@ impl Version {
     ///
     /// Not all bump schemes are compatible with all versioning styles, which is
     /// why this operation depends on the version template and is fallible.
-    #[allow(clippy::result_large_err)]
+    #[expect(clippy::result_large_err)]
     pub fn parse_bump_scheme(
         &self,
         text: &str,
@@ -163,7 +163,7 @@ impl VersionBumpScheme {
             VersionBumpScheme::Force(ref t) => apply_force(version, t),
         };
 
-        #[allow(clippy::unnecessary_wraps)]
+        #[expect(clippy::unnecessary_wraps)]
         fn apply_dev_datecode(version: &mut Version) -> Result<()> {
             let now = OffsetDateTime::now_utc();
 
@@ -196,7 +196,7 @@ impl VersionBumpScheme {
             Ok(())
         }
 
-        #[allow(clippy::unnecessary_wraps)]
+        #[expect(clippy::unnecessary_wraps)]
         fn apply_micro_bump(version: &mut Version) -> Result<()> {
             match version {
                 Version::Semver(v) => {
@@ -228,7 +228,7 @@ impl VersionBumpScheme {
             Ok(())
         }
 
-        #[allow(clippy::unnecessary_wraps)]
+        #[expect(clippy::unnecessary_wraps)]
         fn apply_minor_bump(version: &mut Version) -> Result<()> {
             match version {
                 Version::Semver(v) => {
@@ -263,7 +263,7 @@ impl VersionBumpScheme {
             Ok(())
         }
 
-        #[allow(clippy::unnecessary_wraps)]
+        #[expect(clippy::unnecessary_wraps)]
         fn apply_major_bump(version: &mut Version) -> Result<()> {
             match version {
                 Version::Semver(v) => {
@@ -662,7 +662,7 @@ pub mod pep440 {
             AsChar, IResult, Input, Parser,
         };
 
-        use super::*;
+        use super::{Pep440Prerelease, Pep440Version};
 
         /// Parse an unsigned integer.
         fn unsigned(i: &str) -> IResult<&str, usize> {

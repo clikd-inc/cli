@@ -3,7 +3,7 @@ use crate::core::config::{
     version_manager::{compare_versions, VersionManager},
 };
 use crate::core::start::runner;
-use crate::utils::theme::*;
+use crate::utils::theme::{dimmed, highlight, warning_message};
 use crate::{cli::StartArgs, config::Config};
 use anyhow::Result;
 

@@ -265,9 +265,7 @@ fn test_empty_repository() {
             || stdout.contains("No projects")
             || stderr.is_empty()
             || stdout.is_empty(),
-        "Empty repository should be handled gracefully, got stdout: '{}', stderr: '{}'",
-        stdout,
-        stderr
+        "Empty repository should be handled gracefully, got stdout: '{stdout}', stderr: '{stderr}'"
     );
 }
 

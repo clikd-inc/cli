@@ -16,7 +16,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("src/new_feature.rs", "pub fn new_feature() {}");
     repo.commit("feat: add new feature");
@@ -26,16 +26,13 @@ edition = "2021"
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    if !output.status.success() {
-        panic!("Command failed. stderr: {}", stderr);
-    }
+    assert!(output.status.success(), "Command failed. stderr: {stderr}");
 
-    println!("STDOUT: {}", stdout);
-    println!("STDERR: {}", stderr);
+    println!("STDOUT: {stdout}");
+    println!("STDERR: {stderr}");
     assert!(
         stdout.contains("new feature") || stdout.contains("feat"),
-        "Feature commit not detected. stdout: {}",
-        stdout
+        "Feature commit not detected. stdout: {stdout}"
     );
 }
 
@@ -54,7 +51,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("src/feature1.rs", "pub fn feature1() {}");
     repo.commit("feat: add feature 1");
@@ -89,7 +86,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("README.md", "# Test\nDocumentation update");
     repo.commit("docs: update README");
@@ -134,7 +131,7 @@ edition = "2021"
     repo.write_file("crates/api/src/lib.rs", "pub fn api() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("crates/web/src/new.rs", "pub fn new() {}");
     repo.commit("feat(web): add new web feature");
@@ -166,7 +163,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file("src/api.rs", "pub fn breaking_change() {}");
     repo.commit("feat!: remove deprecated API\n\nBREAKING CHANGE: Old API has been removed");
@@ -195,7 +192,7 @@ edition = "2021"
     repo.write_file("src/lib.rs", "pub fn hello() {}\n");
     repo.commit("Initial commit");
 
-    repo.run_clikd_command(&["release", "init", "--force"]);
+    let _ = repo.run_clikd_command(&["release", "init", "--force"]);
 
     repo.write_file(
         "CHANGELOG.md",

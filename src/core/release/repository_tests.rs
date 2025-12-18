@@ -698,7 +698,7 @@ fn test_parse_version_from_tag_edge_cases() {
 
     assert_eq!(
         super::Repository::parse_version_from_tag("v1.0.0"),
-        semver::Version::new(0, 0, 0)
+        semver::Version::new(1, 0, 0)
     );
 
     assert_eq!(
