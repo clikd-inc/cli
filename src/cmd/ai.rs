@@ -1,8 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dialoguer::{theme::ColorfulTheme, Select};
 use owo_colors::OwoColorize;
 use std::io::{self, Write};
 
+use crate::core::ai::client::AnthropicClient;
 use crate::core::ai::credentials::{
     delete_credentials, load_credentials, now_unix, store_credentials, ClaudeCredential,
 };
@@ -228,6 +229,67 @@ pub async fn status() -> Result<()> {
             );
         }
     }
+
+    Ok(())
+}
+
+pub async fn test() -> Result<()> {
+    println!();
+    println!("{}", "Claude AI Connection Test".bold());
+    println!("{}", "=========================".dimmed());
+    println!();
+
+    println!("{} Checking credentials...", "→".cyan());
+
+    let creds = load_credentials()?;
+    let cred_source = if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        "ANTHROPIC_API_KEY environment variable"
+    } else if creds.is_some() {
+        creds.as_ref().map(|c| c.credential_type()).unwrap_or("Unknown")
+    } else {
+        println!("{} No credentials found", "✗".red());
+        println!();
+        println!(
+            "Run {} to authenticate first.",
+            "clikd ai login".cyan()
+        );
+        return Ok(());
+    };
+
+    println!("  Credential source: {}", cred_source.dimmed());
+    println!();
+
+    println!("{} Initializing API client...", "→".cyan());
+
+    let client = AnthropicClient::new()
+        .await
+        .context("failed to initialize Anthropic client")?;
+
+    println!("  Model: {}", "claude-sonnet-4-5-20250929".dimmed());
+    println!();
+
+    println!("{} Sending test request...", "→".cyan());
+
+    let start = std::time::Instant::now();
+    let response = client
+        .complete(
+            "You are a helpful assistant. Respond with exactly one short sentence.",
+            "Say hello and confirm you're working.",
+        )
+        .await
+        .context("API request failed")?;
+    let elapsed = start.elapsed();
+
+    println!();
+    println!("{} API connection successful!", "✓".green().bold());
+    println!();
+    println!("  Response time: {:?}", elapsed);
+    println!("  Response: {}", response.trim().dimmed());
+    println!();
+    println!(
+        "{}",
+        "AI changelog generation is ready to use with 'clikd release prepare'.".green()
+    );
 
     Ok(())
 }

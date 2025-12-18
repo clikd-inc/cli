@@ -199,6 +199,7 @@ pub async fn execute(cli: Cli) -> Result<()> {
             cli::AiCommands::Login => cmd::ai::login().await,
             cli::AiCommands::Logout => cmd::ai::logout().await,
             cli::AiCommands::Status => cmd::ai::status().await,
+            cli::AiCommands::Test => cmd::ai::test().await,
         },
     }
 }

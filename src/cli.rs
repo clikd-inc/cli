@@ -218,6 +218,12 @@ pub enum AiCommands {
 
     #[command(about = "Show Claude AI authentication status")]
     Status,
+
+    #[command(
+        about = "Test Claude AI connection",
+        long_about = "Send a simple test request to Claude AI to verify credentials and API connectivity.\n\nUseful for debugging authentication issues without running the full release workflow."
+    )]
+    Test,
 }
 
 #[derive(Args)]

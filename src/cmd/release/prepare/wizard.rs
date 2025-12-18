@@ -186,7 +186,10 @@ impl WizardState {
             if ai_enabled {
                 match polish_changelog_with_ai(&draft, &commit_messages) {
                     Ok(polished) => polished,
-                    Err(_) => draft,
+                    Err(e) => {
+                        tracing::warn!("AI changelog polishing failed, using draft: {:#}", e);
+                        draft
+                    }
                 }
             } else {
                 draft

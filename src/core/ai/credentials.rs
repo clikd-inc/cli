@@ -99,10 +99,43 @@ pub fn resolve_credential() -> Result<ClaudeCredential> {
     }
 
     if let Some(creds) = load_credentials()? {
+        if creds.is_expired() {
+            if let ClaudeCredential::OAuthToken { refresh_token, .. } = &creds {
+                tracing::info!("OAuth token expired, attempting refresh...");
+                let refreshed = refresh_oauth_token(refresh_token)?;
+                return Ok(refreshed);
+            }
+        }
         return Ok(creds);
     }
 
     anyhow::bail!("No credentials found. Run `clikd ai login` or set ANTHROPIC_API_KEY")
+}
+
+fn refresh_oauth_token(refresh_token: &str) -> Result<ClaudeCredential> {
+    use crate::core::ai::oauth;
+
+    let future = oauth::refresh_token(refresh_token);
+
+    let tokens = match tokio::runtime::Handle::try_current() {
+        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(future)),
+        Err(_) => {
+            let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
+            rt.block_on(future)
+        }
+    }
+    .context("failed to refresh OAuth token")?;
+
+    let credential = ClaudeCredential::OAuthToken {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: now_unix() + tokens.expires_in,
+    };
+
+    store_credentials(&credential)?;
+    tracing::info!("OAuth token refreshed successfully");
+
+    Ok(credential)
 }
 
 pub fn now_unix() -> i64 {

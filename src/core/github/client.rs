@@ -93,14 +93,19 @@ impl GitHubInformation {
         title: &str,
         body: &str,
     ) -> Result<String> {
-        let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
+        let owner = self.owner.clone();
+        let repo = self.repo.clone();
+        let client = self.client.clone();
+        let title = title.to_string();
+        let head = head.to_string();
+        let base = base.to_string();
+        let body = body.to_string();
 
-        rt.block_on(async {
-            let pr = self
-                .client
-                .pulls(&self.owner, &self.repo)
-                .create(title, head, base)
-                .body(body)
+        let future = async move {
+            let pr = client
+                .pulls(&owner, &repo)
+                .create(&title, &head, &base)
+                .body(&body)
                 .send()
                 .await
                 .context("failed to create pull request")?;
@@ -112,7 +117,15 @@ impl GitHubInformation {
 
             info!("created pull request: {}", html_url);
             Ok(html_url)
-        })
+        };
+
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => tokio::task::block_in_place(|| handle.block_on(future)),
+            Err(_) => {
+                let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
+                rt.block_on(future)
+            }
+        }
     }
 }
 

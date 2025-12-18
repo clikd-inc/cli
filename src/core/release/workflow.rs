@@ -116,34 +116,43 @@ impl<'a> ReleasePipeline<'a> {
         // - We only initialize the AI generator if at least one project:
         //   1. Has no cached changelog (needs AI polish)
         //   2. Has user-facing commits (categorized commits not empty)
-        // - The runtime and generator are created once and reused for all projects
-        let ai_generator: Option<(tokio::runtime::Runtime, AiChangelogGenerator)> =
-            if self.ai_enabled {
-                let needs_ai = projects.iter().any(|p| {
-                    p.cached_changelog.is_none()
-                        && !commit_analyzer::categorize_commits(&p.commit_messages).is_empty()
-                });
+        // - The generator is created once and reused for all projects
+        let ai_generator: Option<AiChangelogGenerator> = if self.ai_enabled {
+            let needs_ai = projects.iter().any(|p| {
+                p.cached_changelog.is_none()
+                    && !commit_analyzer::categorize_commits(&p.commit_messages).is_empty()
+            });
 
-                if needs_ai {
-                    match tokio::runtime::Runtime::new() {
-                        Ok(rt) => match rt.block_on(AiChangelogGenerator::new()) {
-                            Ok(gen) => Some((rt, gen)),
+            if needs_ai {
+                let init_future = AiChangelogGenerator::new();
+                let result = match tokio::runtime::Handle::try_current() {
+                    Ok(handle) => {
+                        tokio::task::block_in_place(|| handle.block_on(init_future))
+                    }
+                    Err(_) => {
+                        match tokio::runtime::Runtime::new() {
+                            Ok(rt) => rt.block_on(init_future),
                             Err(e) => {
-                                warn!("failed to initialize AI generator: {}", e);
-                                None
+                                warn!("failed to create async runtime: {}", e);
+                                return Ok((changelog_paths, changelog_contents));
                             }
-                        },
-                        Err(e) => {
-                            warn!("failed to create async runtime: {}", e);
-                            None
                         }
                     }
-                } else {
-                    None
+                };
+
+                match result {
+                    Ok(gen) => Some(gen),
+                    Err(e) => {
+                        warn!("failed to initialize AI generator: {}", e);
+                        None
+                    }
                 }
             } else {
                 None
-            };
+            }
+        } else {
+            None
+        };
 
         for project in projects {
             let categorized = commit_analyzer::categorize_commits(&project.commit_messages);
@@ -172,10 +181,27 @@ impl<'a> ReleasePipeline<'a> {
             let final_changelog_entry = if self.ai_enabled {
                 if let Some(cached) = &project.cached_changelog {
                     cached.clone()
-                } else if let Some((ref rt, ref generator)) = ai_generator {
+                } else if let Some(ref generator) = ai_generator {
                     info!("{}: polishing changelog with AI...", project.name);
-                    match rt.block_on(generator.polish(&draft_changelog, &project.commit_messages))
-                    {
+                    let draft_clone = draft_changelog.clone();
+                    let polish_future = generator.polish(&draft_clone, &project.commit_messages);
+                    let result = match tokio::runtime::Handle::try_current() {
+                        Ok(handle) => {
+                            tokio::task::block_in_place(|| handle.block_on(polish_future))
+                        }
+                        Err(_) => match tokio::runtime::Runtime::new() {
+                            Ok(rt) => rt.block_on(polish_future),
+                            Err(e) => {
+                                warn!(
+                                    "{}: failed to create runtime ({}), using standard changelog",
+                                    project.name, e
+                                );
+                                Ok(draft_changelog.clone())
+                            }
+                        },
+                    };
+
+                    match result {
                         Ok(polished) => polished,
                         Err(e) => {
                             warn!(
@@ -433,9 +459,7 @@ fn format_commit_message(projects: &[SelectedProject]) -> String {
 pub fn polish_changelog_with_ai(draft: &str, commits: &[String]) -> Result<String> {
     use crate::core::ai::changelog::AiChangelogGenerator;
 
-    let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
-
-    rt.block_on(async {
+    let future = async {
         let generator = AiChangelogGenerator::new()
             .await
             .context("failed to initialize AI changelog generator")?;
@@ -444,7 +468,15 @@ pub fn polish_changelog_with_ai(draft: &str, commits: &[String]) -> Result<Strin
             .polish(draft, commits)
             .await
             .context("failed to polish changelog with AI")
-    })
+    };
+
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(future)),
+        Err(_) => {
+            let rt = tokio::runtime::Runtime::new().context("failed to create async runtime")?;
+            rt.block_on(future)
+        }
+    }
 }
 
 pub fn generate_changelog_body(commit_messages: &[String]) -> String {
