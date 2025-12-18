@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/clikd-inc/cli/compare/v0.6.0...v0.7.0) (2025-12-18)
+
+
+### Features
+
+* **ecosystem:** add Swift Package Manager support ([e08dcc4](https://github.com/clikd-inc/cli/commit/e08dcc4b2bcd592baf237722e23c4f0e9b71b8c0))
+
 # [0.6.0](https://github.com/clikd-inc/cli/compare/v0.5.1...v0.6.0) (2025-12-06)
 
 
