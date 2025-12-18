@@ -73,14 +73,24 @@ impl AppBuilder {
 
             let is_zero_version = matches!(
                 &proj.version,
-                Some(Version::Semver(v)) if v.major == 0 && v.minor == 0 && v.patch == 0 && v.pre.is_empty()
+                Some(Version::Semver(v)) if v.major == 0
+                    && v.minor == 0
+                    && v.patch == 0
+                    && v.pre.is_empty()
+                    && v.build.is_empty()
             );
 
             if !is_zero_version {
                 continue;
             }
 
-            let project_name = proj.qnames.first().cloned().unwrap_or_default();
+            let Some(project_name) = proj.qnames.first().cloned() else {
+                warn!(
+                    "project at index {} has no qualified names, skipping version resolution",
+                    ident
+                );
+                continue;
+            };
 
             if let Some((_, tag_name)) = self
                 .repo

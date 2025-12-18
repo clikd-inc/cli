@@ -546,6 +546,16 @@ impl Repository {
             .map_err(|e| e.into())
     }
 
+    /// Find the latest release tag for a project.
+    ///
+    /// For single-project repos (`is_single_project = true`), matches both:
+    /// - Plain version tags: `v1.2.3`
+    /// - Prefixed tags: `project-name-v1.2.3`
+    ///
+    /// For multi-project repos, only matches prefixed tags to avoid ambiguity.
+    ///
+    /// Returns the commit OID and tag name of the latest matching tag,
+    /// sorted by semantic version (highest first).
     pub fn find_latest_tag_for_project(
         &self,
         project_name: &str,
@@ -585,6 +595,13 @@ impl Repository {
         Ok(matching_tags.into_iter().next())
     }
 
+    /// Parse a semantic version from a tag name.
+    ///
+    /// Supports two formats:
+    /// - Plain version tags: `v1.2.3` → `1.2.3`
+    /// - Prefixed tags: `project-name-v1.2.3` → `1.2.3`
+    ///
+    /// Returns `0.0.0` if the tag cannot be parsed as a valid semver.
     pub fn parse_version_from_tag(tag_name: &str) -> semver::Version {
         if let Some(version_str) = tag_name.strip_prefix('v') {
             if let Ok(version) = semver::Version::parse(version_str) {
