@@ -549,13 +549,19 @@ impl Repository {
     fn find_latest_tag_for_project(
         &self,
         project_name: &str,
+        is_single_project: bool,
     ) -> Result<Option<(git2::Oid, String)>> {
         let tags = self.repo.tag_names(None)?;
 
         let mut matching_tags = Vec::new();
 
         for tag_name in tags.iter().flatten() {
-            if tag_name.starts_with(&format!("{}-v", project_name)) {
+            let is_prefixed_tag = tag_name.starts_with(&format!("{}-v", project_name));
+            let is_plain_v_tag = is_single_project
+                && tag_name.starts_with('v')
+                && tag_name.chars().nth(1).is_some_and(|c| c.is_ascii_digit());
+
+            if is_prefixed_tag || is_plain_v_tag {
                 if let Ok(tag_ref) = self.repo.find_reference(&format!("refs/tags/{}", tag_name)) {
                     if let Some(target_oid) = tag_ref.target() {
                         matching_tags.push((target_oid, tag_name.to_string()));
@@ -580,6 +586,11 @@ impl Repository {
     }
 
     fn parse_version_from_tag(tag_name: &str) -> semver::Version {
+        if let Some(version_str) = tag_name.strip_prefix('v') {
+            if let Ok(version) = semver::Version::parse(version_str) {
+                return version;
+            }
+        }
         if let Some(version_str) = tag_name.rsplit("-v").next() {
             if let Ok(version) = semver::Version::parse(version_str) {
                 return version;
@@ -669,10 +680,11 @@ impl Repository {
         ];
 
         let baseline_tag_oid = self.find_baseline_tag()?;
+        let is_single_project = projects.len() == 1;
 
         for (i, proj) in projects.iter().enumerate() {
             if let Some((tag_oid, tag_name)) =
-                self.find_latest_tag_for_project(&proj.user_facing_name)?
+                self.find_latest_tag_for_project(&proj.user_facing_name, is_single_project)?
             {
                 let version = Self::parse_version_from_tag(&tag_name);
                 info!(
@@ -1004,9 +1016,10 @@ impl Repository {
         &self,
         proj: &Project,
         cid: &CommitId,
+        is_single_project: bool,
     ) -> Result<ReleaseAvailability> {
         if let Some((tag_oid, tag_name)) =
-            self.find_latest_tag_for_project(&proj.user_facing_name)?
+            self.find_latest_tag_for_project(&proj.user_facing_name, is_single_project)?
         {
             if self.repo.graph_descendant_of(tag_oid, cid.0)? || tag_oid == cid.0 {
                 let version = Self::parse_version_from_tag(&tag_name);
@@ -1489,7 +1502,6 @@ impl RepoPathBuf {
     /// relative to the repository working directory root and doesn't have any
     /// funny business like ".." in it.
     #[cfg(unix)]
-    #[allow(clippy::unnecessary_wraps)]
     fn from_path<P: AsRef<Path>>(p: P) -> Result<Self> {
         use std::os::unix::ffi::OsStrExt;
         let path = p.as_ref();
