@@ -1,3 +1,10 @@
+## [0.7.1](https://github.com/clikd-inc/cli/compare/v0.7.0...v0.7.1) (2025-12-18)
+
+
+### Bug Fixes
+
+* **ecosystem:** resolve Swift/Go versions from git tags ([#33](https://github.com/clikd-inc/cli/issues/33)) ([cf662cc](https://github.com/clikd-inc/cli/commit/cf662cc6899baf4fa38d21100c2ebfb3670894ac))
+
 # [0.7.1](https://github.com/clikd-inc/cli/compare/v0.7.0...v0.7.1) (2025-12-18)
 
 
