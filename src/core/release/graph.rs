@@ -271,6 +271,16 @@ impl ProjectGraphBuilder {
         &mut self.projects[ident]
     }
 
+    /// Get the number of projects in the graph.
+    pub fn project_count(&self) -> usize {
+        self.projects.len()
+    }
+
+    /// Get an iterator over all project IDs.
+    pub fn project_ids(&self) -> std::ops::Range<ProjectId> {
+        0..self.projects.len()
+    }
+
     /// Add a dependency between two projects in the graph.
     pub fn add_dependency(
         &mut self,

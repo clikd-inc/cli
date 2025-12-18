@@ -546,7 +546,7 @@ impl Repository {
             .map_err(|e| e.into())
     }
 
-    fn find_latest_tag_for_project(
+    pub fn find_latest_tag_for_project(
         &self,
         project_name: &str,
         is_single_project: bool,
@@ -585,7 +585,7 @@ impl Repository {
         Ok(matching_tags.into_iter().next())
     }
 
-    fn parse_version_from_tag(tag_name: &str) -> semver::Version {
+    pub fn parse_version_from_tag(tag_name: &str) -> semver::Version {
         if let Some(version_str) = tag_name.strip_prefix('v') {
             if let Ok(version) = semver::Version::parse(version_str) {
                 return version;
