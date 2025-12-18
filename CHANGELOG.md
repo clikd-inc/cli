@@ -1,3 +1,10 @@
+## [0.7.2](https://github.com/clikd-inc/cli/compare/v0.7.1...v0.7.2) (2025-12-18)
+
+
+### Bug Fixes
+
+* **ai:** support OAuth authentication via Claude CLI ([d91875d](https://github.com/clikd-inc/cli/commit/d91875d4ecab9eed0cfb46ff2259321439fa9eea))
+
 ## [0.7.1](https://github.com/clikd-inc/cli/compare/v0.7.0...v0.7.1) (2025-12-18)
 
 

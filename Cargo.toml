@@ -1,6 +1,6 @@
 [package]
 name = "clikd"
-version = "0.7.1"
+version = "0.7.2"
 description = "Local development environment management for Clikd"
 authors = ["Clikd, Inc <devops@clikd.com>"]
 edition = "2021"
