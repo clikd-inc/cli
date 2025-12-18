@@ -1,3 +1,10 @@
+# [0.7.1](https://github.com/clikd-inc/cli/compare/v0.7.0...v0.7.1) (2025-12-18)
+
+
+### Bug Fixes
+
+* **ecosystem:** resolve Swift/Go versions from git tags ([#33](https://github.com/clikd-inc/cli/pull/33)) - Swift and Go ecosystems don't store version information in their manifest files. Previously showed 0.0.0, now correctly detects version from existing git tags (e.g., `v1.2.3` or `project-v1.2.3`)
+
 # [0.7.0](https://github.com/clikd-inc/cli/compare/v0.6.0...v0.7.0) (2025-12-18)
 
 

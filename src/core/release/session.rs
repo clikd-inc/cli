@@ -65,6 +65,51 @@ impl AppBuilder {
         self
     }
 
+    fn resolve_versions_from_tags(&mut self) -> Result<()> {
+        let is_single_project = self.graph.project_count() == 1;
+
+        for ident in self.graph.project_ids() {
+            let proj = self.graph.lookup_mut(ident);
+
+            let is_zero_version = matches!(
+                &proj.version,
+                Some(Version::Semver(v)) if v.major == 0
+                    && v.minor == 0
+                    && v.patch == 0
+                    && v.pre.is_empty()
+                    && v.build.is_empty()
+            );
+
+            if !is_zero_version {
+                continue;
+            }
+
+            let Some(project_name) = proj.qnames.first().cloned() else {
+                warn!(
+                    "project at index {} has no qualified names, skipping version resolution",
+                    ident
+                );
+                continue;
+            };
+
+            if let Some((_, tag_name)) = self
+                .repo
+                .find_latest_tag_for_project(&project_name, is_single_project)?
+            {
+                let version = Repository::parse_version_from_tag(&tag_name);
+                if version.major != 0 || version.minor != 0 || version.patch != 0 {
+                    info!(
+                        "resolved version {} from tag '{}' for project '{}'",
+                        version, tag_name, project_name
+                    );
+                    proj.version = Some(Version::Semver(version));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Finish app initialization, yielding a full AppSession object.
     pub fn initialize(mut self) -> Result<AppSession> {
         // Start by loading the configuration file, if it exists. If it doesn't
@@ -149,6 +194,8 @@ impl AppBuilder {
             go.finalize(&mut self, &proj_config)?;
             elixir.finalize(&mut self, &proj_config)?;
             swift.finalize(&mut self, &proj_config)?;
+
+            self.resolve_versions_from_tags()?;
         }
 
         // Apply project config and compile the graph.
